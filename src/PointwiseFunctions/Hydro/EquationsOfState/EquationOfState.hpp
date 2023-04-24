@@ -41,6 +41,8 @@ template <typename LowDensityEoS>
 class Enthalpy;
 template <bool IsRelativistic>
 class Tabulated3D;
+template <typename ColdEos>
+class AnalyticalThermal;
 }  // namespace EquationsOfState
 /// \endcond
 
@@ -97,7 +99,8 @@ struct DerivedClasses<true, 3> {
                  Equilibrium3D<HybridEos<Spectral>>,
                  Equilibrium3D<HybridEos<Enthalpy<Spectral>>>,
                  Equilibrium3D<DarkEnergyFluid<true>>,
-                 Equilibrium3D<IdealFluid<true>>>;
+                 Equilibrium3D<IdealFluid<true>>,
+                 AnalyticalThermal<PolytropicFluid<true>>>;
 };
 
 template <>
