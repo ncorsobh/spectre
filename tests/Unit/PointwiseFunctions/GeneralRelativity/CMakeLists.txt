@@ -10,6 +10,7 @@ set(LIBRARY_SOURCES
   Test_GeodesicAcceleration.cpp
   Test_InterfaceNullNormal.cpp
   Test_KerrSchildCoords.cpp
+  Test_LandauLifshitzPseudotensor.cpp
   Test_ProjectionOperators.cpp
   Test_Psi4.cpp
   Test_Ricci.cpp

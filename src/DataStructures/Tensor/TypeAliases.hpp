@@ -107,6 +107,10 @@ template <typename DataType, size_t SpatialDim, typename Fr = Frame::Inertial>
 using ia = Tensor<DataType, tmpl::integral_list<std::int32_t, 2, 1>,
                   index_list<SpatialIndex<SpatialDim, UpLo::Lo, Fr>,
                              SpacetimeIndex<SpatialDim, UpLo::Lo, Fr>>>;
+template <typename DataType, size_t SpatialDim, typename Fr = Frame::Inertial>
+using IA = Tensor<DataType, tmpl::integral_list<std::int32_t, 2, 1>,
+                  index_list<SpatialIndex<SpatialDim, UpLo::Up, Fr>,
+                             SpacetimeIndex<SpatialDim, UpLo::Up, Fr>>>;
 
 template <typename DataType, size_t SpatialDim, typename Fr = Frame::Inertial,
           IndexType Index = IndexType::Spacetime>

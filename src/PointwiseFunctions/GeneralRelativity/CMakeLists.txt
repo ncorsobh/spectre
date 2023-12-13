@@ -16,6 +16,7 @@ spectre_target_sources(
   InterfaceNullNormal.cpp
   InverseSpacetimeMetric.cpp
   KerrSchildCoords.cpp
+  LandauLifshitzPseudotensor.cpp
   Lapse.cpp
   ProjectionOperators.cpp
   Psi4.cpp
@@ -48,6 +49,7 @@ spectre_target_headers(
   InterfaceNullNormal.hpp
   InverseSpacetimeMetric.hpp
   KerrSchildCoords.hpp
+  LandauLifshitzPseudotensor.hpp
   Lapse.hpp
   ProjectionOperators.hpp
   Ricci.hpp
