@@ -11,6 +11,7 @@
 #include "DataStructures/TaggedTuple.hpp"
 #include "DataStructures/Tensor/TypeAliases.hpp"
 #include "NumericalAlgorithms/LinearOperators/PartialDerivatives.hpp"
+#include "NumericalAlgorithms/SphericalHarmonics/Strahlkorper.hpp"
 #include "Options/Options.hpp"
 #include "Options/String.hpp"
 #include "PointwiseFunctions/AnalyticSolutions/AnalyticSolution.hpp"
@@ -367,6 +368,11 @@ class RotatingStar : public virtual evolution::initial_data::InitialData,
     std::array<DataType, 3> sin_theta_lower{};
     std::array<DataType, 3> phi_upper{};
     std::array<DataType, 3> phi_lower{};
+
+    ylm::Strahlkorper<Frame::Inertial> star_surface_strahlkorper{
+        10, 2, 10., std::array<double, 3>{0., 0., 0.}};
+    ylm::Strahlkorper<Frame::Inertial> shell_strahlkorper{
+        10, 2, 10., std::array<double, 3>{0., 0., 0.}};
   };
 
  public:
@@ -387,10 +393,31 @@ class RotatingStar : public virtual evolution::initial_data::InitialData,
     static type lower_bound() { return 0.; }
   };
 
-  using options = tmpl::list<Options::Alternatives<
-      tmpl::list<RotNsFilename, PolytropicConstant>,
-      tmpl::list<RotNsFilename,
-                 hydro::OptionTags::InitialDataEquationOfState<true, 3>>>>;
+  /// Radius of initial cloud.
+  struct CloudRadius {
+    using type = double;
+    static constexpr Options::String help = {"Radius of initial cloud."};
+  };
+
+  /// Density of initial cloud.
+  struct CloudDensity {
+    using type = double;
+    static constexpr Options::String help = {"Density of initial cloud."};
+  };
+
+  /// Whether the cloud around the rotating star is initially infalling.
+  struct InitialRadialInfall {
+    using type = bool;
+    static constexpr Options::String help = {
+        "Whether the cloud around the rotating star is initially infalling."};
+  };
+
+  using options = tmpl::list<
+      Options::Alternatives<
+          tmpl::list<RotNsFilename, PolytropicConstant>,
+          tmpl::list<RotNsFilename,
+                     hydro::OptionTags::InitialDataEquationOfState<true, 3>>>,
+      CloudRadius, CloudDensity, InitialRadialInfall>;
 
   static constexpr Options::String help = {
       "Rotating neutron star initial data solved by the RotNS solver. The data "
@@ -411,8 +438,12 @@ class RotatingStar : public virtual evolution::initial_data::InitialData,
 
   RotatingStar(std::string rot_ns_filename,
                std::unique_ptr<EquationsOfState::EquationOfState<true, 3>>
-                   equation_of_state);
-  RotatingStar(std::string rot_ns_filename, double polytropic_constant);
+                   equation_of_state,
+               double cloud_radius, double cloud_density,
+               bool initial_radial_infall);
+  RotatingStar(std::string rot_ns_filename, double polytropic_constant,
+               double cloud_radius, double cloud_density,
+               bool initial_radial_infall);
 
   auto get_clone() const
       -> std::unique_ptr<evolution::initial_data::InitialData> override;
@@ -645,6 +676,9 @@ class RotatingStar : public virtual evolution::initial_data::InitialData,
   // electron fraction for the evolved EoS.
   std::unique_ptr<EquationsOfState::EquationOfState<true, 3>>
       equation_of_state_;
+  bool initial_radial_infall_ = false;
+  double cloud_radius_ = 0.;   // std::numeric_limits<double>::signaling_NaN();
+  double cloud_density_ = 0.;  // std::numeric_limits<double>::signaling_NaN();
   // Floor value to protect EoS from encountering FPEs when computing state
   // variables in the atmosphere
   static constexpr double atmosphere_floor_ = 1.e-50;

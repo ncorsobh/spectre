@@ -18,6 +18,9 @@
 #include "DataStructures/Tensor/Tensor.hpp"
 #include "DataStructures/Tensor/TypeAliases.hpp"
 #include "NumericalAlgorithms/Interpolation/PolynomialInterpolation.hpp"
+#include "NumericalAlgorithms/RootFinding/TOMS748.hpp"
+#include "NumericalAlgorithms/SphericalHarmonics/Spherepack.hpp"
+#include "NumericalAlgorithms/SphericalHarmonics/StrahlkorperFunctions.hpp"
 #include "PointwiseFunctions/GeneralRelativity/ExtrinsicCurvature.hpp"
 #include "PointwiseFunctions/GeneralRelativity/Tags.hpp"
 #include "PointwiseFunctions/Hydro/EquationsOfState/Barotropic3D.hpp"
@@ -459,12 +462,16 @@ void compute_angular_coordinates(
 }  // namespace detail
 
 RotatingStar::RotatingStar(std::string rot_ns_filename,
-                           double polytropic_constant)
+                           double polytropic_constant, double cloud_radius,
+                           double cloud_density, bool initial_radial_infall)
     : rot_ns_filename_(std::move(rot_ns_filename)),
       cst_solution_{rot_ns_filename_, true, polytropic_constant},
       polytropic_constant_(polytropic_constant),
       polytropic_exponent_{1.0 + 1.0 / cst_solution_.polytropic_index()},
-      is_polytrope_{true} {
+      is_polytrope_{true},
+      initial_radial_infall_(initial_radial_infall),
+      cloud_radius_(cloud_radius),
+      cloud_density_(cloud_density) {
   equation_of_state_ = std::make_unique<
       EquationsOfState::Barotropic3D<EquationsOfState::PolytropicFluid<true>>>(
       EquationsOfState::PolytropicFluid<true>(polytropic_constant_,
@@ -474,10 +481,14 @@ RotatingStar::RotatingStar(std::string rot_ns_filename,
 RotatingStar::RotatingStar(
     std::string rot_ns_filename,
     std::unique_ptr<EquationsOfState::EquationOfState<true, 3>>
-        equation_of_state)
+        equation_of_state,
+    double cloud_radius, double cloud_density, bool initial_radial_infall)
     : rot_ns_filename_(std::move(rot_ns_filename)),
       cst_solution_{rot_ns_filename_, false},
-      equation_of_state_(std::move(equation_of_state)) {}
+      equation_of_state_(std::move(equation_of_state)),
+      initial_radial_infall_(initial_radial_infall),
+      cloud_radius_(cloud_radius),
+      cloud_density_(cloud_density) {}
 
 RotatingStar::RotatingStar(const RotatingStar& rhs)
     : evolution::initial_data::InitialData(rhs),
@@ -487,7 +498,10 @@ RotatingStar::RotatingStar(const RotatingStar& rhs)
       polytropic_constant_(rhs.polytropic_constant_),
       polytropic_exponent_(rhs.polytropic_exponent_),
       is_polytrope_{rhs.is_polytrope_},
-      equation_of_state_(rhs.equation_of_state_->get_clone()) {}
+      equation_of_state_(rhs.equation_of_state_->get_clone()),
+      initial_radial_infall_(rhs.initial_radial_infall_),
+      cloud_radius_(rhs.cloud_radius_),
+      cloud_density_(rhs.cloud_density_) {}
 
 RotatingStar& RotatingStar::operator=(const RotatingStar& rhs) {
   rot_ns_filename_ = rhs.rot_ns_filename_;
@@ -497,6 +511,9 @@ RotatingStar& RotatingStar::operator=(const RotatingStar& rhs) {
   polytropic_exponent_ = rhs.polytropic_exponent_;
   is_polytrope_ = rhs.is_polytrope_;
   equation_of_state_ = rhs.equation_of_state_->get_clone();
+  initial_radial_infall_ = rhs.initial_radial_infall_;
+  cloud_radius_ = rhs.cloud_radius_;
+  cloud_density_ = rhs.cloud_density_;
   return *this;
 }
 
@@ -515,6 +532,9 @@ void RotatingStar::pup(PUP::er& p) {
   p | polytropic_exponent_;
   p | is_polytrope_;
   p | equation_of_state_;
+  p | initial_radial_infall_;
+  p | cloud_radius_;
+  p | cloud_density_;
 }
 
 template <typename DataType>
@@ -570,6 +590,90 @@ void RotatingStar::interpolate_vars_if_necessary(
     get_element(vars->metric_data->omega, i) = interpolated_data[6];
     get_element(vars->fluid_velocity.value(), i) = interpolated_data[7];
   }
+
+  const ylm::Strahlkorper<Frame::Inertial> initial_strahlkorper{
+      10, 2, 10., std::array<double, 3>{0., 0., 0.}};
+  const auto& ylm = initial_strahlkorper.ylm_spherepack();
+  const auto& [theta, phi] = ylm.theta_phi_points();
+
+  const double lower_radius = cst_solution_.equatorial_radius() * 0.5;
+  const double upper_radius = cst_solution_.equatorial_radius() * 1.5;
+
+  double lower_radial_bound, upper_radial_bound;
+
+  const size_t total_num_points = phi.size();
+  /*DataVector collocation_points_radii =
+      make_with_value<DataVector>(total_num_points, 0.0);*/
+  double collocation_points_radius;
+  DataVector collocation_points_radii_core =
+      make_with_value<DataVector>(total_num_points, 0.0);
+  DataVector collocation_points_radii_shell =
+      make_with_value<DataVector>(total_num_points, 0.0);
+
+  // const double amplification_factor = cloud_radius_ /
+  // cst_solution_.equatorial_radius();
+
+  auto interpolator_for_surface_at_layer = [&, theta](double r) {
+    const std::array<double, 8> interpolated_data =
+        cst_solution_.interpolate(r, 0., true);
+    return interpolated_data[0] - cloud_density_;
+  };
+
+  const double lower_radial_bound_at_layer =
+      interpolator_for_surface_at_layer(lower_radius);
+  const double upper_radial_bound_at_layer =
+      interpolator_for_surface_at_layer(upper_radius);
+  double equatorial_radius_at_layer;
+  if (std::signbit(lower_radial_bound_at_layer) !=
+      std::signbit(upper_radial_bound_at_layer)) {
+    equatorial_radius_at_layer = RootFinder::toms748(
+        interpolator_for_surface_at_layer, lower_radius, upper_radius,
+        lower_radial_bound_at_layer, upper_radial_bound_at_layer, 1.e-4, 1.e-4);
+  }
+
+  const double amplification_factor =
+      cloud_radius_ / equatorial_radius_at_layer;
+
+  for (size_t i = 0; i < total_num_points; ++i) {
+    auto interpolator_for_surface = [&, i, theta](double r) {
+      const std::array<double, 8> interpolated_data =
+          cst_solution_.interpolate(r, cos(theta[i]), true);
+      return interpolated_data[0] - cloud_density_;
+    };
+
+    auto interpolator_for_core = [&, i, theta](double r) {
+      const std::array<double, 8> interpolated_data =
+          cst_solution_.interpolate(r, cos(theta[i]), true);
+      return interpolated_data[0] - 1.1335e-3;
+    };
+
+    lower_radial_bound = interpolator_for_surface(lower_radius);
+    upper_radial_bound = interpolator_for_surface(upper_radius);
+
+    if (std::signbit(lower_radial_bound) != std::signbit(upper_radial_bound)) {
+      collocation_points_radius = RootFinder::toms748(
+          interpolator_for_surface, lower_radius, upper_radius,
+          lower_radial_bound, upper_radial_bound, 1.e-4, 1.e-4);
+      collocation_points_radii_shell[i] =
+          collocation_points_radius * amplification_factor;
+      lower_radial_bound = interpolator_for_core(0.1);
+      upper_radial_bound = interpolator_for_core(lower_radius);
+      if (std::signbit(lower_radial_bound) !=
+          std::signbit(upper_radial_bound)) {
+        collocation_points_radii_core[i] = RootFinder::toms748(
+            interpolator_for_core, 0.1, lower_radius, lower_radial_bound,
+            upper_radial_bound, 1.e-4, 1.e-4);
+      }
+    }
+  }
+
+  ylm::Strahlkorper<Frame::Inertial> star_surface_strahlkorper{
+      10, 2, collocation_points_radii_core, std::array<double, 3>{0., 0., 0.}};
+  vars->star_surface_strahlkorper = star_surface_strahlkorper;
+
+  ylm::Strahlkorper<Frame::Inertial> shell_strahlkorper{
+      10, 2, collocation_points_radii_shell, std::array<double, 3>{0., 0., 0.}};
+  vars->shell_strahlkorper = shell_strahlkorper;
 }
 
 template <typename DataType>
@@ -742,14 +846,34 @@ template <typename DataType>
 tuples::TaggedTuple<hydro::Tags::RestMassDensity<DataType>>
 RotatingStar::variables(
     const gsl::not_null<IntermediateVariables<DataType>*> vars,
-    const tnsr::I<DataType, 3>& /*x*/,
+    const tnsr::I<DataType, 3>& x,
     tmpl::list<hydro::Tags::RestMassDensity<DataType>> /*meta*/) const {
   interpolate_vars_if_necessary(vars);
+  auto rest_mass_density = make_with_value<Scalar<DataType>>(get<0>(x), 0.0);
+  auto radius = vars->radius;
+  auto theta = acos(vars->cos_theta);
+  auto phi = vars->phi;
+  ylm::Strahlkorper<Frame::Inertial> shell_strahlkorper =
+      vars->shell_strahlkorper;
+  double radius_element, theta_element, phi_element;
   using std::max;
   const double minimum_rest_mass_density = max(
       atmosphere_floor_, equation_of_state_->rest_mass_density_lower_bound());
-  return {Scalar<DataType>{DataType{
-      max(minimum_rest_mass_density, vars->rest_mass_density.value())}}};
+  for (size_t i = 0; i < get_size(get<0>(x)); ++i) {
+    radius_element = get_element(radius, i);
+    theta_element = get_element(theta, i);
+    phi_element = get_element(phi, i);
+    if (radius_element <
+        shell_strahlkorper.radius(theta_element, phi_element)) {
+      get_element(get(rest_mass_density), i) =
+          max(cloud_density_, get_element(vars->rest_mass_density.value(), i));
+    } else {
+      get_element(get(rest_mass_density), i) = minimum_rest_mass_density;
+    }
+  }
+  return {std::move(rest_mass_density)};
+  // return {Scalar<DataType>{DataType{
+  //     max(minimum_rest_mass_density, vars->rest_mass_density.value())}}};
 }
 
 template <typename DataType>
@@ -812,9 +936,30 @@ RotatingStar::variables(
   const auto electron_fraction =
       get<hydro::Tags::ElectronFraction<DataType>>(variables(
           vars, x, tmpl::list<hydro::Tags::ElectronFraction<DataType>>{}));
+  const auto ye_zero_temperature =
+      equation_of_state_
+          ->equilibrium_electron_fraction_from_density_temperature(
+              rest_mass_density,
+              make_with_value<Scalar<DataType>>(rest_mass_density, 0.0));
+  const auto epsilon_zero_temperature =
+      equation_of_state_
+          ->specific_internal_energy_from_density_and_temperature(
+              rest_mass_density,
+              make_with_value<Scalar<DataType>>(rest_mass_density, 0.0),
+              ye_zero_temperature);
   auto specific_internal_energy =
       make_with_value<Scalar<DataType>>(get<0>(x), 0.0);
   using std::max;
+
+  auto radius = vars->radius;
+  auto theta = acos(vars->cos_theta);
+  auto phi = vars->phi;
+  ylm::Strahlkorper<Frame::Inertial> shell_strahlkorper =
+      vars->shell_strahlkorper;
+  ylm::Strahlkorper<Frame::Inertial> core_strahlkorper =
+      vars->star_surface_strahlkorper;
+
+  double radius_element, theta_element, phi_element;
   for (size_t i = 0; i < get_size(get<0>(x)); ++i) {
     const auto rho_i = get_element(get(rest_mass_density), i);
     const auto epsilon_bar_i =
@@ -826,6 +971,21 @@ RotatingStar::variables(
              equation_of_state_->specific_internal_energy_lower_bound(
                  rho_i, get_element(get(electron_fraction), i)),
              (epsilon_bar_i - rho_i) / rho_i});
+    radius_element = get_element(radius, i);
+    theta_element = get_element(theta, i);
+    phi_element = get_element(phi, i);
+    if (get_element(get(rest_mass_density), i) == cloud_density_ &&
+        radius_element <
+            shell_strahlkorper.radius(theta_element, phi_element)) {
+      get_element(get(specific_internal_energy), i) =
+        get_element(get(epsilon_zero_temperature), i);
+    }/* else if (radius_element <
+               core_strahlkorper.radius(theta_element, phi_element)) {
+      get_element(get(specific_internal_energy), i) -=
+          0.2 *
+          (get_element(get(specific_internal_energy), i) -
+           get_element(get(epsilon_zero_temperature), i));
+    }*/
   }
   return {std::move(specific_internal_energy)};
 }
@@ -855,6 +1015,8 @@ RotatingStar::variables(
     const tnsr::I<DataType, 3>& x,
     tmpl::list<hydro::Tags::SpatialVelocity<DataType, 3>> /*meta*/) const {
   interpolate_vars_if_necessary(vars);
+  const auto rest_mass_density = get<hydro::Tags::RestMassDensity<DataType>>(
+      variables(vars, x, tmpl::list<hydro::Tags::RestMassDensity<DataType>>{}));
   auto spatial_velocity = make_with_value<tnsr::I<DataType, 3>>(x, 0.0);
   // temp compute v=(Omega-omega)r\sin(\theta) e^{-\rho}
   get<0>(spatial_velocity) =
@@ -867,6 +1029,80 @@ RotatingStar::variables(
   get<0>(spatial_velocity) *=
       -sin(vars->phi) *
       exp(0.5 * (vars->metric_data->rho - vars->metric_data->gamma));
+
+  auto radius = vars->radius;
+  auto theta = acos(vars->cos_theta);
+  auto phi = vars->phi;
+  ylm::Strahlkorper<Frame::Inertial> shell_strahlkorper =
+      vars->shell_strahlkorper;
+  ylm::Strahlkorper<Frame::Inertial> core_strahlkorper =
+      vars->star_surface_strahlkorper;
+
+  const auto radius_collocation_points = ylm::radius(shell_strahlkorper);
+  const auto theta_phi_collocation_points = ylm::theta_phi(shell_strahlkorper);
+
+  const auto inv_jac = ylm::inv_jacobian(theta_phi_collocation_points);
+  const auto dx_r = ylm::cartesian_derivs_of_scalar(
+      radius_collocation_points, shell_strahlkorper, radius_collocation_points,
+      inv_jac);
+  const auto rhat = ylm::rhat(theta_phi_collocation_points);
+
+  const auto normal_one_form = ylm::normal_one_form(dx_r, rhat);
+
+  // const tnsr::i<DataVector, 2, ::Frame::Spherical<Frame::Inertial>>
+  // theta_phi{std::array<DataType, 2>{theta, phi}};
+
+  tnsr::i<DataType, 3> target_normal;
+  get<0>(target_normal) = shell_strahlkorper.ylm_spherepack().interpolate(
+      get<0>(normal_one_form), std::array<DataType, 2>{theta, phi});
+  get<1>(target_normal) = shell_strahlkorper.ylm_spherepack().interpolate(
+      get<1>(normal_one_form), std::array<DataType, 2>{theta, phi});
+  get<2>(target_normal) = shell_strahlkorper.ylm_spherepack().interpolate(
+      get<2>(normal_one_form), std::array<DataType, 2>{theta, phi});
+
+  double radius_element, theta_element, phi_element, norm;
+  if (initial_radial_infall_) {
+    for (size_t i = 0; i < get_size(get<0>(x)); ++i) {
+      radius_element = get_element(radius, i);
+      theta_element = get_element(theta, i);
+      phi_element = get_element(phi, i);
+      norm = get_element(get(magnitude(target_normal)), i);
+      if (get_element(get(rest_mass_density), i) == cloud_density_ &&
+          radius_element <
+              shell_strahlkorper.radius(theta_element, phi_element)) {
+        get_element(get<0>(spatial_velocity), i) =
+            -0.1 * get_element(get<0>(target_normal), i) / norm;
+        get_element(get<1>(spatial_velocity), i) =
+            -0.1 * get_element(get<1>(target_normal), i) / norm;
+        get_element(get<2>(spatial_velocity), i) =
+            -0.1 * get_element(get<2>(target_normal), i) / norm;
+      } /*  else if (get_element(get(rest_mass_density), i) > cloud_density_ &&
+                   radius_element <
+                       shell_strahlkorper.radius(theta_element, phi_element) &&
+                   radius_element >
+                       core_strahlkorper.radius(theta_element, phi_element)) {
+          get_element(get<0>(spatial_velocity), i) -=
+              0.005 * get_element(get<0>(target_normal), i) / norm;
+          get_element(get<1>(spatial_velocity), i) -=
+              0.005 * get_element(get<1>(target_normal), i) / norm;
+          get_element(get<2>(spatial_velocity), i) -=
+              0.005 * get_element(get<2>(target_normal), i) / norm;
+        }*/
+    }
+  } else {
+    for (size_t i = 0; i < get_size(get<0>(x)); ++i) {
+      radius_element = get_element(radius, i);
+      theta_element = get_element(theta, i);
+      phi_element = get_element(phi, i);
+      if (get_element(get(rest_mass_density), i) == cloud_density_ &&
+          radius_element <
+              shell_strahlkorper.radius(theta_element, phi_element)) {
+        get_element(get<0>(spatial_velocity), i) = 0.0;
+        get_element(get<1>(spatial_velocity), i) = 0.0;
+        get_element(get<2>(spatial_velocity), i) = 0.0;
+      }
+    }
+  }
   return {std::move(spatial_velocity)};
 }
 
