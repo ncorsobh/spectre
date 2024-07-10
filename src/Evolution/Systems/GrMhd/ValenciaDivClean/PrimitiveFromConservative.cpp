@@ -148,7 +148,6 @@ bool PrimitiveFromConservative<OrderedListOfPrimitiveRecoverySchemes,
       get(get<::Tags::TempScalar<4>>(temp_buffer));
   rest_mass_density_times_lorentz_factor =
       get(tilde_d) / get(sqrt_det_spatial_metric);
-
   // Parameters for quick exit from inversion
   const double cutoffD =
       primitive_from_conservative_options.cutoff_d_for_inversion();
@@ -158,14 +157,17 @@ bool PrimitiveFromConservative<OrderedListOfPrimitiveRecoverySchemes,
   // This may need bounds
   // limit Ye to table bounds once that is implemented
   for (size_t s = 0; s < number_of_points; ++s) {
-    get(*electron_fraction)[s] =
-        std::min(0.5, std::max(get(tilde_ye)[s] / get(tilde_d)[s], 0.));
-
+    get(*electron_fraction)[s] = std::min(
+        0.5, std::max(get(tilde_ye)[s] / get(tilde_d)[s],
+                      equation_of_state.electron_fraction_lower_bound()));
     std::optional<PrimitiveRecoverySchemes::PrimitiveRecoveryData>
         primitive_data = std::nullopt;
     // Quick exit from inversion in low-density regions where we will
     // apply atmosphere corrections anyways.
     if (rest_mass_density_times_lorentz_factor[s] < cutoffD) {
+      // electron fraction information is garbage cause we just divided by a
+      // small or negative number
+      get(*electron_fraction)[s] = 0.45;
       double specific_energy_at_point =
           equation_of_state.specific_internal_energy_lower_bound(
               floorD, get(*electron_fraction)[s]);
@@ -257,8 +259,7 @@ bool PrimitiveFromConservative<OrderedListOfPrimitiveRecoverySchemes,
               << get(momentum_density_dot_magnetic_field)[s] << "\n"
               << "magnetic_field_squared = " << get(magnetic_field_squared)[s]
               << "\n"
-              << "rest_mass_density_times_lorentz_factor = "
-              << rest_mass_density_times_lorentz_factor[s] << "\n"
+              << "electron_fraction = " << get(*electron_fraction)[s] << "\n"
               << "previous_rest_mass_density = " << get(*rest_mass_density)[s]
               << "\n"
               << "previous_pressure = " << get(*pressure)[s] << "\n"
