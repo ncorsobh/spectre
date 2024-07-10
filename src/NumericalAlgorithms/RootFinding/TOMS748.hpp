@@ -9,6 +9,7 @@
 #include <functional>
 #include <iomanip>
 #include <ios>
+#include <iostream>
 #include <limits>
 #include <string>
 #include <type_traits>
