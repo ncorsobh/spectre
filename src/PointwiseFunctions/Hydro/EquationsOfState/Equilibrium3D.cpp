@@ -131,6 +131,7 @@ template class Equilibrium3D<HybridEos<PolytropicFluid<true>>>;
 template class Equilibrium3D<HybridEos<PolytropicFluid<false>>>;
 template class Equilibrium3D<HybridEos<Spectral>>;
 template class Equilibrium3D<HybridEos<Enthalpy<Spectral>>>;
+template class Equilibrium3D<HybridEos<Enthalpy<Enthalpy<Enthalpy<Spectral>>>>>;
 template class Equilibrium3D<DarkEnergyFluid<true>>;
 template class Equilibrium3D<IdealFluid<true>>;
 template class Equilibrium3D<IdealFluid<false>>;

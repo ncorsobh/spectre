@@ -712,6 +712,9 @@ template class EquationsOfState::AnalyticalThermal<
     EquationsOfState::PolytropicFluid<true>>;
 template class EquationsOfState::AnalyticalThermal<
     EquationsOfState::Enthalpy<EquationsOfState::Spectral>>;
+template class EquationsOfState::AnalyticalThermal<
+    EquationsOfState::Enthalpy<EquationsOfState::Enthalpy<
+        EquationsOfState::Enthalpy<EquationsOfState::Spectral>>>>;
 
 template Scalar<double>
 EquationsOfState::AnalyticalThermal<EquationsOfState::PolytropicFluid<true>>::
@@ -731,6 +734,19 @@ template Scalar<double> EquationsOfState::AnalyticalThermal<
         Tensor<double, brigand::list<>, brigand::list<>> const&) const;
 template Scalar<DataVector> EquationsOfState::AnalyticalThermal<
     EquationsOfState::Enthalpy<EquationsOfState::Spectral>>::
+    equilibrium_electron_fraction_from_density_temperature_impl(
+        Tensor<DataVector, brigand::list<>, brigand::list<>> const&,
+        Tensor<DataVector, brigand::list<>, brigand::list<>> const&) const;
+
+template Scalar<double> EquationsOfState::AnalyticalThermal<
+    EquationsOfState::Enthalpy<EquationsOfState::Enthalpy<
+        EquationsOfState::Enthalpy<EquationsOfState::Spectral>>>>::
+    equilibrium_electron_fraction_from_density_temperature_impl(
+        Tensor<double, brigand::list<>, brigand::list<>> const&,
+        Tensor<double, brigand::list<>, brigand::list<>> const&) const;
+template Scalar<DataVector> EquationsOfState::AnalyticalThermal<
+    EquationsOfState::Enthalpy<EquationsOfState::Enthalpy<
+        EquationsOfState::Enthalpy<EquationsOfState::Spectral>>>>::
     equilibrium_electron_fraction_from_density_temperature_impl(
         Tensor<DataVector, brigand::list<>, brigand::list<>> const&,
         Tensor<DataVector, brigand::list<>, brigand::list<>> const&) const;

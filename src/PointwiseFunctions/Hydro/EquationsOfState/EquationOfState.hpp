@@ -89,18 +89,19 @@ struct DerivedClasses<false, 2> {
 
 template <>
 struct DerivedClasses<true, 3> {
-  using type =
-      tmpl::list<Tabulated3D<true>, Barotropic3D<PolytropicFluid<true>>,
-                 Barotropic3D<Spectral>, Barotropic3D<Enthalpy<Spectral>>,
-                 Barotropic3D<PiecewisePolytropicFluid<true>>,
-                 Barotropic3D<Enthalpy<Enthalpy<Spectral>>>,
-                 Barotropic3D<Enthalpy<Enthalpy<Enthalpy<Spectral>>>>,
-                 Equilibrium3D<HybridEos<PolytropicFluid<true>>>,
-                 Equilibrium3D<HybridEos<Spectral>>,
-                 Equilibrium3D<HybridEos<Enthalpy<Spectral>>>,
-                 Equilibrium3D<DarkEnergyFluid<true>>,
-                 Equilibrium3D<IdealFluid<true>>,
-                 AnalyticalThermal<PolytropicFluid<true>>>;
+  using type = tmpl::list<
+      Tabulated3D<true>, Barotropic3D<PolytropicFluid<true>>,
+      Barotropic3D<Spectral>, Barotropic3D<Enthalpy<Spectral>>,
+      Barotropic3D<PiecewisePolytropicFluid<true>>,
+      Barotropic3D<Enthalpy<Enthalpy<Spectral>>>,
+      Barotropic3D<Enthalpy<Enthalpy<Enthalpy<Spectral>>>>,
+      Equilibrium3D<HybridEos<PolytropicFluid<true>>>,
+      Equilibrium3D<HybridEos<Spectral>>,
+      Equilibrium3D<HybridEos<Enthalpy<Spectral>>>,
+      Equilibrium3D<HybridEos<Enthalpy<Enthalpy<Enthalpy<Spectral>>>>>,
+      Equilibrium3D<DarkEnergyFluid<true>>, Equilibrium3D<IdealFluid<true>>,
+      AnalyticalThermal<PolytropicFluid<true>>,
+      AnalyticalThermal<Enthalpy<Enthalpy<Enthalpy<Spectral>>>>>;
 };
 
 template <>
