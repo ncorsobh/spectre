@@ -191,3 +191,6 @@ template class EquationsOfState::HybridEos<
 template class EquationsOfState::HybridEos<EquationsOfState::Spectral>;
 template class EquationsOfState::HybridEos<
     EquationsOfState::Enthalpy<EquationsOfState::Spectral>>;
+template class EquationsOfState::HybridEos<
+    EquationsOfState::Enthalpy<EquationsOfState::Enthalpy<
+        EquationsOfState::Enthalpy<EquationsOfState::Spectral>>>>;
