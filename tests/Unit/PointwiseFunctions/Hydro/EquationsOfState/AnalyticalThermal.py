@@ -694,7 +694,8 @@ def analytical_thermal_polytrope_temperature_from_density_and_energy(
         electron_fraction=electron_fraction,
     )
 
-def analytical_thermal_polytrope_sound_speed_squared_from_density_and_temperature(
+
+def analytical_thermal_polytrope_sound_speed_squared_from_density_and_temperature(  # noqa: long-lines
     rest_mass_density, temperature, electron_fraction, *args
 ):
     return AnalyticalThermalPolytrope(

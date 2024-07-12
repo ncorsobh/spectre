@@ -253,6 +253,7 @@ long_lines_exclude() {
     grep -Ev 'https?://' | \
         grep -v 'mailto:' | \
         grep -v '// NOLINT' | \
+        grep -v '# noqa' | \
         grep -v '\\snippet' | \
         grep -v '\\image' | \
         grep -v 'a href=' | \

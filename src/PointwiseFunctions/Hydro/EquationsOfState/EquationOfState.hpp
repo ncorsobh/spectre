@@ -100,7 +100,9 @@ struct DerivedClasses<true, 3> {
                  Equilibrium3D<HybridEos<Enthalpy<Spectral>>>,
                  Equilibrium3D<DarkEnergyFluid<true>>,
                  Equilibrium3D<IdealFluid<true>>,
-                 AnalyticalThermal<PolytropicFluid<true>>>;
+                 AnalyticalThermal<PolytropicFluid<true>>,
+                 AnalyticalThermal<Spectral>,
+                 AnalyticalThermal<Enthalpy<Enthalpy<Enthalpy<Spectral>>>>>;
 };
 
 template <>

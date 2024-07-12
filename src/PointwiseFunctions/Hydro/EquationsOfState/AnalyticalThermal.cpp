@@ -580,6 +580,31 @@ AnalyticalThermal<ColdEquationOfState>::pressure_from_density_and_energy_impl(
 template <typename ColdEquationOfState>
 template <class DataType>
 Scalar<DataType> AnalyticalThermal<ColdEquationOfState>::
+    specific_entropy_from_density_and_energy_impl(
+        const Scalar<DataType>& rest_mass_density,
+        const Scalar<DataType>& specific_internal_energy,
+        const Scalar<DataType>& electron_fraction) const {
+  auto temperature = temperature_from_density_and_energy_impl(
+      rest_mass_density, specific_internal_energy, electron_fraction);
+
+  return specific_entropy_from_density_and_temperature_impl(
+      rest_mass_density, temperature, electron_fraction);
+}
+
+template <typename ColdEquationOfState>
+template <class DataType>
+Scalar<DataType> AnalyticalThermal<ColdEquationOfState>::
+    specific_entropy_from_density_and_temperature_impl(
+        const Scalar<DataType>& rest_mass_density,
+        const Scalar<DataType>& /*temperature*/,
+        const Scalar<DataType>& /*electron_fraction*/) const {
+  // Not currently implemented.
+  return make_with_value<Scalar<DataType>>(get(rest_mass_density), 0.0);
+}
+
+template <typename ColdEquationOfState>
+template <class DataType>
+Scalar<DataType> AnalyticalThermal<ColdEquationOfState>::
     specific_internal_energy_from_density_and_temperature_impl(
         const Scalar<DataType>& rest_mass_density,
         const Scalar<DataType>& temperature,
@@ -605,9 +630,11 @@ Scalar<DataType> AnalyticalThermal<ColdEquationOfState>::
       get(rest_mass_density), get(electron_fraction));
   DataType thermal_energy_needed =
       get(specific_internal_energy) - cold_energy - composition_energy;
-  using std::min;
-  thermal_energy_needed =
-      min(thermal_energy_needed, std::numeric_limits<double>::epsilon());
+  {
+    using std::max;
+    thermal_energy_needed = max(thermal_energy_needed,
+                                1000. * std::numeric_limits<double>::epsilon());
+  }
   const auto radiation_prefactor = [this, &rest_mass_density](
                                        const double& temperature, size_t i) {
     if constexpr (std::is_same_v<DataType, double>) {
@@ -653,14 +680,14 @@ Scalar<DataType> AnalyticalThermal<ColdEquationOfState>::
     }
   };
   // This could be made stricter
-  double lower_bound = 0.0;
+  double lower_bound = std::numeric_limits<double>::epsilon();
   double upper_bound = LIKELY(max(thermal_energy_needed)) < 1.0e2
-                           ? 2000.0
+                           ? 1.0
                            : std::numeric_limits<double>::max();
   return Scalar<DataType>{RootFinder::toms748(
       miss, make_with_value<DataType>(rest_mass_density, lower_bound),
       make_with_value<DataType>(rest_mass_density, upper_bound), 1.0e-14,
-      1.0e-15)};
+      1.0e-15, 200)};
 }
 
 template <typename ColdEquationOfState>
@@ -703,9 +730,8 @@ Scalar<DataType> AnalyticalThermal<ColdEquationOfState>::
   // return make_with_value<Scalar<DataType>>(rest_mass_density, 1.0);
   return result;
 }
-}  // namespace EquationsOfState
 
-template class EquationsOfState::AnalyticalThermal<
-    EquationsOfState::PolytropicFluid<true>>;
-template class EquationsOfState::AnalyticalThermal<
-    EquationsOfState::Enthalpy<EquationsOfState::Spectral>>;
+template class AnalyticalThermal<PolytropicFluid<true>>;
+template class AnalyticalThermal<Spectral>;
+template class AnalyticalThermal<Enthalpy<Enthalpy<Enthalpy<Spectral>>>>;
+}  // namespace EquationsOfState

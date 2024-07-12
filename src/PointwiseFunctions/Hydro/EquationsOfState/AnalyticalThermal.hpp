@@ -284,12 +284,12 @@ class AnalyticalThermal
   /// The electron fraction in beta-equilibrium for this EOS at a given density
   Scalar<double> equilibrium_electron_fraction_from_density_temperature(
       const Scalar<double>& rest_mass_density,
-      const Scalar<double>& temperature) const;
+      const Scalar<double>& temperature) const override;
 
   /// The electron fraction in beta-equilibrium for this EOS at a given density
   Scalar<DataVector> equilibrium_electron_fraction_from_density_temperature(
       const Scalar<DataVector>& rest_mass_density,
-      const Scalar<DataVector>& temperature) const;
+      const Scalar<DataVector>& temperature) const override;
 
  private:
   template <class DataType>
