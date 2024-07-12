@@ -709,3 +709,6 @@ template class EquationsOfState::AnalyticalThermal<
     EquationsOfState::PolytropicFluid<true>>;
 template class EquationsOfState::AnalyticalThermal<
     EquationsOfState::Enthalpy<EquationsOfState::Spectral>>;
+template class EquationsOfState::AnalyticalThermal<
+    EquationsOfState::Enthalpy<EquationsOfState::Enthalpy<
+        EquationsOfState::Enthalpy<EquationsOfState::Spectral>>>>;
