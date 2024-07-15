@@ -16,6 +16,7 @@ target_link_libraries(
   Boost::program_options
   DataStructures
   Hydro
+  Interpolation
   Printf
   Utilities
   )

@@ -77,7 +77,8 @@ struct DerivedClasses<true, 2> {
                  Barotropic2D<Enthalpy<Enthalpy<Enthalpy<Spectral>>>>,
                  DarkEnergyFluid<true>, IdealFluid<true>,
                  HybridEos<PolytropicFluid<true>>, HybridEos<Spectral>,
-                 HybridEos<Enthalpy<Spectral>>>;
+                 HybridEos<Enthalpy<Spectral>>,
+                 HybridEos<Enthalpy<Enthalpy<Enthalpy<Spectral>>>>>;
 };
 
 template <>
