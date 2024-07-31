@@ -7,6 +7,7 @@
 #include <cmath>
 #include <cstddef>
 #include <fstream>
+#include <iostream>
 #include <limits>
 #include <string>
 #include <type_traits>
@@ -92,42 +93,40 @@ CstSolution::CstSolution(const std::string& filename, const bool is_polytrope,
           rest_mass_density_[index] >> alpha_[index] >> rho_[index] >>
           gamma_[index] >> omega_[index] >> fluid_velocity_[index] >>
           internal_energy_density_[index];
-      if (is_polytrope) {
-        radius_[index] *= pow(polytropic_constant, 0.5 * polytropic_index_);
-        rest_mass_density_[index] *=
-            pow(polytropic_constant, -polytropic_index_);
-        omega_[index] *= pow(polytropic_constant, -0.5 * polytropic_index_) /
-                         equatorial_radius_;
-        fluid_velocity_[index] *=
-            pow(polytropic_constant, -0.5 * polytropic_index_) /
-            equatorial_radius_;
-        internal_energy_density_[index] *=
-            pow(polytropic_constant, -polytropic_index_);
-      } else {
-        radius_[index] *= sqrt(kappa_norm) / hydro::units::cgs::length_unit;
-        rest_mass_density_[index] *=
-            1.e15 / hydro::units::cgs::rest_mass_density_unit;
-        omega_[index] *= (hydro::units::cgs::speed_of_light /
-                          (equatorial_radius_ * sqrt(kappa_norm))) *
-                         hydro::units::cgs::time_unit;
-        fluid_velocity_[index] *= (hydro::units::cgs::speed_of_light /
-                                   (equatorial_radius_ * sqrt(kappa_norm))) *
-                                  hydro::units::cgs::time_unit;
-        internal_energy_density_[index] *=
-            1.e15 / hydro::units::cgs::rest_mass_density_unit;
-      }
+      /*      if (is_polytrope) {
+              radius_[index] *= pow(polytropic_constant, 0.5 *
+         polytropic_index_); rest_mass_density_[index] *=
+                  pow(polytropic_constant, -polytropic_index_);
+              omega_[index] *= pow(polytropic_constant, -0.5 *
+         polytropic_index_) / equatorial_radius_; fluid_velocity_[index] *=
+                  pow(polytropic_constant, -0.5 * polytropic_index_) /
+                  equatorial_radius_;
+              internal_energy_density_[index] *=
+                  pow(polytropic_constant, -polytropic_index_);
+            } else {
+              radius_[index] *= sqrt(kappa_norm) /
+         hydro::units::cgs::length_unit; rest_mass_density_[index] *= 1.e15 /
+         hydro::units::cgs::rest_mass_density_unit; omega_[index] *=
+         (hydro::units::cgs::speed_of_light / (equatorial_radius_ *
+         sqrt(kappa_norm))) * hydro::units::cgs::time_unit;
+              fluid_velocity_[index] *= (hydro::units::cgs::speed_of_light /
+                                         (equatorial_radius_ *
+         sqrt(kappa_norm))) * hydro::units::cgs::time_unit;
+              internal_energy_density_[index] *=
+                  1.e15 / hydro::units::cgs::rest_mass_density_unit;
+            }*/
     }
   }
   maximum_radius_ = max(radius_);
   if (is_polytrope) {
     central_angular_speed_ *=
         pow(polytropic_constant, -0.5 * polytropic_index_) / equatorial_radius_;
-    equatorial_radius_ *= pow(polytropic_constant, 0.5 * polytropic_index_);
+    // equatorial_radius_ *= pow(polytropic_constant, 0.5 * polytropic_index_);
   } else {
     central_angular_speed_ *= (hydro::units::cgs::speed_of_light /
                                (equatorial_radius_ * sqrt(kappa_norm))) *
                               hydro::units::cgs::time_unit;
-    equatorial_radius_ *= sqrt(kappa_norm) / hydro::units::cgs::length_unit;
+    // equatorial_radius_ *= sqrt(kappa_norm) / hydro::units::cgs::length_unit;
   }
 }
 
@@ -165,7 +164,7 @@ void hydro_interpolation(const gsl::not_null<double*> target_var,
   if (const auto min_max_iters =
           std::minmax_element(var_stencil.begin(), var_stencil.end());
       *min_max_iters.second >
-      max_var_ratio_for_linear_interpolation * *min_max_iters.first) {
+      log(max_var_ratio_for_linear_interpolation) + *min_max_iters.first) {
     std::array<double, 2> coord_linear{
         {std::numeric_limits<double>::signaling_NaN(),
          std::numeric_limits<double>::signaling_NaN()}};
@@ -196,8 +195,8 @@ std::array<double, 7> CstSolution::interpolate(
     const double target_radius, const double target_cos_theta,
     const bool interpolate_hydro_vars) const {
   constexpr size_t stencil_size = 4;
-  ASSERT(target_radius >= 0.0,
-         "The target radius must be positive, not " << target_radius);
+  /*ASSERT(target_radius >= 0.0,
+         "The target radius must be positive, not " << target_radius);*/
   if (UNLIKELY(target_radius > maximum_radius_)) {
     ERROR("Requested radius " << target_radius
                               << " is greater than what the Cook, Shapiro, "
@@ -210,8 +209,8 @@ std::array<double, 7> CstSolution::interpolate(
   const auto angular_index = static_cast<size_t>(lround(
       target_abs_cos_theta * static_cast<double>(num_angular_points_ - 1)));
   const auto radius_index = static_cast<size_t>(
-      lround(static_cast<double>(num_radial_points_) * target_radius /
-             (target_radius + equatorial_radius_)));
+      lround(static_cast<double>(num_radial_points_) * exp(target_radius) /
+             (exp(target_radius) + equatorial_radius_)));
   if (const size_t grid_index =
           num_angular_points_ * radius_index + angular_index;
       UNLIKELY(grid_index > num_grid_points_)) {
@@ -349,6 +348,7 @@ std::array<double, 7> CstSolution::interpolate(
   double target_internal_energy_density{
       std::numeric_limits<double>::signaling_NaN()};
   const auto radius_span = gsl::make_span(&radius_for_stencil[0], stencil_size);
+  // std::cout << target_radius << std::endl;
   if (interpolate_hydro_vars) {
     hydro_interpolation<stencil_size>(
         make_not_null(&target_rest_mass_density),
@@ -380,7 +380,7 @@ std::array<double, 7> CstSolution::interpolate(
       make_not_null(&target_omega), make_not_null(&error_y), target_radius,
       gsl::make_span(&omega_rad_stencil[0], stencil_size), radius_span);
 
-  if (interpolate_hydro_vars) {
+  /*if (interpolate_hydro_vars) {
     if (UNLIKELY(target_rest_mass_density < 0.0)) {
       ERROR(
           "Failed to interpolate to (r, cos(theta)) = ("
@@ -391,7 +391,7 @@ std::array<double, 7> CstSolution::interpolate(
              "generating negative densities. Please file an issue so this bug "
              "can get fixed.");
     }
-  }
+  }*/
 
   return {
       {interpolate_hydro_vars ? target_rest_mass_density
@@ -534,17 +534,56 @@ void RotatingStar::interpolate_vars_if_necessary(
   vars->internal_energy_density = make_with_value<DataType>(num_points, 0.0);
   vars->metric_data =
       typename IntermediateVariables<DataType>::MetricData(num_points);
+  using std::max;
+
+  const double kappa_norm = square(hydro::units::cgs::speed_of_light) /
+                            (1.e15 * hydro::units::cgs::G_Newton);
+  double polytropic_index;
+  if (is_polytrope_) {
+    polytropic_index = 1. / (polytropic_exponent_ - 1.);
+  } else {
+    polytropic_index = 0.;
+  }
+
+  const double equatorial_radius = cst_solution_.equatorial_radius();
+
+  double radius_norm, rest_mass_density_norm, omega_norm, fluid_velocity_norm;
+
+  if (is_polytrope_) {
+    radius_norm = pow(polytropic_constant_, 0.5 * polytropic_index);
+    // equatorial_radius *= 1. / radius_norm;
+    rest_mass_density_norm = pow(polytropic_constant_, -polytropic_index);
+    omega_norm =
+        pow(polytropic_constant_, -0.5 * polytropic_index) / equatorial_radius;
+    fluid_velocity_norm =
+        pow(polytropic_constant_, -0.5 * polytropic_index) / equatorial_radius;
+  } else {
+    radius_norm = sqrt(kappa_norm) / hydro::units::cgs::length_unit;
+    // equatorial_radius *= 1. / radius_norm;
+    rest_mass_density_norm = 1.e15 / hydro::units::cgs::rest_mass_density_unit;
+    omega_norm = (hydro::units::cgs::speed_of_light /
+                  (equatorial_radius * sqrt(kappa_norm))) *
+                 hydro::units::cgs::time_unit;
+    fluid_velocity_norm = (hydro::units::cgs::speed_of_light /
+                           (equatorial_radius * sqrt(kappa_norm))) *
+                          hydro::units::cgs::time_unit;
+  }
+
   for (size_t i = 0; i < num_points; ++i) {
     const std::array<double, 7> interpolated_data = cst_solution_.interpolate(
-        get_element(vars->radius, i), get_element(vars->cos_theta, i), true);
-    get_element(vars->rest_mass_density.value(), i) = interpolated_data[0];
-    get_element(vars->fluid_velocity.value(), i) = interpolated_data[1];
+        log(max(get_element(vars->radius, i) / radius_norm, 1.e-100)),
+        get_element(vars->cos_theta, i), true);
+    get_element(vars->rest_mass_density.value(), i) =
+        exp(interpolated_data[0]) * rest_mass_density_norm;
+    get_element(vars->fluid_velocity.value(), i) =
+        exp(interpolated_data[1]) * fluid_velocity_norm;
     get_element(vars->internal_energy_density.value(), i) =
-        interpolated_data[2];
-    get_element(vars->metric_data->alpha, i) = interpolated_data[3];
-    get_element(vars->metric_data->rho, i) = interpolated_data[4];
-    get_element(vars->metric_data->gamma, i) = interpolated_data[5];
-    get_element(vars->metric_data->omega, i) = interpolated_data[6];
+        exp(interpolated_data[2]) * rest_mass_density_norm;
+    get_element(vars->metric_data->alpha, i) = exp(interpolated_data[3]);
+    get_element(vars->metric_data->rho, i) = -exp(interpolated_data[4]);
+    get_element(vars->metric_data->gamma, i) = -exp(interpolated_data[5]);
+    get_element(vars->metric_data->omega, i) =
+        exp(interpolated_data[6]) * omega_norm;
   }
 }
 
@@ -582,31 +621,58 @@ void RotatingStar::interpolate_deriv_vars_if_necessary(
     gsl::at(vars->metric_data_lower.value(), d) =
         typename IntermediateVariables<DataType>::MetricData(num_points);
 
+    const double kappa_norm = square(hydro::units::cgs::speed_of_light) /
+                              (1.e15 * hydro::units::cgs::G_Newton);
+    double polytropic_index;
+    if (is_polytrope_) {
+      polytropic_index = 1. / (polytropic_exponent_ - 1.);
+    } else {
+      polytropic_index = 0.;
+    }
+
+    const double equatorial_radius = cst_solution_.equatorial_radius();
+
+    double radius_norm, omega_norm;
+
+    if (is_polytrope_) {
+      radius_norm = pow(polytropic_constant_, 0.5 * polytropic_index);
+      omega_norm = pow(polytropic_constant_, -0.5 * polytropic_index) /
+                   equatorial_radius;
+    } else {
+      radius_norm = sqrt(kappa_norm) / hydro::units::cgs::length_unit;
+      omega_norm = (hydro::units::cgs::speed_of_light /
+                    (equatorial_radius * sqrt(kappa_norm))) *
+                   hydro::units::cgs::time_unit;
+    }
+
+    using std::max;
     for (size_t i = 0; i < num_points; ++i) {
       const std::array<double, 7> interpolated_data = cst_solution_.interpolate(
-          get_element(gsl::at(vars->radius_upper, d), i),
+          log(max(get_element(gsl::at(vars->radius_upper, d), i) / radius_norm,
+                  1.e-100)),
           get_element(gsl::at(vars->cos_theta_upper, d), i), false);
       get_element(gsl::at(vars->metric_data_upper.value(), d).alpha, i) =
-          interpolated_data[3];
+          exp(interpolated_data[3]);
       get_element(gsl::at(vars->metric_data_upper.value(), d).rho, i) =
-          interpolated_data[4];
+          -exp(interpolated_data[4]);
       get_element(gsl::at(vars->metric_data_upper.value(), d).gamma, i) =
-          interpolated_data[5];
+          -exp(interpolated_data[5]);
       get_element(gsl::at(vars->metric_data_upper.value(), d).omega, i) =
-          interpolated_data[6];
+          exp(interpolated_data[6]) * omega_norm;
     }
     for (size_t i = 0; i < num_points; ++i) {
       const std::array<double, 7> interpolated_data = cst_solution_.interpolate(
-          get_element(gsl::at(vars->radius_lower, d), i),
+          log(max(get_element(gsl::at(vars->radius_lower, d), i) / radius_norm,
+                  1.e-100)),
           get_element(gsl::at(vars->cos_theta_lower, d), i), false);
       get_element(gsl::at(vars->metric_data_lower.value(), d).alpha, i) =
-          interpolated_data[3];
+          exp(interpolated_data[3]);
       get_element(gsl::at(vars->metric_data_lower.value(), d).rho, i) =
-          interpolated_data[4];
+          -exp(interpolated_data[4]);
       get_element(gsl::at(vars->metric_data_lower.value(), d).gamma, i) =
-          interpolated_data[5];
+          -exp(interpolated_data[5]);
       get_element(gsl::at(vars->metric_data_lower.value(), d).omega, i) =
-          interpolated_data[6];
+          exp(interpolated_data[6]) * omega_norm;
     }
   }
 }
