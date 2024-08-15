@@ -818,9 +818,12 @@ tuples::TaggedTuple<hydro::Tags::Temperature<DataType>> RotatingStar::variables(
       variables(vars, x, tmpl::list<hydro::Tags::RestMassDensity<DataType>>{}));
   /*auto temperature = make_with_value<Scalar<DataType>>(get<0>(x), 0.0);
   double rest_mass_density_element, internal_energy_density_element;
-  double cutoff_density = 1.2180615954308153e-9;      // 9.329060447834312e-11;
-  double cutoff_temperature = 2.0248325163357748e-3;  // 6.470591276783468e-4;
-  double log_cutoff_slope = 0.4434473035181414;       // 0.40529447583085875;
+  double cutoff_density = 9.329060447834312e-11;
+  double cutoff_temperature = 6.470591276783468e-4;
+  double log_cutoff_slope = 0.40529447583085875;
+  //double cutoff_density = 1.2180615954308153e-9;
+  //double cutoff_temperature = 2.0248325163357748e-3;
+  //double log_cutoff_slope = 0.4434473035181414;
   using std::max;
   for (size_t i = 0; i < get_size(get<0>(x)); ++i) {
     rest_mass_density_element = get_element(get(rest_mass_density), i);

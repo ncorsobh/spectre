@@ -81,12 +81,14 @@ Scalar<DataType>
 HybridEos<ColdEquationOfState>::pressure_from_density_and_energy_impl(
     const Scalar<DataType>& rest_mass_density,
     const Scalar<DataType>& specific_internal_energy) const {
+  using std::max;
   return Scalar<DataType>{
       get(cold_eos_.pressure_from_density(rest_mass_density)) +
       get(rest_mass_density) * (thermal_adiabatic_index_ - 1.0) *
-          (get(specific_internal_energy) -
-           get(cold_eos_.specific_internal_energy_from_density(
-               rest_mass_density)))};
+          max((get(specific_internal_energy) -
+               get(cold_eos_.specific_internal_energy_from_density(
+                   rest_mass_density))),
+              0.)};
 }
 
 template <typename ColdEquationOfState>
