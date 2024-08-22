@@ -21,6 +21,8 @@
 /// \cond
 namespace EquationsOfState {
 template <typename ColdEos>
+class AnalyticalThermal;
+template <typename ColdEos>
 class Barotropic2D;
 template <typename ColdEquilEos>
 class Barotropic3D;
@@ -97,7 +99,8 @@ struct DerivedClasses<true, 3> {
                  Equilibrium3D<HybridEos<Spectral>>,
                  Equilibrium3D<HybridEos<Enthalpy<Spectral>>>,
                  Equilibrium3D<DarkEnergyFluid<true>>,
-                 Equilibrium3D<IdealFluid<true>>>;
+                 Equilibrium3D<IdealFluid<true>>,
+                 AnalyticalThermal<PolytropicFluid<true>>>;
 };
 
 template <>

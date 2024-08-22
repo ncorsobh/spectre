@@ -252,10 +252,10 @@ void check_impl(
   INFO("Testing "s + (IsRelativistic ? "relativistic"s : "Newtonian"s) +
        " equation of state"s);
   const auto specific_internal_energy =
-      in_eos.specific_internal_energy_from_density_and_temperautre(
+      in_eos->specific_internal_energy_from_density_and_temperature(
           rest_mass_density, temperature, electron_fraction);
   CHECK(get(temperature) ==
-        get(in_eos.temperature_from_energy_and_density(
+        get(in_eos->temperature_from_density_and_energy(
             rest_mass_density, specific_internal_energy, electron_fraction)));
   INFO("Done\nTesting temperature_from_energy_and_density...");
   const auto member_args_tuple = std::make_tuple(member_args...);
