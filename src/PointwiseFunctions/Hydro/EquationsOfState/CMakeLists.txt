@@ -4,6 +4,7 @@
 spectre_target_sources(
   ${LIBRARY}
   PRIVATE
+  AnalyticalThermal.cpp
   Barotropic2D.cpp
   Barotropic3D.cpp
   DarkEnergyFluid.cpp
@@ -22,6 +23,7 @@ spectre_target_headers(
   ${LIBRARY}
   INCLUDE_DIRECTORY ${CMAKE_SOURCE_DIR}/src
   HEADERS
+  AnalyticalThermal.hpp	
   Barotropic2D.hpp
   Barotropic3D.hpp
   DarkEnergyFluid.hpp
