@@ -208,8 +208,8 @@ Sphere::Sphere(
     // is chosen differently to the angular directions.
     auto& central_cube_refinement = initial_refinement_.back();
     auto& central_cube_grid_points = initial_number_of_grid_points_.back();
-    central_cube_refinement[2] = central_cube_refinement[1];
-    central_cube_grid_points[2] = central_cube_grid_points[1];
+    //central_cube_refinement[2] = central_cube_refinement[1];
+    //central_cube_grid_points[2] = central_cube_grid_points[1];
   }
 
   // Validate boundary conditions
