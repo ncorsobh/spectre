@@ -35,6 +35,7 @@
 #include "Evolution/DgSubcell/Actions/TciAndRollback.hpp"
 #include "Evolution/DgSubcell/Actions/TciAndSwitchToDg.hpp"
 #include "Evolution/DgSubcell/CartesianFluxDivergence.hpp"
+#include "Evolution/DgSubcell/CellCenteredFlux.hpp"
 #include "Evolution/DgSubcell/ComputeBoundaryTerms.hpp"
 #include "Evolution/DgSubcell/CorrectPackagedData.hpp"
 #include "Evolution/DgSubcell/GetActiveTag.hpp"
@@ -761,6 +762,8 @@ struct GhValenciaDivCleanTemplateBase<
       Actions::Goto<evolution::dg::subcell::Actions::Labels::EndOfSolvers>,
 
       Actions::Label<evolution::dg::subcell::Actions::Labels::BeginSubcell>,
+      Actions::MutateApply<evolution::dg::subcell::fd::CellCenteredFlux<
+          system, grmhd::GhValenciaDivClean::ComputeFluxes, volume_dim, false>>,
       evolution::dg::subcell::Actions::SendDataForReconstruction<
           volume_dim,
           grmhd::GhValenciaDivClean::subcell::PrimitiveGhostVariables,
@@ -771,6 +774,8 @@ struct GhValenciaDivCleanTemplateBase<
       Actions::MutateApply<
           grmhd::GhValenciaDivClean::subcell::PrimsAfterRollback<
               ordered_list_of_primitive_recovery_schemes>>,
+      Actions::MutateApply<evolution::dg::subcell::fd::CellCenteredFlux<
+          system, grmhd::GhValenciaDivClean::ComputeFluxes, volume_dim, true>>,
       evolution::dg::subcell::fd::Actions::TakeTimeStep<
           grmhd::GhValenciaDivClean::subcell::TimeDerivative>,
       Actions::RecordTimeStepperData<system>,

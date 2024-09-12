@@ -26,6 +26,7 @@
 #include "Evolution/DgSubcell/CorrectPackagedData.hpp"
 #include "Evolution/DgSubcell/Projection.hpp"
 #include "Evolution/DgSubcell/ReconstructionOrder.hpp"
+#include "Evolution/DgSubcell/Tags/CellCenteredFlux.hpp"
 #include "Evolution/DgSubcell/Tags/Coordinates.hpp"
 #include "Evolution/DgSubcell/Tags/GhostDataForReconstruction.hpp"
 #include "Evolution/DgSubcell/Tags/Jacobians.hpp"
@@ -50,6 +51,7 @@
 #include "Evolution/Systems/GrMhd/ValenciaDivClean/Sources.hpp"
 #include "Evolution/Systems/GrMhd/ValenciaDivClean/Subcell/ComputeFluxes.hpp"
 #include "Evolution/Systems/GrMhd/ValenciaDivClean/TimeDerivativeTerms.hpp"
+#include "NumericalAlgorithms/FiniteDifference/HighOrderFluxCorrection.hpp"
 #include "NumericalAlgorithms/FiniteDifference/PartialDerivatives.hpp"
 #include "NumericalAlgorithms/Spectral/Mesh.hpp"
 #include "PointwiseFunctions/GeneralRelativity/GeneralizedHarmonic/DerivSpatialMetric.hpp"
@@ -153,6 +155,8 @@ struct ComputeTimeDerivImpl<
     using primitives_tag = typename System::primitive_variables_tag;
     using evolved_vars_tag =
         typename grmhd::GhValenciaDivClean::System::variables_tag;
+    using evolved_vars_tags = typename System::variables_tag::tags_list;
+    //using evolved_vars_tags = typename evolved_vars_tag::tags_list;
 
     const auto& primitive_vars = db::get<primitives_tag>(*box);
     const auto& evolved_vars = db::get<evolved_vars_tag>(*box);
@@ -405,6 +409,41 @@ struct ComputeTimeDerivImpl<
         get<::Tags::dt<gh::Tags::Pi<DataVector, 3>>>(dt_vars_ptr),
         get<Tags::TraceReversedStressEnergy>(temp_tags),
         get<gr::Tags::Lapse<DataVector>>(temp_tags));
+
+    /*const auto fd_derivative_order =
+        db::get<evolution::dg::subcell::Tags::SubcellOptions<3>>(*box)
+            .finite_difference_derivative_order();*/
+    std::optional<std::array<gsl::span<std::uint8_t>, 3>>
+        reconstruction_order{};
+    using grmhd_evolved_vars_tag =
+        typename grmhd::ValenciaDivClean::System::variables_tag;
+    using grmhd_evolved_vars_tags = typename grmhd_evolved_vars_tag::tags_list;
+    /*if (UNLIKELY(fd_derivative_order != ::fd::DerivativeOrder::Two)) {
+      ERROR(
+          "We don't yet have high-order flux corrections for curved/moving "
+          "meshes and the implementation assumes curved/moving meshes. We need "
+          "to dot the Cartesian fluxes into the cell-centered "
+          "J inv(J)^{hat{i}}_j to get JF^{hat{i}} = J inv(J)^{hat{i}}_j F^j."
+          " Some care needs to be taken since we also get F^j from our "
+          "neighbors, which leaves the question as to whether to interpolate "
+          "the _inertial fluxes_ and then transform or whether to transform "
+          "and then interpolate the _densitized logical fluxes_.");
+    }*/
+    std::optional<std::array<Variables<grmhd_evolved_vars_tags>, 3>>
+        high_order_corrections{};
+    ::fd::cartesian_high_order_flux_corrections(
+        make_not_null(&high_order_corrections),
+
+        db::get<evolution::dg::subcell::Tags::CellCenteredFlux<
+            grmhd_evolved_vars_tags, 3>>(*box),  // BAD
+        boundary_corrections, ::fd::DerivativeOrder::Four,
+        db::get<evolution::dg::subcell::Tags::GhostDataForReconstruction<3>>(
+            *box),
+        subcell_mesh,
+        db::get<fd::Tags::Reconstructor>(*box)
+            .ghost_zone_size(),  // recons.ghost_zone_size(),
+        reconstruction_order.value_or(
+            std::array<gsl::span<std::uint8_t>, 3>{}));
 
     for (size_t dim = 0; dim < 3; ++dim) {
       const auto& boundary_correction_in_axis =

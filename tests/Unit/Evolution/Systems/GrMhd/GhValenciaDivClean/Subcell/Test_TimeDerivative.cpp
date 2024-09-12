@@ -34,8 +34,10 @@
 #include "Domain/Tags.hpp"
 #include "Domain/TagsTimeDependent.hpp"
 #include "Evolution/BoundaryCorrectionTags.hpp"
+#include "Evolution/DgSubcell/CellCenteredFlux.hpp"
 #include "Evolution/DgSubcell/Mesh.hpp"
 #include "Evolution/DgSubcell/SliceData.hpp"
+#include "Evolution/DgSubcell/Tags/CellCenteredFlux.hpp"
 #include "Evolution/DgSubcell/Tags/Coordinates.hpp"
 #include "Evolution/DgSubcell/Tags/GhostDataForReconstruction.hpp"
 #include "Evolution/DgSubcell/Tags/Jacobians.hpp"
@@ -107,7 +109,9 @@ struct DummyEvolutionMetaVars {
   };
 };
 
-double test(const size_t num_dg_pts, std::optional<double> expansion_velocity,
+double test(const size_t num_dg_pts,
+            const ::fd::DerivativeOrder fd_derivative_order,
+            std::optional<double> expansion_velocity,
             const bool test_non_diagonal_jacobian) {
   using Affine = domain::CoordinateMaps::Affine;
   using Affine3D =
@@ -306,6 +310,24 @@ double test(const size_t num_dg_pts, std::optional<double> expansion_velocity,
         neighbor_data_in_direction;
   }
 
+  using flux_tags =
+      typename grmhd::ValenciaDivClean::ComputeFluxes::return_tags;
+  using CellCenteredFluxesTag = evolution::dg::subcell::Tags::CellCenteredFlux<
+      typename System::flux_variables, 3>;
+  typename CellCenteredFluxesTag::type cell_centered_fluxes{};
+  Variables<typename System::variables_tag::tags_list> cell_centered_cons_vars{
+      subcell_mesh.number_of_grid_points()};
+  apply(make_not_null(&cell_centered_cons_vars),
+        grmhd::ValenciaDivClean::ConservativeFromPrimitive{},
+        cell_centered_prim_vars);
+  if (fd_derivative_order != ::fd::DerivativeOrder::Two) {
+    cell_centered_fluxes =
+        Variables<flux_tags>{subcell_mesh.number_of_grid_points()};
+    apply(make_not_null(&(cell_centered_fluxes.value())),
+          grmhd::ValenciaDivClean::ComputeFluxes{}, cell_centered_prim_vars,
+          cell_centered_cons_vars);
+  }
+
   std::vector<Block<3>> blocks{};
   blocks.push_back(std::move(block));
   Domain<3> domain{std::move(blocks)};
@@ -346,8 +368,6 @@ double test(const size_t num_dg_pts, std::optional<double> expansion_velocity,
                        gr::Tags::SqrtDetSpatialMetric<DataVector>,
                        gr::Tags::SpatialMetric<DataVector, 3>,
                        gr::Tags::InverseSpatialMetric<DataVector, 3>>>{});
-    using flux_tags =
-        typename grmhd::ValenciaDivClean::ComputeFluxes::return_tags;
     using flux_argument_tags =
         typename grmhd::ValenciaDivClean::ComputeFluxes::argument_tags;
     Variables<tmpl::remove_duplicates<tmpl::append<
@@ -427,6 +447,7 @@ double test(const size_t num_dg_pts, std::optional<double> expansion_velocity,
     std::optional<tnsr::I<DataVector, 3, Frame::Inertial>> face_mesh_velocity =
         {};
     if (expansion_velocity.has_value()) {
+      using evolved_vars_tags = typename System::variables_tag::tags_list;
       face_mesh_velocity = tnsr::I<DataVector, 3, Frame::Inertial>{
           interface_mesh.number_of_grid_points()};
       for (size_t i = 0; i < 3; i++) {
@@ -630,6 +651,7 @@ double test(const size_t num_dg_pts, std::optional<double> expansion_velocity,
           evolution::dg::Tags::NormalCovectorAndMagnitude<3>, ::Tags::Time,
           domain::Tags::FunctionsOfTimeInitialize,
           Parallel::Tags::MetavariablesImpl<DummyEvolutionMetaVars>,
+          CellCenteredFluxesTag,
           gh::ConstraintDamping::Tags::DampingFunctionGamma0<3, Frame::Grid>,
           gh::ConstraintDamping::Tags::DampingFunctionGamma1<3, Frame::Grid>,
           gh::ConstraintDamping::Tags::DampingFunctionGamma2<3, Frame::Grid>,
@@ -676,6 +698,7 @@ double test(const size_t num_dg_pts, std::optional<double> expansion_velocity,
               gh::BoundaryCorrections::UpwindPenalty<3>,
               ValenciaDivClean::BoundaryCorrections::Hll>>()},
       soln.equation_of_state().promote_to_3d_eos(), cell_centered_prim_vars,
+      cell_centered_cons_vars,
       // Set incorrect size for dt variables because they should get resized.
       Variables<typename dt_variables_tag::tags_list>{}, initial_variables,
       neighbor_data, dummy_reconstruction_order, 1.0, mortar_data,
@@ -683,7 +706,7 @@ double test(const size_t num_dg_pts, std::optional<double> expansion_velocity,
       domain::make_coordinate_map_base<Frame::Grid, Frame::Inertial>(
           domain::CoordinateMaps::Identity<3>{}),
       std::move(domain), std::move(external_boundary_conditions),
-      dg_mesh_velocity, div_dg_mesh_velocity,
+      dg_mesh_velocity, div_dg_mesh_velocity, cell_centered_fluxes,
       dg_logical_to_inertial_inv_jacobian, dummy_normal_covector_and_magnitude,
       time, clone_unique_ptrs(functions_of_time), DummyEvolutionMetaVars{},
       // Note: These damping functions all assume Grid==Inertial. We need to
@@ -808,19 +831,32 @@ SPECTRE_TEST_CASE(
   // derivative decreases with increasing resolution and is below 1.0e-6.
 
   std::optional<double> expansion_velocity = {};
+  using DO = ::fd::DerivativeOrder;
+  // Note: All the high order cases are commented out because we don't yet
+  // have support for high-order FD on curved meshes.
+  for (const DO fd_do : {
+           // DO::Two  // , DO::Four, DO::Six, DO::Eight, DO::Ten
+           DO::Four  // , DO::Two, DO::Six, DO::Eight, DO::Ten
+       }) {
+    CAPTURE(fd_do);
+    // This tests sets up a cube [2,3]^3 in a Bondi-Michel spacetime and
+    // verifies that the time derivative vanishes. Or, more specifically, that
+    // the time derivative decreases with increasing resolution.
 
-  CHECK(test(4, expansion_velocity, false) >
-        test(8, expansion_velocity, false));
-  CHECK(test(8, expansion_velocity, false) < 1.0e-6);
+    CHECK(test(4, fd_do, expansion_velocity, false) >
+          test(8, fd_do, expansion_velocity, false));
+    CHECK(test(8, fd_do, expansion_velocity, false) < 1.0e-6);
+  }
 
   expansion_velocity = 0.5;
 
-  CHECK(test(4, expansion_velocity, false) >
-        test(8, expansion_velocity, false));
-  CHECK(test(8, expansion_velocity, false) < 1.0e-6);
+  CHECK(test(4, DO::Two, expansion_velocity, false) >
+        test(8, DO::Two, expansion_velocity, false));
+  CHECK(test(8, DO::Two, expansion_velocity, false) < 1.0e-6);
 
-  CHECK(test(4, expansion_velocity, true) > test(8, expansion_velocity, true));
-  CHECK(test(8, expansion_velocity, true) < 1.0e-6);
+  CHECK(test(4, DO::Two, expansion_velocity, true) >
+        test(8, DO::Two, expansion_velocity, true));
+  CHECK(test(8, DO::Two, expansion_velocity, true) < 1.0e-6);
 }
 }  // namespace
 }  // namespace grmhd::GhValenciaDivClean
