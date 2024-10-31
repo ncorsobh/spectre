@@ -605,9 +605,11 @@ Scalar<DataType> AnalyticalThermal<ColdEquationOfState>::
       get(rest_mass_density), get(electron_fraction));
   DataType thermal_energy_needed =
       get(specific_internal_energy) - cold_energy - composition_energy;
-  using std::min;
-  thermal_energy_needed =
-      min(thermal_energy_needed, std::numeric_limits<double>::epsilon());
+  {
+    using std::max;
+    thermal_energy_needed = max(thermal_energy_needed,
+                                1000. * std::numeric_limits<double>::epsilon());
+  }
   const auto radiation_prefactor = [this, &rest_mass_density](
                                        const double& temperature, size_t i) {
     if constexpr (std::is_same_v<DataType, double>) {
@@ -653,14 +655,14 @@ Scalar<DataType> AnalyticalThermal<ColdEquationOfState>::
     }
   };
   // This could be made stricter
-  double lower_bound = 0.0;
+  double lower_bound = std::numeric_limits<double>::epsilon();
   double upper_bound = LIKELY(max(thermal_energy_needed)) < 1.0e2
-                           ? 2000.0
+                           ? 1.0
                            : std::numeric_limits<double>::max();
   return Scalar<DataType>{RootFinder::toms748(
       miss, make_with_value<DataType>(rest_mass_density, lower_bound),
       make_with_value<DataType>(rest_mass_density, upper_bound), 1.0e-14,
-      1.0e-15)};
+      1.0e-15, 200)};
 }
 
 template <typename ColdEquationOfState>
