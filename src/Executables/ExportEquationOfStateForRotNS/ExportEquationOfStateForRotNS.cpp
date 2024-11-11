@@ -126,8 +126,7 @@ void dump_equilibrium_eos(
     double error_y = 0.0;
     if (const auto min_max_iters = std::minmax_element(pressure_stencil.begin(),
                                                        pressure_stencil.end());
-        *min_max_iters.second >
-        max_pressure_ratio_for_linear_interpolation * *min_max_iters.first) {
+        *min_max_iters.second - *min_max_iters.first > 0.0) {
       std::array<double, 2> density_linear{
           {std::numeric_limits<double>::signaling_NaN(),
            std::numeric_limits<double>::signaling_NaN()}};
