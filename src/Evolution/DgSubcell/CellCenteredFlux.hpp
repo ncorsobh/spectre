@@ -35,6 +35,7 @@ template <typename System, typename FluxMutator, size_t Dim,
           bool ComputeOnlyOnRollback, typename Fr = Frame::Inertial>
 struct CellCenteredFlux {
   using flux_variables = typename System::flux_variables;
+  using variables = typename System::variables_tag::tags_list;
 
   using return_tags =
       tmpl::list<subcell::Tags::CellCenteredFlux<flux_variables, Dim>>;
@@ -42,7 +43,7 @@ struct CellCenteredFlux {
       typename FluxMutator::argument_tags, subcell::Tags::SubcellOptions<Dim>,
       subcell::Tags::Mesh<Dim>, domain::Tags::Mesh<Dim>,
       domain::Tags::MeshVelocity<Dim, Frame::Inertial>,
-      ::Tags::Variables<flux_variables>, subcell::Tags::DidRollback>;
+      ::Tags::Variables<variables>, subcell::Tags::DidRollback>;
 
   template <typename... FluxTags, typename... Args>
   static void apply(
@@ -51,7 +52,7 @@ struct CellCenteredFlux {
       const subcell::SubcellOptions& subcell_options,
       const Mesh<Dim>& subcell_mesh, const Mesh<Dim>& dg_mesh,
       const std::optional<tnsr::I<DataVector, Dim>>& dg_mesh_velocity,
-      const ::Variables<flux_variables>& cell_centered_flux_vars,
+      const ::Variables<variables>& cell_centered_flux_vars,
       const bool did_rollback, Args&&... args) {
     if (did_rollback or not ComputeOnlyOnRollback) {
       if (subcell_options.finite_difference_derivative_order() !=

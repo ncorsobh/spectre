@@ -34,7 +34,17 @@ struct Var2 : db::SimpleTag {
   using type = Scalar<DataVector>;
 };
 
-struct TestSystem {
+struct Var3 : db::SimpleTag {
+  using type = Scalar<DataVector>;
+};
+
+struct TestConservativeSystem {
+  using variables_tag = ::Tags::Variables<tmpl::list<Var1, Var2>>;
+  using flux_variables = tmpl::list<Var1, Var2>;
+};
+
+struct TestMixedSystem {
+  using variables_tag = ::Tags::Variables<tmpl::list<Var1, Var2, Var3>>;
   using flux_variables = tmpl::list<Var1, Var2>;
 };
 
@@ -56,12 +66,13 @@ struct Fluxes {
   }
 };
 
-template <size_t Dim, bool ComputeOnlyOnRollback>
+template <typename TestSystem, size_t Dim, bool ComputeOnlyOnRollback>
 void test(const fd::DerivativeOrder derivative_order, const bool did_rollback) {
   CAPTURE(Dim);
   CAPTURE(ComputeOnlyOnRollback);
   CAPTURE(derivative_order);
   CAPTURE(did_rollback);
+  using variables = typename TestSystem::variables_tag::tags_list;
   using flux_variables = typename TestSystem::flux_variables;
   using CellCenteredFluxTag =
       evolution::dg::subcell::Tags::CellCenteredFlux<flux_variables, Dim>;
@@ -70,6 +81,9 @@ void test(const fd::DerivativeOrder derivative_order, const bool did_rollback) {
   const Mesh<Dim> subcell_mesh{9, Spectral::Basis::FiniteDifference,
                                Spectral::Quadrature::CellCentered};
   const std::optional<tnsr::I<DataVector, Dim>> dg_mesh_velocity{};
+  Variables<variables> vars{subcell_mesh.number_of_grid_points()};
+  get(get<Var1>(vars)) = 1.0;
+  get(get<Var2>(vars)) = 2.0;
 
   auto box =
       db::create<tmpl::list<evolution::dg::subcell::Tags::DidRollback,
@@ -77,7 +91,7 @@ void test(const fd::DerivativeOrder derivative_order, const bool did_rollback) {
                             evolution::dg::subcell::Tags::Mesh<Dim>,
                             CellCenteredFluxTag, domain::Tags::Mesh<Dim>,
                             domain::Tags::MeshVelocity<Dim, Frame::Inertial>,
-                            ::Tags::Variables<flux_variables>>>(
+                            ::Tags::Variables<variables>>>(
           did_rollback,
           evolution::dg::subcell::SubcellOptions{
               4.0, 1_st, 1.0e-3, 1.0e-4, false,
@@ -85,7 +99,7 @@ void test(const fd::DerivativeOrder derivative_order, const bool did_rollback) {
               std::nullopt, derivative_order, 1, 1, 1},
           subcell_mesh, typename CellCenteredFluxTag::type{}, dg_mesh,
           dg_mesh_velocity,
-          Variables<flux_variables>{subcell_mesh.number_of_grid_points(), 1.0});
+          Variables<variables>{subcell_mesh.number_of_grid_points(), 1.0});
 
   db::mutate_apply<evolution::dg::subcell::fd::CellCenteredFlux<
       TestSystem, Fluxes<Dim>, Dim, ComputeOnlyOnRollback>>(
@@ -96,12 +110,12 @@ void test(const fd::DerivativeOrder derivative_order, const bool did_rollback) {
                                                                Dim>>(box)
                 .has_value());
     const auto& [flux1, flux2] = get<CellCenteredFluxTag>(box).value();
-    const auto& [var1, var2] = get<::Tags::Variables<flux_variables>>(box);
+    const auto& box_vars = get<::Tags::Variables<variables>>(box);
     for (size_t i = 0; i < Dim; ++i) {
-      CHECK(flux1.get(i) ==
-            DataVector((1.0 + static_cast<double>(i)) * get(var1)));
-      CHECK(flux2.get(i) ==
-            DataVector(5.0 * (1.0 + static_cast<double>(i)) * get(var2)));
+      CHECK(flux1.get(i) == DataVector((1.0 + static_cast<double>(i)) *
+                                       get(get<Var1>(box_vars))));
+      CHECK(flux2.get(i) == DataVector(5.0 * (1.0 + static_cast<double>(i)) *
+                                       get(get<Var2>(box_vars))));
     }
   } else {
     CHECK(not get<evolution::dg::subcell::Tags::CellCenteredFlux<flux_variables,
@@ -117,13 +131,21 @@ SPECTRE_TEST_CASE("Unit.Evolution.Subcell.CellCenteredFlux",
        {DO::Two, DO::Four, DO::Six, DO::Eight, DO::Ten, DO::OneHigherThanRecons,
         DO::OneHigherThanReconsButFiveToFour}) {
     for (const bool did_rollback : {true, false}) {
-      test<1, false>(derivative_order, did_rollback);
-      test<2, false>(derivative_order, did_rollback);
-      test<3, false>(derivative_order, did_rollback);
+      test<TestConservativeSystem, 1, false>(derivative_order, did_rollback);
+      test<TestConservativeSystem, 2, false>(derivative_order, did_rollback);
+      test<TestConservativeSystem, 3, false>(derivative_order, did_rollback);
 
-      test<1, true>(derivative_order, did_rollback);
-      test<2, true>(derivative_order, did_rollback);
-      test<3, true>(derivative_order, did_rollback);
+      test<TestConservativeSystem, 1, true>(derivative_order, did_rollback);
+      test<TestConservativeSystem, 2, true>(derivative_order, did_rollback);
+      test<TestConservativeSystem, 3, true>(derivative_order, did_rollback);
+
+      test<TestMixedSystem, 1, false>(derivative_order, did_rollback);
+      test<TestMixedSystem, 2, false>(derivative_order, did_rollback);
+      test<TestMixedSystem, 3, false>(derivative_order, did_rollback);
+
+      test<TestMixedSystem, 1, true>(derivative_order, did_rollback);
+      test<TestMixedSystem, 2, true>(derivative_order, did_rollback);
+      test<TestMixedSystem, 3, true>(derivative_order, did_rollback);
     }
   }
 }

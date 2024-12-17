@@ -763,8 +763,7 @@ struct GhValenciaDivCleanTemplateBase<
 
       Actions::Label<evolution::dg::subcell::Actions::Labels::BeginSubcell>,
       Actions::MutateApply<evolution::dg::subcell::fd::CellCenteredFlux<
-          grmhd::ValenciaDivClean::System,
-          grmhd::ValenciaDivClean::ComputeFluxes, volume_dim, false>>,
+          system, grmhd::ValenciaDivClean::ComputeFluxes, volume_dim, false>>,
       evolution::dg::subcell::Actions::SendDataForReconstruction<
           volume_dim,
           grmhd::GhValenciaDivClean::subcell::PrimitiveGhostVariables,
@@ -776,8 +775,7 @@ struct GhValenciaDivCleanTemplateBase<
           grmhd::GhValenciaDivClean::subcell::PrimsAfterRollback<
               ordered_list_of_primitive_recovery_schemes>>,
       Actions::MutateApply<evolution::dg::subcell::fd::CellCenteredFlux<
-          grmhd::ValenciaDivClean::System,
-          grmhd::ValenciaDivClean::ComputeFluxes, volume_dim, true>>,
+          system, grmhd::ValenciaDivClean::ComputeFluxes, volume_dim, true>>,
       evolution::dg::subcell::fd::Actions::TakeTimeStep<
           grmhd::GhValenciaDivClean::subcell::TimeDerivative>,
       Actions::RecordTimeStepperData<system>,
