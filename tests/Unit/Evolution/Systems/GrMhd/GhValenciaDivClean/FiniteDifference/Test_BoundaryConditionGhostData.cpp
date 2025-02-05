@@ -13,6 +13,7 @@
 #include <utility>
 
 #include "DataStructures/DataBox/MetavariablesTag.hpp"
+#include "DataStructures/TaggedContainers.hpp"
 #include "DataStructures/Tensor/Tensor.hpp"
 #include "DataStructures/Variables.hpp"
 #include "Domain/CoordinateMaps/CoordinateMap.hpp"
@@ -52,6 +53,7 @@
 #include "Evolution/Systems/GrMhd/GhValenciaDivClean/System.hpp"
 #include "Evolution/Systems/GrMhd/GhValenciaDivClean/Tags.hpp"
 #include "Evolution/Systems/GrMhd/ValenciaDivClean/BoundaryConditions/DirichletAnalytic.hpp"
+#include "Evolution/Systems/GrMhd/ValenciaDivClean/ComputeFluxesFromPrimitives.hpp"
 #include "Evolution/Systems/RadiationTransport/NoNeutrinos/System.hpp"
 #include "Evolution/VariableFixing/FixToAtmosphere.hpp"
 #include "Framework/Pypp.hpp"
@@ -91,9 +93,12 @@ struct EvolutionMetaVars {
 using SolutionForTest =
     gh::Solutions::WrappedGr<RelativisticEuler::Solutions::TovStar>;
 
+template <typename T>
+using Flux = ::Tags::Flux<T, tmpl::size_t<3>, Frame::Inertial>;
+
 template <typename System, typename BoundaryConditionType>
 void test(const BoundaryConditionType& boundary_condition,
-          const SolutionForTest& solution) {
+          const bool set_fluxes, const SolutionForTest& solution) {
   CAPTURE(pretty_type::name<BoundaryConditionType>());
   const size_t num_dg_pts = 4;
 
@@ -167,6 +172,8 @@ void test(const BoundaryConditionType& boundary_condition,
   using Phi = gh::Tags::Phi<DataVector, 3>;
   using RestMassDensity = hydro::Tags::RestMassDensity<DataVector>;
   using ElectronFraction = hydro::Tags::ElectronFraction<DataVector>;
+  using SpecificInternalEnergy =
+      hydro::Tags::SpecificInternalEnergy<DataVector>;
   using Pressure = hydro::Tags::Pressure<DataVector>;
   using Temperature = hydro::Tags::Temperature<DataVector>;
   using LorentzFactor = hydro::Tags::LorentzFactor<DataVector>;
@@ -174,6 +181,23 @@ void test(const BoundaryConditionType& boundary_condition,
   using MagneticField = hydro::Tags::MagneticField<DataVector, 3>;
   using DivergenceCleaningField =
       hydro::Tags::DivergenceCleaningField<DataVector>;
+
+  // Use the Minkowski spacetime for spacetime vars, but we manually tweak
+  // values of shift vector so that the DemandOutgoingCharSpeeds condition can
+  // be satisfied at the first place. Later we will change shift vector to its
+  // original value (0.0) and check that the DemandOutgoingCharSpeeds condition
+  // is violated as expected.
+  Variables<tmpl::append<typename System::spacetime_variables_tag::tags_list,
+                         typename System::primitive_variables_tag::tags_list>>
+      volume_vars{subcell_mesh.number_of_grid_points()};
+  volume_vars.assign_subset(solution.variables(
+      subcell_inertial_coords, time,
+      tmpl::append<typename System::spacetime_variables_tag::tags_list,
+                   typename System::primitive_variables_tag::tags_list>{}));
+  // typename System::spacetime_variables_tag::tags_list{}));
+  for (size_t i = 0; i < 3; ++i) {
+    get<gr::Tags::Shift<DataVector, 3>>(volume_vars).get(i) = -2.0;
+  }
 
   std::optional<tnsr::I<DataVector, 3>> volume_mesh_velocity{};
 
@@ -223,6 +247,9 @@ void test(const BoundaryConditionType& boundary_condition,
   get(get<RestMassDensity>(volume_prim_vars)) = 1.0;
   get(get<ElectronFraction>(volume_prim_vars)) = 0.1;
   get(get<Temperature>(volume_prim_vars)) = 0.5;
+  get(get<SpecificInternalEnergy>(volume_prim_vars)) =
+      get(solution.equation_of_state().specific_internal_energy_from_density(
+          get<RestMassDensity>(volume_prim_vars)));
   get(get<Pressure>(volume_prim_vars)) =
       get(solution.equation_of_state().pressure_from_density(
           get<RestMassDensity>(volume_prim_vars)));
@@ -238,6 +265,19 @@ void test(const BoundaryConditionType& boundary_condition,
   const VariableFixing::FixToAtmosphere<3> variable_fixer{
       1.e-12, 3.e-12, Vlo{0.0, 1.e-4, 3.e-12, 1.e-11}, std::nullopt};
 
+  using cons_tags = typename ValenciaDivClean::System::variables_tag::tags_list;
+  typename ValenciaDivClean::System::variables_tag::type volume_cons_vars{
+      subcell_mesh.number_of_grid_points()};
+  using CellCenteredFluxesTag = evolution::dg::subcell::Tags::CellCenteredFlux<
+      typename System::flux_variables, 3>;
+  typename CellCenteredFluxesTag::type cell_centered_fluxes{};
+  if (set_fluxes) {
+    cell_centered_fluxes = typename decltype(cell_centered_fluxes)::value_type{
+        subcell_mesh.number_of_grid_points()};
+    grmhd::ValenciaDivClean::compute_fluxes_from_primitives(
+        make_not_null(&cell_centered_fluxes.value()), volume_vars);
+  }
+
   // create a box for test
   auto box = db::create<db::AddSimpleTags<
       Parallel::Tags::MetavariablesImpl<EvolutionMetaVars<System>>,
@@ -251,7 +291,10 @@ void test(const BoundaryConditionType& boundary_condition,
       domain::Tags::ElementMap<3, Frame::Grid>,
       domain::CoordinateMaps::Tags::CoordinateMap<3, Frame::Grid,
                                                   Frame::Inertial>,
-      typename System::primitive_variables_tag,
+      ::Tags::Variables<
+          tmpl::append<typename System::spacetime_variables_tag::tags_list,
+                       typename System::primitive_variables_tag::tags_list>>,
+      CellCenteredFluxesTag,
       ::Tags::VariableFixer<::VariableFixing::FixToAtmosphere<3>>,
       hydro::Tags::GrmhdEquationOfState>>(
       EvolutionMetaVars<System>{}, std::move(domain),
@@ -267,7 +310,7 @@ void test(const BoundaryConditionType& boundary_condition,
               domain::CoordinateMaps::Identity<3>{})},
       domain::make_coordinate_map_base<Frame::Grid, Frame::Inertial>(
           domain::CoordinateMaps::Identity<3>{}),
-      volume_prim_vars, variable_fixer,
+      volume_vars, cell_centered_fluxes, variable_fixer,
       solution.equation_of_state().promote_to_3d_eos());
 
   // compute FD ghost data and retrieve the result
@@ -293,6 +336,76 @@ void test(const BoundaryConditionType& boundary_condition,
       subcell_mesh.extents().slice_away(direction.dimension()).product()};
   Variables<prims_to_reconstruct> fd_ghost_vars{ghost_zone_size * num_face_pts};
   std::copy(fd_ghost_data.begin(), fd_ghost_data.end(), fd_ghost_vars.data());
+  using VarsFluxes =
+      Variables<db::wrap_tags_in<Flux, typename System::flux_variables>>;
+  VarsFluxes fd_ghost_fluxes{ghost_zone_size * num_face_pts, 0.0};
+  if (set_fluxes) {
+    REQUIRE(fd_ghost_data.size() ==
+            (fd_ghost_vars.size() + fd_ghost_fluxes.size()));
+    std::copy(std::next(fd_ghost_data.begin(),
+                        static_cast<std::ptrdiff_t>(fd_ghost_vars.size())),
+              fd_ghost_data.end(), fd_ghost_fluxes.data());
+  } else {
+    REQUIRE(fd_ghost_data.size() == fd_ghost_vars.size());
+  }
+
+  const auto check_fluxes = [&fd_ghost_fluxes, &solution](
+                                const auto& rest_mass_density,
+                                const auto& electron_fraction,
+                                const auto& specific_internal_energy,
+                                const auto& spatial_velocity,
+                                const auto& lorentz_factor,
+                                const auto& magnetic_field,
+                                const auto& div_cleaning_field,
+                                const double shift_value) {
+    using fluxes_tags =
+        tmpl::push_back<typename System::primitive_variables_tag::tags_list,
+                        gr::Tags::SpatialMetric<DataVector, 3>,
+                        gr::Tags::Lapse<DataVector>,
+                        gr::Tags::Shift<DataVector, 3>,
+                        gr::Tags::SqrtDetSpatialMetric<DataVector>,
+                        gr::Tags::InverseSpatialMetric<DataVector, 3>>;
+    Variables<fluxes_tags> boundary_data{get(rest_mass_density).size()};
+
+    get<RestMassDensity>(boundary_data) = rest_mass_density;
+    get<ElectronFraction>(boundary_data) = electron_fraction;
+    get<SpecificInternalEnergy>(boundary_data) = specific_internal_energy;
+    get<SpatialVelocity>(boundary_data) = spatial_velocity;
+    get<LorentzFactor>(boundary_data) = lorentz_factor;
+    get<MagneticField>(boundary_data) = magnetic_field;
+    get<DivergenceCleaningField>(boundary_data) = div_cleaning_field;
+
+    get<Pressure>(boundary_data) =
+        solution.equation_of_state().pressure_from_density(rest_mass_density);
+    tnsr::ii<DataVector, 3> spatial_metric(get(rest_mass_density).size(), 0.0);
+    tnsr::II<DataVector, 3> inverse_spatial_metric(
+        get(rest_mass_density).size(), 0.0);
+    for (size_t i = 0; i < 3; ++i) {
+      spatial_metric.get(i, i) = 1.0;
+      inverse_spatial_metric.get(i, i) = 1.0;
+    }
+    get<gr::Tags::SpatialMetric<DataVector, 3>>(boundary_data) = spatial_metric;
+    get<gr::Tags::InverseSpatialMetric<DataVector, 3>>(boundary_data) =
+        inverse_spatial_metric;
+    get<gr::Tags::SqrtDetSpatialMetric<DataVector>>(boundary_data) =
+        Scalar<DataVector>(get(rest_mass_density).size(), 1.0);
+    get<gr::Tags::Lapse<DataVector>>(boundary_data) =
+        Scalar<DataVector>(get(rest_mass_density).size(), 1.0);
+    get<gr::Tags::Shift<DataVector, 3>>(boundary_data) =
+        tnsr::I<DataVector, 3>(get(rest_mass_density).size(), shift_value);
+    typename evolution::dg::subcell::Tags::CellCenteredFlux<
+        typename System::flux_variables, 3>::type::value_type
+        expected_neighbor_fluxes{get(rest_mass_density).size()};
+    grmhd::ValenciaDivClean::compute_fluxes_from_primitives(
+        make_not_null(&expected_neighbor_fluxes), boundary_data);
+    tmpl::for_each<tmpl::list<tmpl::at_c<cons_tags, 0>>>(
+        [&fd_ghost_fluxes, &expected_neighbor_fluxes](auto cons_tag_v) {
+          using tag = Flux<tmpl::type_from<std::decay_t<decltype(cons_tag_v)>>>;
+          CAPTURE(pretty_type::get_name<tag>());
+          CHECK_ITERABLE_APPROX(get<tag>(fd_ghost_fluxes),
+                                get<tag>(expected_neighbor_fluxes));
+        });
+  };
 
   //
   // now test each boundary conditions
@@ -342,6 +455,12 @@ void test(const BoundaryConditionType& boundary_condition,
                           expected_spacetime_metric);
     CHECK_ITERABLE_APPROX(get<Pi>(fd_ghost_vars), expected_pi);
     CHECK_ITERABLE_APPROX(get<Phi>(fd_ghost_vars), expected_phi);
+    if (set_fluxes) {
+      check_fluxes(expected_rest_mass_density, expected_electron_fraction,
+                   expected_rest_mass_density, expected_spatial_velocity,
+                   expected_lorentz_factor, expected_magnetic_field,
+                   expected_div_cleaning_field, 0.0);
+    }
   }
 }
 
@@ -357,13 +476,16 @@ SPECTRE_TEST_CASE(
       1.28e-3, EquationsOfState::PolytropicFluid<true>{100.0, 2.0}.get_clone(),
       RelativisticEuler::Solutions::TovCoordinates::Schwarzschild}};
   test<System>(
-      grmhd::GhValenciaDivClean::BoundaryConditions::DirichletAnalytic<
-          System>{std::make_unique<SolutionForTest>(solution)},
-      solution);
-  CHECK_THROWS_WITH(test<System>(
-                        grmhd::GhValenciaDivClean::BoundaryConditions::
-                            ConstraintPreservingFreeOutflow{},
-                        solution),
+      grmhd::GhValenciaDivClean::BoundaryConditions::DirichletAnalytic<System>{
+          std::make_unique<SolutionForTest>(solution)},
+      false, solution);
+  test<System>(
+      grmhd::GhValenciaDivClean::BoundaryConditions::DirichletAnalytic<System>{
+          std::make_unique<SolutionForTest>(solution)},
+      true, solution);
+  CHECK_THROWS_WITH(test<System>(grmhd::GhValenciaDivClean::BoundaryConditions::
+                                     ConstraintPreservingFreeOutflow{},
+                                 false, solution),
                     Catch::Matchers::ContainsSubstring(
                         "Not implemented because it's not trivial "
                         "to figure out what the right way of"));
@@ -371,10 +493,9 @@ SPECTRE_TEST_CASE(
 // check that the periodic BC fails
 #ifdef SPECTRE_DEBUG
   CHECK_THROWS_WITH(
-      test<System>(
-          domain::BoundaryConditions::Periodic<
-              BoundaryConditions::BoundaryCondition>{},
-          solution),
+      test<System>(domain::BoundaryConditions::Periodic<
+                       BoundaryConditions::BoundaryCondition>{},
+                   false, solution),
       Catch::Matchers::ContainsSubstring("not on external boundaries"));
 #endif
 }

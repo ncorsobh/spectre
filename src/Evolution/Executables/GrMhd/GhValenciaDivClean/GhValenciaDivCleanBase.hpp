@@ -44,6 +44,7 @@
 #include "Evolution/DgSubcell/CorrectPackagedData.hpp"
 #include "Evolution/DgSubcell/DisableLts.hpp"
 #include "Evolution/DgSubcell/GetActiveTag.hpp"
+#include "Evolution/DgSubcell/GhostZoneInverseJacobian.hpp"
 #include "Evolution/DgSubcell/NeighborReconstructedFaceSolution.hpp"
 #include "Evolution/DgSubcell/PerssonTci.hpp"
 #include "Evolution/DgSubcell/PrepareNeighborData.hpp"
@@ -871,6 +872,9 @@ struct GhValenciaDivCleanTemplateBase<
           Initialization::TimeStepping<derived_metavars, TimeStepperBase>,
           evolution::dg::Initialization::Domain<derived_metavars,
                                                 use_control_systems>,
+          evolution::dg::subcell::GhostZoneInverseJacobian<
+              volume_dim,
+              grmhd::GhValenciaDivClean::fd::Tags::Reconstructor<system>>,
           Initialization::TimeStepperHistory<derived_metavars>>,
       Initialization::Actions::ConservativeSystem<system>,
       // This conditional is untested and probably doesn't work if

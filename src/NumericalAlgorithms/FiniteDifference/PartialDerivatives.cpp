@@ -173,6 +173,8 @@ void logical_partial_derivatives_fastest_dim(
              << upper_ghost_data.size());
   const size_t ghost_pts_in_neighbor_data =
       lower_ghost_data.size() / number_of_stripes;
+  ASSERT(ghost_pts_in_neighbor_data - ghost_zone_for_stencil >= 0,
+         "Ghost zone is too small for finite difference derivative order.");
 
   // Precompute derivative weights to minimize FLOPs
   const std::array<double, fd_order / 2> derivative_weights =

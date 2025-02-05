@@ -59,6 +59,25 @@ namespace grmhd::GhValenciaDivClean::BoundaryConditions {
 template <typename System>
 class DirichletFreeOutflow final : public BoundaryCondition {
  private:
+  using RestMassDensity = hydro::Tags::RestMassDensity<DataVector>;
+  using ElectronFraction = hydro::Tags::ElectronFraction<DataVector>;
+  using Temperature = hydro::Tags::Temperature<DataVector>;
+  using Pressure = hydro::Tags::Pressure<DataVector>;
+  using LorentzFactorTimesSpatialVelocity =
+      hydro::Tags::LorentzFactorTimesSpatialVelocity<DataVector, 3>;
+  using MagneticField = hydro::Tags::MagneticField<DataVector, 3>;
+  using DivergenceCleaningField =
+      hydro::Tags::DivergenceCleaningField<DataVector>;
+  using SpecificInternalEnergy =
+      hydro::Tags::SpecificInternalEnergy<DataVector>;
+  using SpatialVelocity = hydro::Tags::SpatialVelocity<DataVector, 3>;
+  using LorentzFactor = hydro::Tags::LorentzFactor<DataVector>;
+  using SqrtDetSpatialMetric = gr::Tags::SqrtDetSpatialMetric<DataVector>;
+  using SpatialMetric = gr::Tags::SpatialMetric<DataVector, 3>;
+  using InvSpatialMetric = gr::Tags::InverseSpatialMetric<DataVector, 3>;
+  using Lapse = gr::Tags::Lapse<DataVector>;
+  using Shift = gr::Tags::Shift<DataVector, 3>;
+
   template <typename T>
   using Flux = ::Tags::Flux<T, tmpl::size_t<3>, Frame::Inertial>;
   std::unique_ptr<evolution::initial_data::InitialData> analytic_prescription_;
@@ -164,7 +183,8 @@ class DirichletFreeOutflow final : public BoundaryCondition {
 
   using fd_interior_evolved_variables_tags = tmpl::list<>;
   using fd_interior_temporary_tags =
-      tmpl::list<evolution::dg::subcell::Tags::Mesh<3>>;
+      tmpl::list<evolution::dg::subcell::Tags::Mesh<3>, Lapse, Shift,
+                 SpatialMetric>;
   using fd_interior_primitive_variables_tags =
       tmpl::list<hydro::Tags::RestMassDensity<DataVector>,
                  hydro::Tags::ElectronFraction<DataVector>,
@@ -192,10 +212,17 @@ class DirichletFreeOutflow final : public BoundaryCondition {
           lorentz_factor_times_spatial_velocity,
       gsl::not_null<tnsr::I<DataVector, 3, Frame::Inertial>*> magnetic_field,
       gsl::not_null<Scalar<DataVector>*> divergence_cleaning_field,
+
+      gsl::not_null<std::optional<
+          Variables<db::wrap_tags_in<Flux, typename System::flux_variables>>>*>
+          cell_centered_ghost_fluxes,
+
       const Direction<3>& direction,
 
       // fd_interior_temporary_tags
-      const Mesh<3>& subcell_mesh,
+      const Mesh<3>& subcell_mesh, const Scalar<DataVector>& interior_lapse,
+      const tnsr::I<DataVector, 3, Frame::Inertial>& interior_shift,
+      const tnsr::ii<DataVector, 3, Frame::Inertial>& interior_spatial_metric,
 
       // interior prim vars tags
       const Scalar<DataVector>& interior_rest_mass_density,
