@@ -35,7 +35,8 @@ void spacetime_derivatives(
         volume_evolved_variables,
     const DirectionalIdMap<3, evolution::dg::subcell::GhostData>&
         all_ghost_data,
-    const size_t& deriv_order, const Mesh<3>& volume_mesh,
+    const bool compute_cell_centered_flux, const size_t& deriv_order,
+    const Mesh<3>& volume_mesh,
     const InverseJacobian<DataVector, 3, Frame::ElementLogical,
                           Frame::Inertial>&
         cell_centered_logical_to_inertial_inv_jacobian) {
@@ -51,35 +52,68 @@ void spacetime_derivatives(
       grmhd::GhValenciaDivClean::Tags::spacetime_reconstruction_tags>::
       number_of_independent_components;
 
+  using flux_variables = System::flux_variables;
   DirectionMap<3, gsl::span<const double>> ghost_cell_vars{};
   for (const auto& [directional_element_id, ghost_data] : all_ghost_data) {
-    using NeighborVariables =
-        Variables<grmhd::GhValenciaDivClean::Tags::
-                      primitive_grmhd_and_spacetime_reconstruction_tags>;
-    const DataVector& neighbor_data =
-        ghost_data.neighbor_ghost_data_for_reconstruction();
-    const size_t neighbor_number_of_points =
-        neighbor_data.size() /
-        NeighborVariables::number_of_independent_components;
-    ASSERT(
-        neighbor_data.size() %
-                NeighborVariables::number_of_independent_components ==
-            0,
-        "Amount of reconstruction data sent ("
-            << neighbor_data.size() << ") from " << directional_element_id
-            << " is not a multiple of the number of reconstruction variables "
-            << NeighborVariables::number_of_independent_components);
-    // Use a Variables view to get offset into spacetime variables
-    // without having to do pointer math.
-    const NeighborVariables
-        // NOLINTNEXTLINE(cppcoreguidelines-pro-type-const-cast)
-        view{const_cast<double*>(neighbor_data.data()),
-             neighbor_number_of_points *
-                 NeighborVariables::number_of_independent_components};
-    ghost_cell_vars.insert(std::pair{
-        directional_element_id.direction(),
-        gsl::make_span(get<first_gh_tag>(view)[0].data(),
-                       number_of_gh_components * neighbor_number_of_points)});
+    if (compute_cell_centered_flux) {
+      using NeighborVariables = Variables<
+          tmpl::append<grmhd::GhValenciaDivClean::Tags::
+                           primitive_grmhd_and_spacetime_reconstruction_tags,
+                       db::wrap_tags_in<::Tags::Flux, flux_variables,
+                                        tmpl::size_t<3>, Frame::Inertial>>>;
+      const DataVector& neighbor_data =
+          ghost_data.neighbor_ghost_data_for_reconstruction();
+      const size_t neighbor_number_of_points =
+          neighbor_data.size() /
+          NeighborVariables::number_of_independent_components;
+      ASSERT(
+          neighbor_data.size() %
+                  NeighborVariables::number_of_independent_components ==
+              0,
+          "Amount of reconstruction data sent ("
+              << neighbor_data.size() << ") from " << directional_element_id
+              << " is not a multiple of the number of reconstruction variables "
+              << NeighborVariables::number_of_independent_components);
+      // Use a Variables view to get offset into spacetime variables
+      // without having to do pointer math.
+      const NeighborVariables
+          // NOLINTNEXTLINE(cppcoreguidelines-pro-type-const-cast)
+          view{const_cast<double*>(neighbor_data.data()),
+               neighbor_number_of_points *
+                   NeighborVariables::number_of_independent_components};
+      ghost_cell_vars.insert(std::pair{
+          directional_element_id.direction(),
+          gsl::make_span(get<first_gh_tag>(view)[0].data(),
+                         number_of_gh_components * neighbor_number_of_points)});
+    } else {
+      using NeighborVariables =
+          Variables<grmhd::GhValenciaDivClean::Tags::
+                        primitive_grmhd_and_spacetime_reconstruction_tags>;
+      const DataVector& neighbor_data =
+          ghost_data.neighbor_ghost_data_for_reconstruction();
+      const size_t neighbor_number_of_points =
+          neighbor_data.size() /
+          NeighborVariables::number_of_independent_components;
+      ASSERT(
+          neighbor_data.size() %
+                  NeighborVariables::number_of_independent_components ==
+              0,
+          "Amount of reconstruction data sent ("
+              << neighbor_data.size() << ") from " << directional_element_id
+              << " is not a multiple of the number of reconstruction variables "
+              << NeighborVariables::number_of_independent_components);
+      // Use a Variables view to get offset into spacetime variables
+      // without having to do pointer math.
+      const NeighborVariables
+          // NOLINTNEXTLINE(cppcoreguidelines-pro-type-const-cast)
+          view{const_cast<double*>(neighbor_data.data()),
+               neighbor_number_of_points *
+                   NeighborVariables::number_of_independent_components};
+      ghost_cell_vars.insert(std::pair{
+          directional_element_id.direction(),
+          gsl::make_span(get<first_gh_tag>(view)[0].data(),
+                         number_of_gh_components * neighbor_number_of_points)});
+    }
   }
 
   const auto volume_gh_vars =
@@ -110,7 +144,8 @@ void spacetime_derivatives(
           data)>::variables_tag::tags_list>& volume_evolved_variables,      \
       const DirectionalIdMap<3, evolution::dg::subcell::GhostData>&         \
           all_ghost_data,                                                   \
-      const size_t& deriv_order, const Mesh<3>& volume_mesh,                \
+      const bool compute_cell_centered_flux, const size_t& deriv_order,     \
+      const Mesh<3>& volume_mesh,                                           \
       const InverseJacobian<DataVector, 3, Frame::ElementLogical,           \
                             Frame::Inertial>&                               \
           cell_centered_logical_to_inertial_inv_jacobian);

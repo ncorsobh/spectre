@@ -47,7 +47,8 @@ void spacetime_derivatives(
         volume_evolved_variables,
     const DirectionalIdMap<3, evolution::dg::subcell::GhostData>&
         all_ghost_data,
-    const size_t& deriv_order, const Mesh<3>& volume_mesh,
+    const bool compute_cell_centered_flux, const size_t& deriv_order,
+    const Mesh<3>& volume_mesh,
     const InverseJacobian<DataVector, 3, Frame::ElementLogical,
                           Frame::Inertial>&
         cell_centered_logical_to_inertial_inv_jacobian);

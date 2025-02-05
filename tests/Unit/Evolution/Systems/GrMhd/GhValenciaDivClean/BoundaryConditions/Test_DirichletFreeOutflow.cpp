@@ -76,6 +76,9 @@ struct Metavariables {
   };
 };
 
+template <typename T>
+using Flux = ::Tags::Flux<T, tmpl::size_t<3>, Frame::Inertial>;
+
 template <typename T, typename U>
 void test_dg(const gsl::not_null<std::mt19937*> generator,
              const U& boundary_condition, const T& analytic_solution_or_data) {
@@ -366,31 +369,35 @@ void test_fd(const U& boundary_condition, const T& analytic_solution_or_data) {
 
   using Vars = Variables<grmhd::GhValenciaDivClean::Tags::
                              primitive_grmhd_and_spacetime_reconstruction_tags>;
-  using PrimVars =
-      Variables<tmpl::list<hydro::Tags::RestMassDensity<DataVector>,
-                           hydro::Tags::ElectronFraction<DataVector>,
-                           hydro::Tags::Pressure<DataVector>,
-                           hydro::Tags::SpecificInternalEnergy<DataVector>,
-                           hydro::Tags::SpecificEnthalpy<DataVector>,
-                           hydro::Tags::Temperature<DataVector>,
-                           hydro::Tags::SpatialVelocity<DataVector, 3>,
-                           hydro::Tags::LorentzFactor<DataVector>,
-                           hydro::Tags::MagneticField<DataVector, 3>>>;
+  using InteriorVars = Variables<tmpl::list<
+      hydro::Tags::RestMassDensity<DataVector>,
+      hydro::Tags::ElectronFraction<DataVector>,
+      hydro::Tags::Pressure<DataVector>,
+      hydro::Tags::SpecificInternalEnergy<DataVector>,
+      hydro::Tags::SpecificEnthalpy<DataVector>,
+      hydro::Tags::Temperature<DataVector>,
+      hydro::Tags::SpatialVelocity<DataVector, 3>,
+      hydro::Tags::LorentzFactor<DataVector>,
+      hydro::Tags::MagneticField<DataVector, 3>, gr::Tags::Lapse<DataVector>,
+      gr::Tags::Shift<DataVector, 3>, gr::Tags::SpatialMetric<DataVector, 3>,
+      gr::Tags::InverseSpatialMetric<DataVector, 3>,
+      gr::Tags::SqrtDetSpatialMetric<DataVector>,
+      hydro::Tags::DivergenceCleaningField<DataVector>>>;
   Vars vars{reconstructor.ghost_zone_size() *
             subcell_mesh.extents().slice_away(0).product()};
-  PrimVars prim_vars{subcell_mesh.number_of_grid_points()};
+  InteriorVars prim_vars{subcell_mesh.number_of_grid_points()};
   if constexpr (::is_analytic_solution_v<T>) {
     prim_vars.assign_subset(analytic_solution_or_data.variables(
         grid_to_inertial_map(
             logical_to_grid_map(logical_coordinates(subcell_mesh)), time,
             functions_of_time),
-        time, typename PrimVars::tags_list{}));
+        time, typename InteriorVars::tags_list{}));
   } else {
     prim_vars.assign_subset(analytic_solution_or_data.variables(
         grid_to_inertial_map(
             logical_to_grid_map(logical_coordinates(subcell_mesh)), time,
             functions_of_time),
-        typename PrimVars::tags_list{}));
+        typename InteriorVars::tags_list{}));
   }
 
   Vars expected_vars = [&analytic_solution_or_data, &direction,
@@ -463,19 +470,75 @@ void test_fd(const U& boundary_condition, const T& analytic_solution_or_data) {
 
   // Note: Once we support high-order fluxes with GHMHD we will need to
   // handle this correctly.
-  std::optional<Variables<db::wrap_tags_in<
-      ::Tags::Flux, typename grmhd::ValenciaDivClean::System::flux_variables,
-      tmpl::size_t<3>, Frame::Inertial>>>
-      cell_centered_ghost_fluxes{std::nullopt};
+  using flux_variables =
+      typename grmhd::ValenciaDivClean::System::flux_variables;
+  using FluxVars =
+      Variables<db::wrap_tags_in<::Tags::Flux, flux_variables, tmpl::size_t<3>,
+                                 Frame::Inertial>>;
+  std::optional<FluxVars> cell_centered_ghost_fluxes{};
+  using cons_tags =
+      typename grmhd::ValenciaDivClean::System::variables_tag::tags_list;
+  typename grmhd::ValenciaDivClean::System::variables_tag::type ghost_cons_vars{
+      subcell_mesh.number_of_grid_points()};
+  const bool set_fluxes = true;
+  if (set_fluxes) {
+    cell_centered_ghost_fluxes =
+        typename decltype(cell_centered_ghost_fluxes)::value_type{
+            subcell_mesh.number_of_grid_points()};
+    grmhd::ValenciaDivClean::ConservativeFromPrimitive::apply(
+        get<tmpl::at_c<cons_tags, 0>>(make_not_null(&ghost_cons_vars)),
+        get<tmpl::at_c<cons_tags, 1>>(make_not_null(&ghost_cons_vars)),
+        get<tmpl::at_c<cons_tags, 2>>(make_not_null(&ghost_cons_vars)),
+        get<tmpl::at_c<cons_tags, 3>>(make_not_null(&ghost_cons_vars)),
+        get<tmpl::at_c<cons_tags, 4>>(make_not_null(&ghost_cons_vars)),
+        get<tmpl::at_c<cons_tags, 5>>(make_not_null(&ghost_cons_vars)),
+        get<hydro::Tags::RestMassDensity<DataVector>>(prim_vars),
+        get<hydro::Tags::ElectronFraction<DataVector>>(prim_vars),
+        get<hydro::Tags::SpecificInternalEnergy<DataVector>>(prim_vars),
+        get<hydro::Tags::Pressure<DataVector>>(prim_vars),
+        get<hydro::Tags::SpatialVelocity<DataVector, 3>>(prim_vars),
+        get<hydro::Tags::LorentzFactor<DataVector>>(prim_vars),
+        get<hydro::Tags::MagneticField<DataVector, 3>>(prim_vars),
+        get<gr::Tags::SqrtDetSpatialMetric<DataVector>>(prim_vars),
+        get<gr::Tags::SpatialMetric<DataVector, 3>>(prim_vars),
+        get<hydro::Tags::DivergenceCleaningField<DataVector>>(prim_vars));
+
+    grmhd::ValenciaDivClean::ComputeFluxes::apply(
+        get<Flux<tmpl::at_c<cons_tags, 0>>>(
+            make_not_null(&cell_centered_ghost_fluxes.value())),
+        get<Flux<tmpl::at_c<cons_tags, 1>>>(
+            make_not_null(&cell_centered_ghost_fluxes.value())),
+        get<Flux<tmpl::at_c<cons_tags, 2>>>(
+            make_not_null(&cell_centered_ghost_fluxes.value())),
+        get<Flux<tmpl::at_c<cons_tags, 3>>>(
+            make_not_null(&cell_centered_ghost_fluxes.value())),
+        get<Flux<tmpl::at_c<cons_tags, 4>>>(
+            make_not_null(&cell_centered_ghost_fluxes.value())),
+        get<Flux<tmpl::at_c<cons_tags, 5>>>(
+            make_not_null(&cell_centered_ghost_fluxes.value())),
+
+        get<tmpl::at_c<cons_tags, 0>>(ghost_cons_vars),
+        get<tmpl::at_c<cons_tags, 1>>(ghost_cons_vars),
+        get<tmpl::at_c<cons_tags, 2>>(ghost_cons_vars),
+        get<tmpl::at_c<cons_tags, 3>>(ghost_cons_vars),
+        get<tmpl::at_c<cons_tags, 4>>(ghost_cons_vars),
+        get<tmpl::at_c<cons_tags, 5>>(ghost_cons_vars),
+
+        get<gr::Tags::Lapse<DataVector>>(prim_vars),
+        get<gr::Tags::Shift<DataVector, 3>>(prim_vars),
+        get<gr::Tags::SqrtDetSpatialMetric<DataVector>>(prim_vars),
+        get<gr::Tags::SpatialMetric<DataVector, 3>>(prim_vars),
+        get<gr::Tags::InverseSpatialMetric<DataVector, 3>>(prim_vars),
+        get<hydro::Tags::Pressure<DataVector>>(prim_vars),
+        get<hydro::Tags::SpatialVelocity<DataVector, 3>>(prim_vars),
+        get<hydro::Tags::LorentzFactor<DataVector>>(prim_vars),
+        get<hydro::Tags::MagneticField<DataVector, 3>>(prim_vars));
+  }
   // Set to zero since it shouldn't be used
-  Scalar<DataVector> interior_specific_internal_energy{};
   Scalar<DataVector> specific_internal_energy{};
   Scalar<DataVector> pressure{};
   tnsr::I<DataVector, 3> spatial_velocity{};
   Scalar<DataVector> lorentz_factor{};
-  const tnsr::I<DataVector, 3> interior_shift{};
-  const Scalar<DataVector> interior_lapse{};
-  const tnsr::ii<DataVector, 3> interior_spatial_metric{};
   tnsr::ii<DataVector, 3> spatial_metric{};
   tnsr::II<DataVector, 3> inv_spatial_metric{};
   Scalar<DataVector> sqrt_det_spatial_metric{};
@@ -489,13 +552,19 @@ void test_fd(const U& boundary_condition, const T& analytic_solution_or_data) {
       make_not_null(&lorentz_factor_times_spatial_velocity),
       make_not_null(&magnetic_field), make_not_null(&divergence_cleaning_field),
 
+      make_not_null(&cell_centered_ghost_fluxes),
+
       direction, subcell_mesh,
+
+      get<gr::Tags::Lapse<DataVector>>(prim_vars),
+      get<gr::Tags::Shift<DataVector, 3>>(prim_vars),
+      get<gr::Tags::SpatialMetric<DataVector, 3>>(prim_vars),
 
       get<hydro::Tags::RestMassDensity<DataVector>>(prim_vars),
       get<hydro::Tags::ElectronFraction<DataVector>>(prim_vars),
       get<hydro::Tags::Temperature<DataVector>>(prim_vars),
       get<hydro::Tags::Pressure<DataVector>>(prim_vars),
-      interior_specific_internal_energy,
+      get<hydro::Tags::SpecificInternalEnergy<DataVector>>(prim_vars),
       get<hydro::Tags::LorentzFactor<DataVector>>(prim_vars),
       get<hydro::Tags::SpatialVelocity<DataVector, 3>>(prim_vars),
       get<hydro::Tags::MagneticField<DataVector, 3>>(prim_vars),
@@ -531,13 +600,13 @@ void test_fd(const U& boundary_condition, const T& analytic_solution_or_data) {
       get<hydro::Tags::ElectronFraction<DataVector>>(prim_vars),
       get<hydro::Tags::Temperature<DataVector>>(prim_vars),
       get<hydro::Tags::Pressure<DataVector>>(prim_vars),
-      interior_specific_internal_energy,
+      get<hydro::Tags::SpecificInternalEnergy<DataVector>>(prim_vars),
       get<hydro::Tags::LorentzFactor<DataVector>>(prim_vars),
       get<hydro::Tags::SpatialVelocity<DataVector, 3>>(prim_vars),
       get<hydro::Tags::MagneticField<DataVector, 3>>(prim_vars),
-
-      // Note: metric vars are empty because they shouldn't be used
-      interior_spatial_metric, interior_lapse, interior_shift,
+      get<gr::Tags::SpatialMetric<DataVector, 3>>(prim_vars),
+      get<gr::Tags::Lapse<DataVector>>(prim_vars),
+      get<gr::Tags::Shift<DataVector, 3>>(prim_vars),
 
       reconstructor.ghost_zone_size(),
 

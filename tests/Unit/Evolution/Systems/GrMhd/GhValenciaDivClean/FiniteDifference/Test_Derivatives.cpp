@@ -77,7 +77,7 @@ SPECTRE_TEST_CASE(
 
   grmhd::GhValenciaDivClean::fd::spacetime_derivatives<System>(
       make_not_null(&deriv_of_gh_vars), volume_evolved_vars, all_ghost_data,
-      fd_deriv_order, subcell_mesh,
+      false, fd_deriv_order, subcell_mesh,
       cell_centered_logical_to_inertial_inv_jacobian);
 
   Variables<db::wrap_tags_in<Tags::deriv,
@@ -173,7 +173,7 @@ SPECTRE_TEST_CASE(
     CHECK_THROWS_WITH(grmhd::GhValenciaDivClean::fd::spacetime_derivatives<
                           System>(
                           make_not_null(&deriv_of_gh_vars), volume_evolved_vars,
-                          bad_ghost_data, fd_deriv_order, subcell_mesh,
+                          bad_ghost_data, false, fd_deriv_order, subcell_mesh,
                           cell_centered_logical_to_inertial_inv_jacobian),
                       Catch::Matchers::ContainsSubstring(match_string));
   }

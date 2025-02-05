@@ -225,10 +225,17 @@ void DirichletFreeOutflow<System>::fd_ghost(
     const gsl::not_null<tnsr::I<DataVector, 3, Frame::Inertial>*>
         magnetic_field,
     const gsl::not_null<Scalar<DataVector>*> divergence_cleaning_field,
+
+    gsl::not_null<std::optional<
+        Variables<db::wrap_tags_in<Flux, typename System::flux_variables>>>*>
+        cell_centered_ghost_fluxes,
+
     const Direction<3>& direction,
 
     // fd_interior_temporary_tags
-    const Mesh<3>& subcell_mesh,
+    const Mesh<3>& subcell_mesh, const Scalar<DataVector>& interior_lapse,
+    const tnsr::I<DataVector, 3, Frame::Inertial>& interior_shift,
+    const tnsr::ii<DataVector, 3, Frame::Inertial>& interior_spatial_metric,
 
     // interior prim vars tags
     const Scalar<DataVector>& interior_rest_mass_density,
@@ -294,11 +301,11 @@ void DirichletFreeOutflow<System>::fd_ghost(
 
   // Note: Once we support high-order fluxes with GHMHD we will need to
   // handle this correctly.
-  std::optional<Variables<db::wrap_tags_in<
-      Flux, typename grmhd::ValenciaDivClean::System::flux_variables>>>
-      cell_centered_ghost_fluxes{std::nullopt};
+  /*std::optional<
+      Variables<db::wrap_tags_in<Flux, typename System::flux_variables>>>
+      cell_centered_ghost_fluxes{std::nullopt};*/
   // Dummy placeholders to call `fd_ghost_impl` but are not actually returned
-  Scalar<DataVector> pressure{};
+  /*Scalar<DataVector> pressure{};
   Scalar<DataVector> specific_internal_energy{};
   tnsr::I<DataVector, 3> spatial_velocity{};
   Scalar<DataVector> lorentz_factor{};
@@ -309,9 +316,15 @@ void DirichletFreeOutflow<System>::fd_ghost(
   tnsr::II<DataVector, 3> inv_spatial_metric{};
   Scalar<DataVector> sqrt_det_spatial_metric{};
   Scalar<DataVector> lapse{};
-  tnsr::I<DataVector, 3> shift{};
+  tnsr::I<DataVector, 3> shift{};*/
 
-  grmhd::ValenciaDivClean::BoundaryConditions::HydroFreeOutflow::fd_ghost_impl(
+  Variables<tmpl::push_back<typename System::variables_tag::tags_list,
+                            SpatialVelocity, LorentzFactor, Pressure,
+                            SpecificInternalEnergy, SqrtDetSpatialMetric,
+                            SpatialMetric, InvSpatialMetric, Lapse, Shift>>
+      temp_vars{get(*rest_mass_density).size()};
+
+/*grmhd::ValenciaDivClean::BoundaryConditions::HydroFreeOutflow::fd_ghost_impl(
       rest_mass_density, electron_fraction, temperature,
       make_not_null(&pressure), make_not_null(&specific_internal_energy),
       lorentz_factor_times_spatial_velocity, make_not_null(&spatial_velocity),
@@ -319,7 +332,19 @@ void DirichletFreeOutflow<System>::fd_ghost(
 
       make_not_null(&spatial_metric), make_not_null(&inv_spatial_metric),
       make_not_null(&sqrt_det_spatial_metric), make_not_null(&lapse),
-      make_not_null(&shift),
+      make_not_null(&shift),*/
+  grmhd::ValenciaDivClean::BoundaryConditions::HydroFreeOutflow::fd_ghost_impl(
+      rest_mass_density, electron_fraction, temperature,
+      make_not_null(&get<Pressure>(temp_vars)),
+      make_not_null(&get<SpecificInternalEnergy>(temp_vars)),
+      lorentz_factor_times_spatial_velocity,
+      make_not_null(&get<SpatialVelocity>(temp_vars)),
+      make_not_null(&get<LorentzFactor>(temp_vars)), magnetic_field,
+      divergence_cleaning_field, make_not_null(&get<SpatialMetric>(temp_vars)),
+      make_not_null(&get<InvSpatialMetric>(temp_vars)),
+      make_not_null(&get<SqrtDetSpatialMetric>(temp_vars)),
+      make_not_null(&get<Lapse>(temp_vars)),
+      make_not_null(&get<Shift>(temp_vars)),
 
       direction,
 
@@ -335,7 +360,53 @@ void DirichletFreeOutflow<System>::fd_ghost(
       interior_spatial_metric, interior_lapse, interior_shift,
 
       // fd_gridless_tags
-      reconstructor.ghost_zone_size(), cell_centered_ghost_fluxes.has_value());
+      reconstructor.ghost_zone_size(), cell_centered_ghost_fluxes->has_value());
+
+  if (cell_centered_ghost_fluxes->has_value()) {
+    grmhd::ValenciaDivClean::ConservativeFromPrimitive::apply(
+        make_not_null(&get<grmhd::ValenciaDivClean::Tags::TildeD>(temp_vars)),
+        make_not_null(&get<grmhd::ValenciaDivClean::Tags::TildeYe>(temp_vars)),
+        make_not_null(&get<grmhd::ValenciaDivClean::Tags::TildeTau>(temp_vars)),
+        make_not_null(&get<grmhd::ValenciaDivClean::Tags::TildeS<>>(temp_vars)),
+        make_not_null(&get<grmhd::ValenciaDivClean::Tags::TildeB<>>(temp_vars)),
+        make_not_null(&get<grmhd::ValenciaDivClean::Tags::TildePhi>(temp_vars)),
+
+        // Note: Only the spatial velocity changes.
+        *rest_mass_density, *electron_fraction,
+        get<SpecificInternalEnergy>(temp_vars), get<Pressure>(temp_vars),
+        get<SpatialVelocity>(temp_vars), get<LorentzFactor>(temp_vars),
+        *magnetic_field,
+
+        get<SqrtDetSpatialMetric>(temp_vars), get<SpatialMetric>(temp_vars),
+        *divergence_cleaning_field);
+
+    grmhd::ValenciaDivClean::ComputeFluxes::apply(
+        make_not_null(&get<Flux<grmhd::ValenciaDivClean::Tags::TildeD>>(
+            cell_centered_ghost_fluxes->value())),
+        make_not_null(&get<Flux<grmhd::ValenciaDivClean::Tags::TildeYe>>(
+            cell_centered_ghost_fluxes->value())),
+        make_not_null(&get<Flux<grmhd::ValenciaDivClean::Tags::TildeTau>>(
+            cell_centered_ghost_fluxes->value())),
+        make_not_null(&get<Flux<grmhd::ValenciaDivClean::Tags::TildeS<>>>(
+            cell_centered_ghost_fluxes->value())),
+        make_not_null(&get<Flux<grmhd::ValenciaDivClean::Tags::TildeB<>>>(
+            cell_centered_ghost_fluxes->value())),
+        make_not_null(&get<Flux<grmhd::ValenciaDivClean::Tags::TildePhi>>(
+            cell_centered_ghost_fluxes->value())),
+
+        get<grmhd::ValenciaDivClean::Tags::TildeD>(temp_vars),
+        get<grmhd::ValenciaDivClean::Tags::TildeYe>(temp_vars),
+        get<grmhd::ValenciaDivClean::Tags::TildeTau>(temp_vars),
+        get<grmhd::ValenciaDivClean::Tags::TildeS<>>(temp_vars),
+        get<grmhd::ValenciaDivClean::Tags::TildeB<>>(temp_vars),
+        get<grmhd::ValenciaDivClean::Tags::TildePhi>(temp_vars),
+
+        get<Lapse>(temp_vars), get<Shift>(temp_vars),
+        get<SqrtDetSpatialMetric>(temp_vars), get<SpatialMetric>(temp_vars),
+        get<InvSpatialMetric>(temp_vars), get<Pressure>(temp_vars),
+        get<SpatialVelocity>(temp_vars), get<LorentzFactor>(temp_vars),
+        *magnetic_field);
+  }
 }
 
 #define NEUTRINO(data) BOOST_PP_TUPLE_ELEM(0, data)
