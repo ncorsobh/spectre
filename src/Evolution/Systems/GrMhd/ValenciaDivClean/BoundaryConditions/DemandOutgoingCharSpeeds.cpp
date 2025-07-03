@@ -22,6 +22,7 @@
 #include "Domain/Structure/Direction.hpp"
 #include "Evolution/DgSubcell/SliceTensor.hpp"
 #include "Evolution/Systems/GrMhd/ValenciaDivClean/BoundaryConditions/BoundaryCondition.hpp"
+#include "Evolution/Systems/GrMhd/ValenciaDivClean/FillCellCenteredFluxes.hpp"
 #include "Evolution/Systems/GrMhd/ValenciaDivClean/FiniteDifference/Factory.hpp"
 #include "Evolution/Systems/GrMhd/ValenciaDivClean/FiniteDifference/Reconstructor.hpp"
 #include "Evolution/Systems/GrMhd/ValenciaDivClean/Fluxes.hpp"
@@ -199,9 +200,10 @@ void DemandOutgoingCharSpeeds::fd_demand_outgoing_char_speeds(
         tmpl::list<RestMassDensity, ElectronFraction, Pressure,
                    LorentzFactorTimesSpatialVelocity, MagneticField,
                    DivergenceCleaningField>;
-    using fluxes_tags = tmpl::list<SpecificInternalEnergy, SpatialMetric, Lapse,
-                                   Shift, SpatialVelocity, LorentzFactor,
-                                   SqrtDetSpatialMetric, InvSpatialMetric>;
+    using fluxes_tags =
+        tmpl::push_back<typename System::primitive_variables_tag::tags_list,
+                        SpatialMetric, Lapse, Shift, SqrtDetSpatialMetric,
+                        InvSpatialMetric>;
 
     const bool need_tags_for_fluxes = cell_centered_ghost_fluxes->has_value();
     // Create a single large DV to reduce the number of Variables allocations
@@ -309,47 +311,9 @@ void DemandOutgoingCharSpeeds::fd_demand_outgoing_char_speeds(
       Variables<typename System::variables_tag::tags_list> temp_vars(
           get(*rest_mass_density).size());
 
-      ConservativeFromPrimitive::apply(
-          make_not_null(&get<Tags::TildeD>(temp_vars)),
-          make_not_null(&get<Tags::TildeYe>(temp_vars)),
-          make_not_null(&get<Tags::TildeTau>(temp_vars)),
-          make_not_null(&get<Tags::TildeS<>>(temp_vars)),
-          make_not_null(&get<Tags::TildeB<>>(temp_vars)),
-          make_not_null(&get<Tags::TildePhi>(temp_vars)),
-
-          // Note: Only the spatial velocity changes.
-          *rest_mass_density, *electron_fraction,
-          get<SpecificInternalEnergy>(ghost_fluxes_vars), *pressure,
-          get<SpatialVelocity>(ghost_fluxes_vars),
-          get<LorentzFactor>(ghost_fluxes_vars), *magnetic_field,
-
-          get<SqrtDetSpatialMetric>(ghost_fluxes_vars),
-          get<SpatialMetric>(ghost_fluxes_vars), *divergence_cleaning_field);
-
-      ComputeFluxes::apply(
-          make_not_null(
-              &get<Flux<Tags::TildeD>>(cell_centered_ghost_fluxes->value())),
-          make_not_null(
-              &get<Flux<Tags::TildeYe>>(cell_centered_ghost_fluxes->value())),
-          make_not_null(
-              &get<Flux<Tags::TildeTau>>(cell_centered_ghost_fluxes->value())),
-          make_not_null(
-              &get<Flux<Tags::TildeS<>>>(cell_centered_ghost_fluxes->value())),
-          make_not_null(
-              &get<Flux<Tags::TildeB<>>>(cell_centered_ghost_fluxes->value())),
-          make_not_null(
-              &get<Flux<Tags::TildePhi>>(cell_centered_ghost_fluxes->value())),
-
-          get<Tags::TildeD>(temp_vars), get<Tags::TildeYe>(temp_vars),
-          get<Tags::TildeTau>(temp_vars), get<Tags::TildeS<>>(temp_vars),
-          get<Tags::TildeB<>>(temp_vars), get<Tags::TildePhi>(temp_vars),
-
-          get<Lapse>(ghost_fluxes_vars), get<Shift>(ghost_fluxes_vars),
-          get<SqrtDetSpatialMetric>(ghost_fluxes_vars),
-          get<SpatialMetric>(ghost_fluxes_vars),
-          get<InvSpatialMetric>(ghost_fluxes_vars), *pressure,
-          get<SpatialVelocity>(ghost_fluxes_vars),
-          get<LorentzFactor>(ghost_fluxes_vars), *magnetic_field);
+      fill_cell_centered_fluxes(
+          make_not_null(&cell_centered_ghost_fluxes->value()),
+          ghost_fluxes_vars);
     }
   }
 }

@@ -33,6 +33,7 @@ set(LIBRARY_SOURCES
   Test_Characteristics.cpp
   Test_ComovingMagneticFieldMagnitude.cpp
   Test_ConservativeFromPrimitive.cpp
+  Test_FillCellCenteredFluxes.cpp
   Test_FixConservatives.cpp
   Test_Flattener.cpp
   Test_Fluxes.cpp

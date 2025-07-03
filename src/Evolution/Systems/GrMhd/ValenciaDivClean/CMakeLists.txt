@@ -30,6 +30,7 @@ spectre_target_headers(
   Characteristics.hpp
   ComovingMagneticFieldMagnitude.hpp
   ConservativeFromPrimitive.hpp
+  FillCellCenteredFluxes.hpp
   FixConservatives.hpp
   Flattener.hpp
   Fluxes.hpp

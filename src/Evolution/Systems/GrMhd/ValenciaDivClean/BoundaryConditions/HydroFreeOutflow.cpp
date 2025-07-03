@@ -22,6 +22,7 @@
 #include "Domain/Structure/Direction.hpp"
 #include "Evolution/DgSubcell/SliceTensor.hpp"
 #include "Evolution/Systems/GrMhd/ValenciaDivClean/ConservativeFromPrimitive.hpp"
+#include "Evolution/Systems/GrMhd/ValenciaDivClean/FillCellCenteredFluxes.hpp"
 #include "Evolution/Systems/GrMhd/ValenciaDivClean/FiniteDifference/Reconstructor.hpp"
 #include "Evolution/Systems/GrMhd/ValenciaDivClean/Fluxes.hpp"
 #include "NumericalAlgorithms/Spectral/Mesh.hpp"
@@ -222,11 +223,30 @@ void HydroFreeOutflow::fd_ghost(
 
     // fd_gridless_tags
     const fd::Reconstructor& reconstructor) {
-  Variables<tmpl::push_back<typename System::variables_tag::tags_list,
-                            SpatialVelocity, LorentzFactor, Pressure,
-                            SpecificInternalEnergy, SqrtDetSpatialMetric,
-                            SpatialMetric, InvSpatialMetric, Lapse, Shift>>
+  Variables<tmpl::push_back<
+      tmpl::append<typename System::variables_tag::tags_list,
+                   typename System::primitive_variables_tag::tags_list>,
+      SqrtDetSpatialMetric, SpatialMetric, InvSpatialMetric, Lapse, Shift>>
       temp_vars{get(*rest_mass_density).size()};
+
+  *rest_mass_density = get<hydro::Tags::RestMassDensity<DataVector>>(temp_vars);
+  *electron_fraction =
+      get<hydro::Tags::ElectronFraction<DataVector>>(temp_vars);
+  *temperature = get<hydro::Tags::Temperature<DataVector>>(temp_vars);
+
+  for (size_t i = 0; i < 3; ++i) {
+    auto& lorentz_factor =
+        get<hydro::Tags::LorentzFactor<DataVector>>(temp_vars);
+    auto& spatial_velocity =
+        get<hydro::Tags::SpatialVelocity<DataVector, 3>>(temp_vars);
+    (*lorentz_factor_times_spatial_velocity).get(i) =
+        get(lorentz_factor) * spatial_velocity.get(i);
+  }
+
+  *magnetic_field = get<hydro::Tags::MagneticField<DataVector, 3>>(temp_vars);
+  *divergence_cleaning_field =
+      get<hydro::Tags::DivergenceCleaningField<DataVector>>(temp_vars);
+
   fd_ghost_impl(rest_mass_density, electron_fraction, temperature,
                 make_not_null(&get<Pressure>(temp_vars)),
                 make_not_null(&get<SpecificInternalEnergy>(temp_vars)),
@@ -256,46 +276,8 @@ void HydroFreeOutflow::fd_ghost(
 
                 cell_centered_ghost_fluxes->has_value());
   if (cell_centered_ghost_fluxes->has_value()) {
-    ConservativeFromPrimitive::apply(
-        make_not_null(&get<Tags::TildeD>(temp_vars)),
-        make_not_null(&get<Tags::TildeYe>(temp_vars)),
-        make_not_null(&get<Tags::TildeTau>(temp_vars)),
-        make_not_null(&get<Tags::TildeS<>>(temp_vars)),
-        make_not_null(&get<Tags::TildeB<>>(temp_vars)),
-        make_not_null(&get<Tags::TildePhi>(temp_vars)),
-
-        // Note: Only the spatial velocity changes.
-        *rest_mass_density, *electron_fraction,
-        get<SpecificInternalEnergy>(temp_vars), get<Pressure>(temp_vars),
-        get<SpatialVelocity>(temp_vars), get<LorentzFactor>(temp_vars),
-        *magnetic_field,
-
-        get<SqrtDetSpatialMetric>(temp_vars), get<SpatialMetric>(temp_vars),
-        *divergence_cleaning_field);
-
-    ComputeFluxes::apply(
-        make_not_null(
-            &get<Flux<Tags::TildeD>>(cell_centered_ghost_fluxes->value())),
-        make_not_null(
-            &get<Flux<Tags::TildeYe>>(cell_centered_ghost_fluxes->value())),
-        make_not_null(
-            &get<Flux<Tags::TildeTau>>(cell_centered_ghost_fluxes->value())),
-        make_not_null(
-            &get<Flux<Tags::TildeS<>>>(cell_centered_ghost_fluxes->value())),
-        make_not_null(
-            &get<Flux<Tags::TildeB<>>>(cell_centered_ghost_fluxes->value())),
-        make_not_null(
-            &get<Flux<Tags::TildePhi>>(cell_centered_ghost_fluxes->value())),
-
-        get<Tags::TildeD>(temp_vars), get<Tags::TildeYe>(temp_vars),
-        get<Tags::TildeTau>(temp_vars), get<Tags::TildeS<>>(temp_vars),
-        get<Tags::TildeB<>>(temp_vars), get<Tags::TildePhi>(temp_vars),
-
-        get<Lapse>(temp_vars), get<Shift>(temp_vars),
-        get<SqrtDetSpatialMetric>(temp_vars), get<SpatialMetric>(temp_vars),
-        get<InvSpatialMetric>(temp_vars), get<Pressure>(temp_vars),
-        get<SpatialVelocity>(temp_vars), get<LorentzFactor>(temp_vars),
-        *magnetic_field);
+    fill_cell_centered_fluxes(
+        make_not_null(&cell_centered_ghost_fluxes->value()), temp_vars);
   }
 }
 
