@@ -433,6 +433,7 @@ struct GhValenciaDivCleanTemplateBase<
               Events::Tags::ObserverCoordinates<3, Frame::Grid>,
               Events::Tags::ObserverCoordinates<3, Frame::Inertial>,
               Frame::Inertial>,
+          hydro::Tags::MassFluxCompute<DataVector, 3, ::Frame::Inertial>,
           gr::Tags::SpacetimeNormalOneFormCompute<DataVector, volume_dim,
                                                   domain_frame>,
           gr::Tags::SpacetimeNormalVectorCompute<DataVector, volume_dim,
@@ -443,6 +444,7 @@ struct GhValenciaDivCleanTemplateBase<
           gr::Tags::Shift<DataVector, volume_dim, domain_frame>,
           gr::Tags::SpatialMetric<DataVector, volume_dim, domain_frame>,
           gr::Tags::DetSpatialMetric<DataVector>,
+          gr::Tags::SqrtDetSpatialMetric<DataVector>,
           gr::Tags::InverseSpatialMetric<DataVector, volume_dim>,
           gh::Tags::ExtrinsicCurvatureCompute<volume_dim, domain_frame>,
           gh::Tags::DerivSpatialMetricCompute<volume_dim, ::Frame::Inertial>,
@@ -1021,6 +1023,31 @@ struct BondiSachs : tt::ConformsTo<intrp::protocols::InterpolationTargetTag> {
   using post_interpolation_callbacks =
       tmpl::list<intrp::callbacks::DumpBondiSachsOnWorldtube<BondiSachs>>;
   using compute_items_on_target = tmpl::list<>;
+  template <typename Metavariables>
+  using interpolating_component =
+      typename Metavariables::dg_element_array_component;
+};
+
+struct Sphere : tt::ConformsTo<intrp::protocols::InterpolationTargetTag> {
+  static std::string name() { return "Sphere"; }
+  using temporal_id = ::Tags::Time;
+  using tags_to_observe = tmpl::list<ylm::Tags::EuclideanSurfaceIntegralVector<
+      hydro::Tags::MassFlux<DataVector, 3>, ::Frame::Inertial>>;
+  using vars_to_interpolate_to_target =
+      tmpl::list<hydro::Tags::RestMassDensity<DataVector>,
+                 hydro::Tags::SpatialVelocity<DataVector, 3>,
+                 hydro::Tags::LorentzFactor<DataVector>,
+                 gr::Tags::Lapse<DataVector>, gr::Tags::Shift<DataVector, 3>,
+                 gr::Tags::SqrtDetSpatialMetric<DataVector>>;
+  using compute_items_on_target = tmpl::push_front<
+      tags_to_observe,
+      ylm::Tags::EuclideanAreaElementCompute<::Frame::Inertial>,
+      hydro::Tags::MassFluxCompute<DataVector, 3, ::Frame::Inertial>>;
+  using compute_target_points =
+      intrp::TargetPoints::Sphere<Sphere, ::Frame::Inertial>;
+  using post_interpolation_callbacks = tmpl::list<
+      intrp::callbacks::ObserveTimeSeriesOnSurface<tags_to_observe, Sphere>>;
+
   template <typename Metavariables>
   using interpolating_component =
       typename Metavariables::dg_element_array_component;

@@ -19,6 +19,7 @@
 #include "Evolution/DgSubcell/Tags/Coordinates.hpp"
 #include "Evolution/DgSubcell/Tags/Jacobians.hpp"
 #include "Evolution/DgSubcell/Tags/Mesh.hpp"
+#include "Evolution/DgSubcell/Tags/SubcellOptions.hpp"
 #include "Evolution/NumericInitialData.hpp"
 #include "Evolution/Systems/GeneralizedHarmonic/Actions/SetInitialData.hpp"
 #include "Evolution/Systems/GeneralizedHarmonic/GaugeSourceFunctions/SetPiAndPhiFromConstraints.hpp"
@@ -293,6 +294,46 @@ struct SetInitialData {
                gh::Tags::Pi<DataVector, 3>, gh::Tags::Phi<DataVector, 3>>(
         &gh::initial_gh_variables_from_adm<3>, box, spatial_metric, lapse,
         shift, extrinsic_curvature, mesh, inv_jacobian);
+
+    const auto current_element = db::get<domain::Tags::Element<3>>(*box);
+    const auto subcell_options =
+        db::get<evolution::dg::subcell::Tags::SubcellOptions<3>>(*box);
+    const bool bordering_dg_block = alg::any_of(
+        current_element.neighbors(),
+        [&subcell_options](const auto& direction_and_neighbor) {
+          const size_t first_block_id =
+              direction_and_neighbor.second.ids().begin()->block_id();
+          return std::binary_search(subcell_options.only_dg_block_ids().begin(),
+                                    subcell_options.only_dg_block_ids().end(),
+                                    first_block_id);
+        });
+    const bool in_dg_only_zone =
+        std::binary_search(subcell_options.only_dg_block_ids().begin(),
+                           subcell_options.only_dg_block_ids().end(),
+                           current_element.id().block_id());
+    if (bordering_dg_block and not in_dg_only_zone) {
+      // std::cout << "yo\n";
+      //  TODO finish setting artificial initial data, and set to some
+      //  temperature and Ye
+      auto& rest_mass_density =
+          get<hydro::Tags::RestMassDensity<DataVector>>(vars);
+      auto& spatial_velocity =
+          get<hydro::Tags::SpatialVelocity<DataVector, 3>>(vars);
+      /*auto& temperature = db::get<hydro::Tags::Temperature<DataVector>>(box);
+      auto& electron_fraction =
+      db::get<hydro::Tags::ElectronFraction<DataVector>>(box);*/
+      /*const auto equation_of_state =
+          db::get<hydro::Tags::GrmhdEquationOfState>(box);*/
+      for (size_t i = 0; i < get(rest_mass_density).size(); ++i) {
+        if (get(magnitude(coords))[i] < 52.4) {
+          get(rest_mass_density)[i] = 1.e-10;
+          for (size_t j = 0; j < 3; ++j) {
+            spatial_velocity.get(j)[i] = 0.;
+               // -0.1 * coords.get(j)[i] / get(magnitude(coords))[i];
+          }
+        }
+      }
+    }
 
     // Move hydro vars directly into the DataBox
     tmpl::for_each<hydro::grmhd_tags<DataVector>>(

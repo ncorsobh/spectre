@@ -863,8 +863,8 @@ RotatingStar::variables(
     radius_element = get_element(radius, i);
     theta_element = get_element(theta, i);
     phi_element = get_element(phi, i);
-    if (radius_element <
-        shell_strahlkorper.radius(theta_element, phi_element)) {
+    if (radius_element < cloud_radius_) {
+      // shell_strahlkorper.radius(theta_element, phi_element)) {
       get_element(get(rest_mass_density), i) =
           max(cloud_density_, get_element(vars->rest_mass_density.value(), i));
     } else {
@@ -1095,8 +1095,8 @@ RotatingStar::variables(
       theta_element = get_element(theta, i);
       phi_element = get_element(phi, i);
       if (get_element(get(rest_mass_density), i) == cloud_density_ &&
-          radius_element <
-              shell_strahlkorper.radius(theta_element, phi_element)) {
+          radius_element < cloud_radius_) {
+        // shell_strahlkorper.radius(theta_element, phi_element)) {
         get_element(get<0>(spatial_velocity), i) = 0.0;
         get_element(get<1>(spatial_velocity), i) = 0.0;
         get_element(get<2>(spatial_velocity), i) = 0.0;
