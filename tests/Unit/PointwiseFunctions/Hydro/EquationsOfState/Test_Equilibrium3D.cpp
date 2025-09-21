@@ -17,6 +17,7 @@
 #include "PointwiseFunctions/Hydro/EquationsOfState/Equilibrium3D.hpp"
 #include "PointwiseFunctions/Hydro/EquationsOfState/Factory.hpp"
 #include "PointwiseFunctions/Hydro/EquationsOfState/IdealFluid.hpp"
+#include "Utilities/MakeVector.hpp"
 #include "Utilities/Serialization/RegisterDerivedClassesWithCharm.hpp"
 #include "Utilities/Serialization/Serialize.hpp"
 
@@ -31,7 +32,7 @@ SPECTRE_TEST_CASE("Unit.PointwiseFunctions.EquationsOfState.Equilibrium3D",
 
   EoS::Equilibrium3D<EoS::IdealFluid<true>> eos_ideal_fluid_3d{eos_ideal_fluid};
   const EoS::HybridEos<EoS::PolytropicFluid<true>> underlying_eos{
-      cold_eos, ideal_adiabatic_index};
+      cold_eos, make_vector(std::make_pair(0., ideal_adiabatic_index))};
   EoS::Equilibrium3D<EoS::HybridEos<EoS::PolytropicFluid<true>>> eos{
       underlying_eos};
   CHECK(eos.rest_mass_density_lower_bound() ==
@@ -194,18 +195,18 @@ SPECTRE_TEST_CASE("Unit.PointwiseFunctions.EquationsOfState.Equilibrium3D",
     TestHelpers::EquationsOfState::test_get_clone(deserialized_eos);
 
     CHECK(eos == deserialized_eos);
-    CHECK(eos !=
-          EoS::Equilibrium3D<EoS::HybridEos<EoS::PolytropicFluid<true>>>{
-              EoS::HybridEos<EoS::PolytropicFluid<true>>({10.0, 2.0}, 2.0)});
-    CHECK(eos !=
-          EoS::Equilibrium3D<EoS::HybridEos<EoS::PolytropicFluid<true>>>{
-              EoS::HybridEos<EoS::PolytropicFluid<true>>({100.0, 1.0}, 2.0)});
-    CHECK(eos !=
-          EoS::Equilibrium3D<EoS::HybridEos<EoS::PolytropicFluid<true>>>{
-              EoS::HybridEos<EoS::PolytropicFluid<true>>({100.0, 2.0}, 1.5)});
+    CHECK(eos != EoS::Equilibrium3D<EoS::HybridEos<EoS::PolytropicFluid<true>>>{
+                     EoS::HybridEos<EoS::PolytropicFluid<true>>(
+                         {10.0, 2.0}, make_vector(std::make_pair(0., 2.0)))});
+    CHECK(eos != EoS::Equilibrium3D<EoS::HybridEos<EoS::PolytropicFluid<true>>>{
+                     EoS::HybridEos<EoS::PolytropicFluid<true>>(
+                         {100.0, 1.0}, make_vector(std::make_pair(0., 2.0)))});
+    CHECK(eos != EoS::Equilibrium3D<EoS::HybridEos<EoS::PolytropicFluid<true>>>{
+                     EoS::HybridEos<EoS::PolytropicFluid<true>>(
+                         {100.0, 2.0}, make_vector(std::make_pair(0., 1.5)))});
     EoS::Equilibrium3D<EoS::HybridEos<EoS::Spectral>> eq_spectral{
         EoS::HybridEos<EoS::Spectral>{{1e-5, 1e-4, {2.0, 0.0, 0.0, 0.0}, 1e-2},
-                                      2.0}};
+                                      make_vector(std::make_pair(0., 2.0))}};
     CHECK(eq_spectral.is_equal(eq_spectral));
     CHECK(not(eos.is_equal(eq_spectral)));
   }

@@ -18,6 +18,8 @@
 #include "PointwiseFunctions/Hydro/EquationsOfState/PolytropicFluid.hpp"
 #include "PointwiseFunctions/Hydro/SpecificEnthalpy.hpp"
 #include "PointwiseFunctions/Hydro/Units.hpp"
+#include "Utilities/MakeArray.hpp"
+#include "Utilities/MakeVector.hpp"
 #include "Utilities/Serialization/RegisterDerivedClassesWithCharm.hpp"
 
 namespace {
@@ -33,16 +35,16 @@ void check_random_polytrope() {
       EquationsOfState::HybridEos<
           EquationsOfState::PolytropicFluid<IsRelativistic>>{
           EquationsOfState::PolytropicFluid<IsRelativistic>{100.0, 4.0 / 3.0},
-          5.0 / 3.0, 1.e-3},
-      "HybridEos", "hybrid_polytrope", d_for_size, 100.0, 4.0 / 3.0, 5.0 / 3.0,
-      1.e-3);
+          make_vector(make_array(0., 5.0 / 3.0, 0.))},
+      "HybridEos", "hybrid_polytrope", d_for_size, 100.0, 4.0 / 3.0,
+      make_vector(make_array(0., 5.0 / 3.0, 0.)), 1.e-3);
   TestHelpers::EquationsOfState::check(
       EquationsOfState::HybridEos<
           EquationsOfState::PolytropicFluid<IsRelativistic>>{
           EquationsOfState::PolytropicFluid<IsRelativistic>{100.0, 4.0 / 3.0},
-          5.0 / 3.0, 1.e-3},
-      "HybridEos", "hybrid_polytrope", dv_for_size, 100.0, 4.0 / 3.0, 5.0 / 3.0,
-      1.e-3);
+          make_vector(make_array(0., 5.0 / 3.0, 0.))},
+      "HybridEos", "hybrid_polytrope", dv_for_size, 100.0, 4.0 / 3.0,
+      make_vector(make_array(0., 5.0 / 3.0, 0.)), 1.e-3);
 }
 
 template <bool IsRelativistic>
@@ -65,11 +67,11 @@ void check_exact_polytrope() {
   const auto c_s_sq = (get(chi_c) + get(p_c_kappa_c_over_rho_sq)) / get(h_c);
   CHECK(c_s_sq == (IsRelativistic ? 0.96 : 1.0));
   EquationsOfState::HybridEos<EquationsOfState::PolytropicFluid<IsRelativistic>>
-      eos{cold_eos, 1.5};
+      eos{cold_eos, make_vector(make_array(0., 1.5, 0.))};
   TestHelpers::EquationsOfState::test_get_clone(eos);
 
   const EquationsOfState::HybridEos<EquationsOfState::PolytropicFluid<true>>
-      other_eos{{100.0, 2.0}, 1.4};
+      other_eos{{100.0, 2.0}, make_vector(make_array(0., 1.4, 0.))};
   const auto other_type_eos =
       EquationsOfState::PolytropicFluid<true>{100.0, 2.0};
   CHECK(eos == eos);
@@ -108,7 +110,10 @@ void check_bounds() {
     auto distribution = std::uniform_real_distribution<>{1.e-15, 1.e-5};
     min_temperature = distribution(generator);
   }
-  const auto thermal_adiabatic_index = 1.5;
+  const auto thermal_adiabatic_index =
+      make_vector(make_array<double>(0., 1.5, 0.));
+  const auto thermal_adiabatic_index_value =
+      std::get<1>(thermal_adiabatic_index.front());
   CAPTURE(min_temperature);
   CAPTURE(thermal_adiabatic_index);
   const EquationsOfState::HybridEos<
@@ -118,15 +123,15 @@ void check_bounds() {
   CHECK(min_temperature == eos.temperature_lower_bound());
   CHECK(
       get(cold_eos.specific_internal_energy_from_density(Scalar<double>{1.0})) +
-          min_temperature / (thermal_adiabatic_index - 1) ==
+          min_temperature / (thermal_adiabatic_index_value - 1) ==
       eos.specific_internal_energy_lower_bound(1.0));
   if constexpr (IsRelativistic) {
-    CHECK(1.0 + (thermal_adiabatic_index * min_temperature) /
-                    (thermal_adiabatic_index - 1.0) ==
+    CHECK(1.0 + (thermal_adiabatic_index_value * min_temperature) /
+                    (thermal_adiabatic_index_value - 1.0) ==
           eos.specific_enthalpy_lower_bound());
   } else {
-    CHECK((thermal_adiabatic_index * min_temperature) /
-              (thermal_adiabatic_index - 1.0) ==
+    CHECK((thermal_adiabatic_index_value * min_temperature) /
+              (thermal_adiabatic_index_value - 1.0) ==
           eos.specific_enthalpy_lower_bound());
   }
   const double max_double = std::numeric_limits<double>::max();

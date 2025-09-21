@@ -13,6 +13,7 @@
 #include <cstddef>
 #include <limits>
 #include <pup.h>
+#include <utility>
 
 #include "DataStructures/Tensor/TypeAliases.hpp"
 #include "Options/String.hpp"
@@ -78,7 +79,7 @@ class HybridEos
   };
 
   struct ThermalAdiabaticIndex {
-    using type = double;
+    using type = std::vector<std::array<double, 3>>;
     static constexpr Options::String help = {"Adiabatic index Gamma_th"};
   };
 
@@ -109,7 +110,8 @@ class HybridEos
   HybridEos& operator=(HybridEos&&) = default;
   ~HybridEos() override = default;
 
-  HybridEos(ColdEquationOfState cold_eos, double thermal_adiabatic_index,
+  HybridEos(ColdEquationOfState cold_eos,
+            std::vector<std::array<double, 3>> thermal_adiabatic_index,
             double min_temperature = 0.0);
 
   EQUATION_OF_STATE_FORWARD_DECLARE_MEMBERS(HybridEos, 2)
@@ -132,6 +134,10 @@ class HybridEos
 
   bool is_equal(const EquationOfState<is_relativistic, 2>& rhs) const override;
 
+  template <class DataType>
+  DataType thermal_adiabatic_index_pointwise(
+      const Scalar<DataType>& rest_mass_density) const;
+
   static std::string name() {
     return "HybridEos(" + pretty_type::name<ColdEquationOfState>() + ")";
   }
@@ -149,11 +155,7 @@ class HybridEos
   /// The lower bound of the specific internal energy that is valid for this EOS
   /// at the given rest mass density \f$\rho\f$
   double specific_internal_energy_lower_bound(
-      const double rest_mass_density) const override {
-    return get(cold_eos_.specific_internal_energy_from_density(
-               Scalar<double>{rest_mass_density})) +
-           (min_temperature_) / (thermal_adiabatic_index_ - 1.0);
-  }
+      double rest_mass_density) const override;
 
   /// The upper bound of the specific internal energy that is valid for this EOS
   /// at the given rest mass density \f$\rho\f$
@@ -163,11 +165,7 @@ class HybridEos
   }
 
   /// The lower bound of the specific enthalpy that is valid for this EOS
-  double specific_enthalpy_lower_bound() const override {
-    return cold_eos_.specific_enthalpy_lower_bound() +
-           (thermal_adiabatic_index_ * min_temperature_) /
-               (thermal_adiabatic_index_ - 1.0);
-  }
+  double specific_enthalpy_lower_bound() const override;
 
   /// The lower bound of the temperature that is valid for this EOS.
   /// Non-zero lower bound could be set to impose floor on the specific
@@ -184,8 +182,12 @@ class HybridEos
       double density, double energy) const;
 
   ColdEquationOfState cold_eos_;
-  double thermal_adiabatic_index_ =
-      std::numeric_limits<double>::signaling_NaN();
+  std::vector<std::array<double, 3>> thermal_adiabatic_index_ =
+      std::vector<std::array<double, 3>>{
+          {std::numeric_limits<double>::signaling_NaN(),
+           std::numeric_limits<double>::signaling_NaN(),
+           std::numeric_limits<double>::signaling_NaN()}};
+  bool single_step_thermal_adiabatic_index_ = true;
   double min_temperature_ = std::numeric_limits<double>::signaling_NaN();
 };
 
