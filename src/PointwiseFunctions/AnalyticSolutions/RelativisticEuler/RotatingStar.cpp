@@ -1076,18 +1076,18 @@ RotatingStar::variables(
             -0.1 * get_element(get<1>(target_normal), i) / norm;
         get_element(get<2>(spatial_velocity), i) =
             -0.1 * get_element(get<2>(target_normal), i) / norm;
-      } /*  else if (get_element(get(rest_mass_density), i) > cloud_density_ &&
-                   radius_element <
-                       shell_strahlkorper.radius(theta_element, phi_element) &&
-                   radius_element >
-                       core_strahlkorper.radius(theta_element, phi_element)) {
-          get_element(get<0>(spatial_velocity), i) -=
-              0.005 * get_element(get<0>(target_normal), i) / norm;
-          get_element(get<1>(spatial_velocity), i) -=
-              0.005 * get_element(get<1>(target_normal), i) / norm;
-          get_element(get<2>(spatial_velocity), i) -=
-              0.005 * get_element(get<2>(target_normal), i) / norm;
-        }*/
+      } else if (get_element(get(rest_mass_density), i) > cloud_density_ &&
+                 radius_element <
+                     shell_strahlkorper.radius(theta_element, phi_element) &&
+                 radius_element >
+                     core_strahlkorper.radius(theta_element, phi_element)) {
+        get_element(get<0>(spatial_velocity), i) -=
+            0.05 * get_element(get<0>(target_normal), i) / norm;
+        get_element(get<1>(spatial_velocity), i) -=
+            0.05 * get_element(get<1>(target_normal), i) / norm;
+        get_element(get<2>(spatial_velocity), i) -=
+            0.05 * get_element(get<2>(target_normal), i) / norm;
+      }
     }
   } else {
     for (size_t i = 0; i < get_size(get<0>(x)); ++i) {

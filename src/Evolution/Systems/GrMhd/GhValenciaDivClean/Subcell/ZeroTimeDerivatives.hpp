@@ -72,7 +72,11 @@ struct ZeroMhdTimeDerivatives {
           get<hydro::Tags::RestMassDensity<DataVector>>(*variables);
       auto& spatial_velocity =
           get<hydro::Tags::SpatialVelocity<DataVector, 3>>(*variables);
-      const auto gamma_factor = (time < 100.) ? time / 100. : 1.;
+      const auto gamma_time_factor = (time < 250.) ? time / 250. : 1.;
+      const auto gamma_mass_factor = (time < 500.) ? time / 500. : 1.;
+      const auto gamma_cutoff_factor =
+          (time > 2000.) ? (time < 2500.) ? 1. - (time - 2000.) / 500. : 0.
+                         : 1.;
       /*    time * 1000. * std::exp(-time / 500.) * std::pow(1. / 500., 2);*/
       /*auto& temperature = db::get<hydro::Tags::Temperature<DataVector>>(box);
       auto& electron_fraction =
@@ -85,11 +89,13 @@ struct ZeroMhdTimeDerivatives {
       ASSERT(variables->number_of_grid_points() == mag.size(), "Angry");*/
       for (size_t i = 0; i < mag.size(); ++i) {
         // std::cout << mag[i] << "\n";
-        if (mag[i] < 52.4) {
-          get(rest_mass_density)[i] = 1.e-10; // + gamma_factor * 1.e-8;
+        if (mag[i] < 56.4) {//52.4) {
+          get(rest_mass_density)[i] =
+              (5.e-8 + gamma_mass_factor * 2.5e-8) * gamma_cutoff_factor;
           for (size_t j = 0; j < 3; ++j) {
-            spatial_velocity.get(j)[i] = gamma_factor *
-                -0.1 * coords.get(j)[i] / mag[i];
+            spatial_velocity.get(j)[i] = gamma_cutoff_factor *
+                                         gamma_time_factor * -0.1 *
+                                         coords.get(j)[i] / mag[i];
           }
         }
       }

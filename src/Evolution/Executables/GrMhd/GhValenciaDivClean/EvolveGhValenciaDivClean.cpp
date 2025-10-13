@@ -17,7 +17,7 @@
 // Parameters chosen in CMakeLists.txt
 using metavariables =
     EvolutionMetavars<USE_CONTROL_SYSTEMS, USE_PARAMETRIZED_DELEPTONIZATION,
-                      /*BondiSachs,*/ Sphere>;
+                      BondiSachs /*Sphere*/>;
 
 extern "C" void CkRegisterMainModule() {
   Parallel::charmxx::register_main_module<metavariables>();
