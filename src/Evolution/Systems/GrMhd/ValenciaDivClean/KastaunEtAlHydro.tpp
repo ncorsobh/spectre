@@ -7,6 +7,7 @@
 
 #include <cmath>
 #include <exception>
+#include <iostream>
 #include <limits>
 #include <optional>
 #include <stdexcept>
@@ -38,9 +39,9 @@ class FunctionOfZ {
               const double rest_mass_density_times_lorentz_factor,
               const double electron_fraction, const EosType& equation_of_state,
               const double lorentz_max)
-      : q_(tau / rest_mass_density_times_lorentz_factor),
-        r_(std::sqrt(momentum_density_squared /
+      : r_(std::sqrt(momentum_density_squared /
                      square(rest_mass_density_times_lorentz_factor))),
+        q_(tau / rest_mass_density_times_lorentz_factor),
         rest_mass_density_times_lorentz_factor_(
             rest_mass_density_times_lorentz_factor),
         electron_fraction_(electron_fraction),
@@ -82,9 +83,10 @@ class FunctionOfZ {
 
   bool has_no_root() const { return state_is_unphysical_; }
 
+  double r_;
+  bool verbose = false;
  private:
   double q_;
-  double r_;
   bool state_is_unphysical_ = false;
   const double rest_mass_density_times_lorentz_factor_;
   const double electron_fraction_;
@@ -176,6 +178,9 @@ double FunctionOfZ<EosType, EnforcePhysicality>::operator()(
   const double a_hat = p_hat / (rho_hat * (1.0 + epsilon_hat));
   const double h_hat = (1.0 + epsilon_hat) * (1.0 + a_hat);
 
+  if (verbose) {
+    std::cout << z - r_ / h_hat << "\n";
+  }
   // Equations (C22)
   return z - r_ / h_hat;
 }
@@ -192,7 +197,7 @@ std::optional<PrimitiveRecoveryData> KastaunEtAlHydro::apply(
     const grmhd::ValenciaDivClean::PrimitiveFromConservativeOptions&
         primitive_from_conservative_options) {
   // Master function see Equation (44)
-  const auto f_of_z =
+  auto f_of_z =
       KastaunEtAlHydro_detail::FunctionOfZ<EosType, EnforcePhysicality>{
           tau,
           momentum_density_squared,
@@ -209,9 +214,9 @@ std::optional<PrimitiveRecoveryData> KastaunEtAlHydro::apply(
 
   // z is W * v  (Lorentz factor * velocity)
   double z = std::numeric_limits<double>::signaling_NaN();
+    const auto [lower_bound, upper_bound] = f_of_z.root_bracket();
   try {
     // Bracket for master function
-    const auto [lower_bound, upper_bound] = f_of_z.root_bracket();
 
     // Try to recover primitves
     z =
@@ -220,6 +225,28 @@ std::optional<PrimitiveRecoveryData> KastaunEtAlHydro::apply(
                             absolute_tolerance_, relative_tolerance_,
                             max_iterations_);
   } catch (std::exception& exception) {
+    f_of_z.verbose = true;
+    RootFinder::toms748(f_of_z, lower_bound, upper_bound,
+                        absolute_tolerance_, relative_tolerance_,
+                        max_iterations_);
+    const auto [rho_hat_l, w_hat_l, p_hat_l, epsilon_hat_l] =
+      f_of_z.primitives(lower_bound);
+    const double a_hat_l = p_hat_l / (rho_hat_l * (1.0 + epsilon_hat_l));
+    const double h_hat_l = (1.0 + epsilon_hat_l) * (1.0 + a_hat_l);
+    const double z_l = lower_bound - f_of_z.r_ / h_hat_l;
+    std::cout << "Lower Bound: " << lower_bound << "\n rho_hat: " <<
+      rho_hat_l << "\n w_hat: " << w_hat_l << "\n p_hat: " << p_hat_l <<
+      "\n epsilon_hat: " << epsilon_hat_l << "\n a_hat: " << a_hat_l <<
+      "\n h_hat: " << h_hat_l << "\n z: " << z_l << "\n";
+    const auto [rho_hat_h, w_hat_h, p_hat_h, epsilon_hat_h] =
+      f_of_z.primitives(upper_bound);
+    const double a_hat_h = p_hat_h / (rho_hat_h * (1.0 + epsilon_hat_h));
+    const double h_hat_h = (1.0 + epsilon_hat_h) * (1.0 + a_hat_h);
+    const double z_h = upper_bound - f_of_z.r_ / h_hat_h;
+    std::cout << "Upper Bound: " << upper_bound << "\n rho_hat: " <<
+      rho_hat_h << "\n w_hat: " << w_hat_h << "\n p_hat: " << p_hat_h <<
+      "\n epsilon_hat: " << epsilon_hat_h << "\n a_hat: " << a_hat_h <<
+      "\n h_hat: " << h_hat_h << "\n z: " << z_h << "\n";
     return std::nullopt;
   }
 
