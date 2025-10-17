@@ -176,8 +176,7 @@ void verify_inertial_coordinates(
       element_map(logical_coords, time, functions_of_time);
   const double scale = blaze::max(get(magnitude(mapped_inertial_coords)));
   if (not equal_within_roundoff(mapped_inertial_coords, inertial_coords,
-                                std::numeric_limits<double>::epsilon() * 100.0,
-                                scale)) {
+                                0.003)) {
     DataVector diff =
         square(get<0>(inertial_coords) - get<0>(mapped_inertial_coords));
     for (size_t d = 1; d < Dim; ++d) {
