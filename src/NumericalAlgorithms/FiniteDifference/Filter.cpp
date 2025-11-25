@@ -377,25 +377,6 @@ void filter_impl(
     comp_dim = Dim;
   }
 #ifdef SPECTRE_DEBUG
-  if constexpr (Dim == 3) {
-    if (comp_dim == 3) {
-      ASSERT(
-          volume_mesh == Mesh<3>(volume_mesh.extents(0), volume_mesh.basis(0),
-                                 volume_mesh.quadrature(0)),
-          "The mesh must be isotropic, but got " << volume_mesh);
-    } else if (comp_dim == 2) {
-      ASSERT(volume_mesh.slice_through(0, 1) ==
-                 Mesh<2>(volume_mesh.extents(0), volume_mesh.basis(0),
-                         volume_mesh.quadrature(0)),
-             "The non-cartoon sub-mesh must be isotropic, but got "
-                 << volume_mesh);
-    }
-  } else {
-    ASSERT(
-        volume_mesh == Mesh<Dim>(volume_mesh.extents(0), volume_mesh.basis(0),
-                                 volume_mesh.quadrature(0)),
-        "The mesh must be isotropic, but got " << volume_mesh);
-  }
   ASSERT(
       volume_mesh.basis(0) == Spectral::Basis::FiniteDifference,
       "Mesh basis must be FiniteDifference but got " << volume_mesh.basis(0));

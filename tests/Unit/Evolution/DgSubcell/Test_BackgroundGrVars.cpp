@@ -113,10 +113,12 @@ std::array<Mesh<3>, 3> create_face_centered_meshes(
     const Mesh<3> cell_centered_mesh) {
   std::array<Mesh<3>, 3> face_centered_meshes{};
   for (size_t dim = 0; dim < 3; ++dim) {
-    const auto basis = make_array<3>(cell_centered_mesh.basis(0));
-    auto quadrature = make_array<3>(cell_centered_mesh.quadrature(0));
-    auto extents = make_array<3>(cell_centered_mesh.extents(0));
-    gsl::at(extents, dim) = cell_centered_mesh.extents(0) + 1;
+    const auto basis = cell_centered_mesh.basis();
+    auto quadrature = cell_centered_mesh.quadrature();
+    auto extents = std::array<size_t, 3>{cell_centered_mesh.extents(0),
+                                         cell_centered_mesh.extents(1),
+                                         cell_centered_mesh.extents(2)};
+    gsl::at(extents, dim) = cell_centered_mesh.extents(dim) + 1;
     gsl::at(quadrature, dim) = Spectral::Quadrature::FaceCentered;
     const Mesh<3> face_centered_mesh{extents, basis, quadrature};
     gsl::at(face_centered_meshes, dim) = Mesh<3>{extents, basis, quadrature};
@@ -166,7 +168,8 @@ void test(const gsl::not_null<std::mt19937*> gen, const bool did_rollback) {
       element_id, domain.blocks(),
       std::vector<std::array<size_t, 3>>{{0, 0, 0}});
 
-  const Mesh<3> dg_mesh{num_dg_pts, Spectral::Basis::Legendre,
+  const Mesh<3> dg_mesh{{num_dg_pts, num_dg_pts + 1, num_dg_pts},
+                        Spectral::Basis::Legendre,
                         Spectral::Quadrature::GaussLobatto};
   const Mesh<3> subcell_mesh = evolution::dg::subcell::fd::mesh<3>(dg_mesh);
 
@@ -288,7 +291,7 @@ void test(const gsl::not_null<std::mt19937*> gen, const bool did_rollback) {
   subcell_face_gr_variables_tag::type expected_initial_face_centered_gr_vars{};
   for (size_t d = 0; d < 3; ++d) {
     gsl::at(expected_initial_face_centered_gr_vars, d)
-        .initialize(gsl::at(face_centered_meshes, 0).number_of_grid_points());
+        .initialize(gsl::at(face_centered_meshes, d).number_of_grid_points());
     gsl::at(expected_initial_face_centered_gr_vars, d)
         .assign_subset(evolution::Initialization::initial_data(
             solution, gsl::at(face_centered_initial_inertial_coords, d),
@@ -403,7 +406,7 @@ void test(const gsl::not_null<std::mt19937*> gen, const bool did_rollback) {
     subcell_face_gr_variables_tag::type expected_later_face_centered_gr_vars{};
     for (size_t d = 0; d < 3; ++d) {
       gsl::at(expected_later_face_centered_gr_vars, d)
-          .initialize(gsl::at(face_centered_meshes, 0).number_of_grid_points());
+          .initialize(gsl::at(face_centered_meshes, d).number_of_grid_points());
       gsl::at(expected_later_face_centered_gr_vars, d)
           .assign_subset(evolution::Initialization::initial_data(
               solution, gsl::at(face_centered_later_inertial_coords, d),

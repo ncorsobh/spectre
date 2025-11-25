@@ -166,10 +166,11 @@ double test(const size_t num_dg_pts, std::optional<double> expansion_velocity,
       std::vector<std::array<size_t, 3>>{std::array<size_t, 3>{{3, 3, 3}}});
 
   const double time = 0.0;
-  const Mesh<3> dg_mesh{num_dg_pts, Spectral::Basis::Legendre,
+  const Mesh<3> dg_mesh{{num_dg_pts, num_dg_pts, num_dg_pts + 1},
+                        Spectral::Basis::Legendre,
                         Spectral::Quadrature::GaussLobatto};
   const Mesh<3> subcell_mesh = evolution::dg::subcell::fd::mesh(dg_mesh);
-  const size_t num_dg_pts_3d = num_dg_pts * num_dg_pts * num_dg_pts;
+  const size_t num_dg_pts_3d = num_dg_pts * num_dg_pts * (num_dg_pts + 1);
 
   const auto logical_coords = logical_coordinates(subcell_mesh);
   const auto cell_centered_coords = (*grid_to_inertial_map)(

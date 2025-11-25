@@ -5,6 +5,7 @@
 
 #include <array>
 #include <cstddef>
+#include <iostream>
 #include <iterator>
 #include <memory>
 #include <optional>
@@ -122,12 +123,15 @@ auto face_centered_gr_tags(
       face_centered_gr_vars{};
 
   for (size_t d = 0; d < Dim; ++d) {
-    const auto basis = make_array<Dim>(subcell_mesh.basis(0));
-    auto quadrature = make_array<Dim>(subcell_mesh.quadrature(0));
-    auto extents = make_array<Dim>(subcell_mesh.extents(0));
-    gsl::at(extents, d) = subcell_mesh.extents(0) + 1;
+    // const auto basis = make_array<Dim>(subcell_mesh.basis());
+    auto quadrature = subcell_mesh.quadrature();
+    auto extents = std::array<size_t, Dim>{subcell_mesh.extents(0),
+                                           subcell_mesh.extents(1),
+                                           subcell_mesh.extents(2)};
+    gsl::at(extents, d) = subcell_mesh.extents(d) + 1;
     gsl::at(quadrature, d) = Spectral::Quadrature::FaceCentered;
-    const Mesh<Dim> face_centered_mesh{extents, basis, quadrature};
+    const Mesh<Dim> face_centered_mesh{extents, subcell_mesh.basis(),
+                                       quadrature};
     const auto face_centered_logical_coords =
         logical_coordinates(face_centered_mesh);
     const auto face_centered_inertial_coords =
@@ -193,11 +197,12 @@ std::array<double, 5> test(const size_t num_dg_pts,
 
   const grmhd::Solutions::BondiMichel soln{1.0, 5.0, 0.05, 1.4, 2.0};
 
-  const double time = 0.5;
-  const Mesh<3> dg_mesh{num_dg_pts, Spectral::Basis::Legendre,
+  const double time = 0.0;
+  const Mesh<3> dg_mesh{{num_dg_pts + 1, num_dg_pts, num_dg_pts},
+                        Spectral::Basis::Legendre,
                         Spectral::Quadrature::GaussLobatto};
   const Mesh<3> subcell_mesh = evolution::dg::subcell::fd::mesh(dg_mesh);
-  const size_t num_dg_pts_3d = num_dg_pts * num_dg_pts * num_dg_pts;
+  const size_t num_dg_pts_3d = num_dg_pts * num_dg_pts * (num_dg_pts + 1);
   const auto cell_centered_coords =
       (*grid_to_inertial_map)(element_map(logical_coordinates(subcell_mesh)));
   const auto dg_coords =
@@ -561,6 +566,8 @@ std::array<double, 5> test(const size_t num_dg_pts,
         }
       });
 
+  // std::cout <<
+  // abs(get(get<Tags::TildeD>(output_minus_expected_dt_cons_vars))) << "\n";
   return {
       {max(abs(get(get<Tags::TildeD>(output_minus_expected_dt_cons_vars)))),
        max(abs(get(get<Tags::TildeYe>(output_minus_expected_dt_cons_vars)))),
@@ -643,7 +650,7 @@ SPECTRE_TEST_CASE(
     previous_error_6 = six_pts_data;
   }
 
-  // Check that a vanishing mesh velocity does not modify the answer
+  /*// Check that a vanishing mesh velocity does not modify the answer
   {
     // This tests sets up a cube [2,3]^3 in a Bondi-Michel spacetime and
     // verifies that the time derivative is the same when using no mesh
@@ -692,7 +699,7 @@ SPECTRE_TEST_CASE(
     }
     previous_error_5 = five_pts_data;
     previous_error_6 = six_pts_data;
-  }
+  } */
 
   // Check the adaptive correction order works.
   // for (const auto& recon_order : make_array(

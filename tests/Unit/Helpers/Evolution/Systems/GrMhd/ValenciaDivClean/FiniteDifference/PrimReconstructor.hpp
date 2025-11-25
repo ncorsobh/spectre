@@ -7,6 +7,7 @@
 
 #include <array>
 #include <cstddef>
+#include <iostream>
 #include <unordered_set>
 #include <utility>
 
@@ -112,9 +113,10 @@ void test_prim_reconstructor_impl(
   using prim_tags_for_reconstruction =
       tmpl::list<Rho, ElectronFraction, Temperature, VelocityW, MagField, Phi>;
 
-  const Mesh<3> subcell_mesh{points_per_dimension,
-                             Spectral::Basis::FiniteDifference,
-                             Spectral::Quadrature::CellCentered};
+  const Mesh<3> subcell_mesh{
+      {points_per_dimension, points_per_dimension, points_per_dimension + 1},
+      Spectral::Basis::FiniteDifference,
+      Spectral::Quadrature::CellCentered};
   auto logical_coords = logical_coordinates(subcell_mesh);
   // Make the logical coordinates different in each direction
   for (size_t i = 1; i < 3; ++i) {
@@ -154,42 +156,66 @@ void test_prim_reconstructor_impl(
       compute_ghost_data(subcell_mesh, logical_coords, element.neighbors(),
                          reconstructor.ghost_zone_size(), compute_solution);
 
-  const size_t reconstructed_num_pts =
-      (subcell_mesh.extents(0) + 1) *
-      subcell_mesh.extents().slice_away(0).product();
+  std::array<size_t, 3> reconstructed_num_pts{};
+  for (size_t i = 0; i < 3; ++i) {
+    gsl::at(reconstructed_num_pts, i) =
+        (subcell_mesh.extents(i) + 1) *
+        subcell_mesh.extents().slice_away(i).product();
+  }
 
   using dg_package_data_argument_tags =
       ::grmhd::ValenciaDivClean::fd::tags_list_for_reconstruct;
 
-  tnsr::ii<DataVector, 3, Frame::Inertial> lower_face_spatial_metric{
-      reconstructed_num_pts, 0.0};
-  tnsr::ii<DataVector, 3, Frame::Inertial> upper_face_spatial_metric{
-      reconstructed_num_pts, 0.0};
-  for (size_t i = 0; i < 3; ++i) {
-    lower_face_spatial_metric.get(i, i) = 1.0 + 0.01 * i;
-    upper_face_spatial_metric.get(i, i) = 1.0 - 0.01 * i;
-  }
-  const Scalar<DataVector> lower_face_sqrt_det_spatial_metric{
-      sqrt(get(determinant(lower_face_spatial_metric)))};
-  const Scalar<DataVector> upper_face_sqrt_det_spatial_metric{
-      sqrt(get(determinant(upper_face_spatial_metric)))};
-
   std::array<Variables<dg_package_data_argument_tags>, 3> vars_on_lower_face =
-      make_array<3>(
-          Variables<dg_package_data_argument_tags>(reconstructed_num_pts));
+      map_array(reconstructed_num_pts, [](size_t package_data_num_pts) {
+        return Variables<dg_package_data_argument_tags>(package_data_num_pts);
+      });
   std::array<Variables<dg_package_data_argument_tags>, 3> vars_on_upper_face =
-      make_array<3>(
-          Variables<dg_package_data_argument_tags>(reconstructed_num_pts));
-  for (size_t i = 0; i < 3; ++i) {
-    get<gr::Tags::SqrtDetSpatialMetric<DataVector>>(
-        gsl::at(vars_on_lower_face, i)) = lower_face_sqrt_det_spatial_metric;
-    get<gr::Tags::SqrtDetSpatialMetric<DataVector>>(
-        gsl::at(vars_on_upper_face, i)) = upper_face_sqrt_det_spatial_metric;
+      map_array(reconstructed_num_pts, [](size_t package_data_num_pts) {
+        return Variables<dg_package_data_argument_tags>(package_data_num_pts);
+      });
 
-    get<gr::Tags::SpatialMetric<DataVector, 3>>(
-        gsl::at(vars_on_lower_face, i)) = lower_face_spatial_metric;
-    get<gr::Tags::SpatialMetric<DataVector, 3>>(
-        gsl::at(vars_on_upper_face, i)) = upper_face_spatial_metric;
+  std::array<tnsr::ii<DataVector, 3, Frame::Inertial>, 3>
+      lower_face_spatial_metric =
+          map_array(reconstructed_num_pts, [](size_t face_metric_num_pts) {
+            return tnsr::ii<DataVector, 3, Frame::Inertial>{face_metric_num_pts,
+                                                            0.0};
+          });
+  std::array<tnsr::ii<DataVector, 3, Frame::Inertial>, 3>
+      upper_face_spatial_metric =
+          map_array(reconstructed_num_pts, [](size_t face_metric_num_pts) {
+            return tnsr::ii<DataVector, 3, Frame::Inertial>{face_metric_num_pts,
+                                                            0.0};
+          });
+  std::array<Scalar<DataVector>, 3> lower_face_sqrt_det_spatial_metric =
+      map_array(reconstructed_num_pts, [](size_t face_metric_num_pts) {
+        return Scalar<DataVector>{face_metric_num_pts, 0.0};
+      });
+  std::array<Scalar<DataVector>, 3> upper_face_sqrt_det_spatial_metric =
+      map_array(reconstructed_num_pts, [](size_t face_metric_num_pts) {
+        return Scalar<DataVector>{face_metric_num_pts, 0.0};
+      });
+  for (size_t dim = 0; dim < 3; ++dim) {
+    for (size_t i = 0; i < 3; ++i) {
+      gsl::at(lower_face_spatial_metric, dim).get(i, i) = 1.0 + 0.01 * i;
+      gsl::at(upper_face_spatial_metric, dim).get(i, i) = 1.0 - 0.01 * i;
+    }
+    get(gsl::at(lower_face_sqrt_det_spatial_metric, dim)) =
+        sqrt(get(determinant(gsl::at(lower_face_spatial_metric, dim))));
+    get(gsl::at(upper_face_sqrt_det_spatial_metric, dim)) =
+        sqrt(get(determinant(gsl::at(upper_face_spatial_metric, dim))));
+
+    get<gr::Tags::SqrtDetSpatialMetric<DataVector>>(
+        gsl::at(vars_on_lower_face, dim)) =
+        gsl::at(lower_face_sqrt_det_spatial_metric, dim);
+    get<gr::Tags::SqrtDetSpatialMetric<DataVector>>(
+        gsl::at(vars_on_upper_face, dim)) =
+        gsl::at(upper_face_sqrt_det_spatial_metric, dim);
+
+    get<gr::Tags::SpatialMetric<DataVector, 3>>(gsl::at(
+        vars_on_lower_face, dim)) = gsl::at(lower_face_spatial_metric, dim);
+    get<gr::Tags::SpatialMetric<DataVector, 3>>(gsl::at(
+        vars_on_upper_face, dim)) = gsl::at(upper_face_spatial_metric, dim);
   }
 
   Variables<prims_tags> volume_prims{subcell_mesh.number_of_grid_points()};
@@ -221,6 +247,7 @@ void test_prim_reconstructor_impl(
     for (size_t i = 0; i < 3; ++i) {
       auto order_extents = subcell_mesh.extents();
       order_extents[i] += 2;
+      std::cout << order_extents.product();
       gsl::at(reconstruction_order_storage, i).resize(order_extents.product());
       // Ensure we have reset the values to max so the min calls are fine.
       std::fill_n(gsl::at(reconstruction_order_storage, i).begin(),
@@ -291,11 +318,11 @@ void test_prim_reconstructor_impl(
     get(get<LorentzFactor>(expected_lower_face_values)) =
         sqrt(1.0 + get(dot_product(get<VelocityW>(expected_lower_face_values),
                                    get<VelocityW>(expected_lower_face_values),
-                                   lower_face_spatial_metric)));
+                                   gsl::at(lower_face_spatial_metric, dim))));
     get(get<LorentzFactor>(expected_upper_face_values)) =
         sqrt(1.0 + get(dot_product(get<VelocityW>(expected_upper_face_values),
                                    get<VelocityW>(expected_upper_face_values),
-                                   upper_face_spatial_metric)));
+                                   gsl::at(upper_face_spatial_metric, dim))));
     for (size_t i = 0; i < 3; ++i) {
       get<Velocity>(expected_lower_face_values).get(i) =
           get<VelocityW>(expected_lower_face_values).get(i) /
@@ -306,13 +333,15 @@ void test_prim_reconstructor_impl(
     }
 
     get<gr::Tags::SqrtDetSpatialMetric<DataVector>>(
-        expected_lower_face_values) = lower_face_sqrt_det_spatial_metric;
+        expected_lower_face_values) =
+        gsl::at(lower_face_sqrt_det_spatial_metric, dim);
     get<gr::Tags::SpatialMetric<DataVector, 3>>(expected_lower_face_values) =
-        lower_face_spatial_metric;
+        gsl::at(lower_face_spatial_metric, dim);
     get<gr::Tags::SqrtDetSpatialMetric<DataVector>>(
-        expected_upper_face_values) = upper_face_sqrt_det_spatial_metric;
+        expected_upper_face_values) =
+        gsl::at(upper_face_sqrt_det_spatial_metric, dim);
     get<gr::Tags::SpatialMetric<DataVector, 3>>(expected_upper_face_values) =
-        upper_face_spatial_metric;
+        gsl::at(upper_face_spatial_metric, dim);
 
     mhd::ConservativeFromPrimitive::apply(
         make_not_null(&get<mhd::Tags::TildeD>(expected_lower_face_values)),

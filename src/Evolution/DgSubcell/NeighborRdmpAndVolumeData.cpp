@@ -177,7 +177,6 @@ void insert_or_update_neighbor_volume_data_impl(
         neighbor_dg_to_fd_interpolants,
     const gsl::span<const size_t> parity_list, const size_t num_even,
     const size_t num_odd) {
-  fd::verify_subcell_mesh(neighbor_mesh, true);
   ASSERT(neighbor_subcell_data.size() != 0,
          "neighbor_subcell_data must be non-empty");
   const size_t end_of_volume_data =

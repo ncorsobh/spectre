@@ -160,14 +160,19 @@ void test_with_python(const Index<Dim>& extents, const size_t stencil_width,
     }
   }
 
-  const size_t reconstructed_num_pts =
-      (extents[0] + 1) * extents.slice_away(0).product();
-  std::array<std::vector<double>, Dim> reconstructed_upper_side_of_face_vars =
-      make_array<Dim>(
-          std::vector<double>(reconstructed_num_pts * number_of_vars));
-  std::array<std::vector<double>, Dim> reconstructed_lower_side_of_face_vars =
-      make_array<Dim>(
-          std::vector<double>(reconstructed_num_pts * number_of_vars));
+  std::array<size_t, Dim> reconstructed_num_pts{};
+  for (size_t i = 0; i < Dim; ++i) {
+    gsl::at(reconstructed_num_pts, i) =
+        (extents[i] + 1) * extents.slice_away(i).product();
+  }
+  auto reconstructed_upper_side_of_face_vars =
+      map_array(reconstructed_num_pts, [](size_t reconstructed_data_num_pts) {
+        return std::vector<double>(reconstructed_data_num_pts * number_of_vars);
+      });
+  auto reconstructed_lower_side_of_face_vars =
+      map_array(reconstructed_num_pts, [](size_t reconstructed_data_num_pts) {
+        return std::vector<double>(reconstructed_data_num_pts * number_of_vars);
+      });
 
   std::array<gsl::span<double>, Dim> recons_upper_side_of_face{};
   std::array<gsl::span<double>, Dim> recons_lower_side_of_face{};
@@ -213,17 +218,17 @@ void test_with_python(const Index<Dim>& extents, const size_t stencil_width,
       CAPTURE(d);
       const std::vector<double> recons_upper_side_this_var(
           gsl::at(recons_upper_side_of_face, d).begin() +
-              var_index * reconstructed_num_pts,
+              var_index * gsl::at(reconstructed_num_pts, d),
           gsl::at(recons_upper_side_of_face, d).begin() +
-              (var_index + 1) * reconstructed_num_pts);
+              (var_index + 1) * gsl::at(reconstructed_num_pts, d));
       CHECK_ITERABLE_APPROX(recons_upper_side_this_var,
                             python_recons_on_upper[d]);
 
       const std::vector<double> recons_lower_side_this_var(
           gsl::at(recons_lower_side_of_face, d).begin() +
-              var_index * reconstructed_num_pts,
+              var_index * gsl::at(reconstructed_num_pts, d),
           gsl::at(recons_lower_side_of_face, d).begin() +
-              (var_index + 1) * reconstructed_num_pts);
+              (var_index + 1) * gsl::at(reconstructed_num_pts, d));
       CHECK_ITERABLE_APPROX(recons_lower_side_this_var,
                             python_recons_on_lower[d]);
 

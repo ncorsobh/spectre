@@ -160,16 +160,13 @@ struct BackgroundGrVars : tt::ConformsTo<db::protocols::Mutator> {
       // Initialization phase
       (*inactive_gr_vars).initialize(num_subcell_pts);
 
-      fd::verify_subcell_mesh(subcell_mesh);
       if constexpr (not std::is_same_v<
                         typename SubcellFaceGrVars::value_type::tags_list,
                         tmpl::list<>>) {
-        const size_t num_face_centered_mesh_grid_pts =
-            (subcell_mesh.extents(0) + 1) * subcell_mesh.extents(1) *
-            subcell_mesh.extents(2);
         for (size_t d = 0; d < volume_dim; ++d) {
           gsl::at(*subcell_face_gr_vars, d)
-              .initialize(num_face_centered_mesh_grid_pts);
+              .initialize((subcell_mesh.extents(d) + 1) *
+                          subcell_mesh.extents().slice_away(d).product());
         }
         face_centered_impl(subcell_face_gr_vars, time, functions_of_time,
                            logical_to_grid_map, grid_to_inertial_map,
@@ -213,15 +210,12 @@ struct BackgroundGrVars : tt::ConformsTo<db::protocols::Mutator> {
       const domain::CoordinateMapBase<Frame::Grid, Frame::Inertial, volume_dim>&
           grid_to_inertial_map,
       const Mesh<volume_dim>& subcell_mesh, const T& solution_or_data) {
-    const size_t comp_dim = fd::get_computational_dim(subcell_mesh);
-    fd::verify_subcell_mesh(subcell_mesh);
-
-    for (size_t dim = 0; dim < comp_dim; ++dim) {
+    for (size_t dim = 0; dim < volume_dim; ++dim) {
       const auto basis = subcell_mesh.basis();
       auto quadrature = subcell_mesh.quadrature();
       auto extents = subcell_mesh.extents().indices();
 
-      gsl::at(extents, dim) = subcell_mesh.extents(0) + 1;
+      gsl::at(extents, dim) = subcell_mesh.extents(dim) + 1;
       gsl::at(quadrature, dim) = Spectral::Quadrature::FaceCentered;
 
       const Mesh<volume_dim> face_centered_mesh{extents, basis, quadrature};

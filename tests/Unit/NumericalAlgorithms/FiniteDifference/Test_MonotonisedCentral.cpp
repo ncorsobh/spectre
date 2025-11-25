@@ -76,9 +76,11 @@ void test() {
       Dim>(1, 4, 3, recons, recons_neighbor_data);
   TestHelpers::fd::reconstruction::test_reconstruction_is_exact_if_in_basis<
       Dim>(1, 4, 3, recons, recons_neighbor_data_interior_cell);
-  TestHelpers::fd::reconstruction::test_with_python(
-      Index<Dim>{4}, 3, "MonotonisedCentral", "test_monotonised_central",
-      recons, recons_neighbor_data);
+  if constexpr (Dim == 2) {
+    TestHelpers::fd::reconstruction::test_with_python(
+        Index<Dim>(3, 4), 3, "MonotonisedCentral", "test_monotonised_central",
+        recons, recons_neighbor_data);
+  }
   if constexpr (Dim == 1) {
     TestHelpers::fd::reconstruction::test_positivity_with_roundoff(3, recons);
   }

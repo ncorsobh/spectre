@@ -59,6 +59,7 @@
 #include "PointwiseFunctions/GeneralRelativity/GeneralizedHarmonic/SpatialDerivOfLapse.hpp"
 #include "PointwiseFunctions/GeneralRelativity/GeneralizedHarmonic/SpatialDerivOfShift.hpp"
 #include "PointwiseFunctions/Hydro/Tags.hpp"
+#include "Utilities/Algorithm.hpp"
 #include "Utilities/CallWithDynamicType.hpp"
 #include "Utilities/ErrorHandling/Assert.hpp"
 #include "Utilities/Gsl.hpp"
@@ -483,11 +484,13 @@ struct TimeDerivative {
         db::get<evolution::dg::subcell::Tags::Mesh<3>>(*box);
     const size_t comp_dim =
         evolution::dg::subcell::fd::get_computational_dim(subcell_mesh);
-    evolution::dg::subcell::fd::verify_subcell_mesh(subcell_mesh);
     const size_t num_pts = subcell_mesh.number_of_grid_points();
-    const size_t reconstructed_num_pts =
-        (subcell_mesh.extents(0) + 1) *
-        subcell_mesh.extents().slice_away(0).product();
+    std::array<size_t, 3> reconstructed_num_pts{};
+    for (size_t i = 0; i < 3; ++i) {
+      gsl::at(reconstructed_num_pts, i) =
+          (subcell_mesh.extents(i) + 1) *
+          subcell_mesh.extents().slice_away(i).product();
+    }
 
     const tnsr::I<DataVector, 3, Frame::ElementLogical>&
         cell_centered_logical_coords =
@@ -495,10 +498,13 @@ struct TimeDerivative {
                 3, Frame::ElementLogical>>(*box);
     std::array<double, 3> one_over_delta_xi{};
     for (size_t i = 0; i < 3; ++i) {
-      // Note: assumes isotropic extents
+      std::array<size_t, 3> strides{
+          1, subcell_mesh.extents(0),
+          subcell_mesh.extents().slice_away(2).product()};
       gsl::at(one_over_delta_xi, i) =
-          1.0 / (get<0>(cell_centered_logical_coords)[1] -
-                 get<0>(cell_centered_logical_coords)[0]);
+          1.0 /
+          (get_element(cell_centered_logical_coords, i)[gsl::at(strides, i)] -
+           get_element(cell_centered_logical_coords, i)[0]);
     }
     const auto& cell_centered_logical_to_inertial_inv_jacobian = db::get<
         evolution::dg::subcell::fd::Tags::InverseJacobianLogicalToInertial<3>>(
@@ -615,10 +621,16 @@ struct TimeDerivative {
                   evolution::dg::Actions::detail::NormalVector<3>>>>;
 
           // Computed prims and cons on face via reconstruction
-          auto package_data_argvars_lower_face = make_array<3>(
-              Variables<dg_package_data_argument_tags>(reconstructed_num_pts));
-          auto package_data_argvars_upper_face = make_array<3>(
-              Variables<dg_package_data_argument_tags>(reconstructed_num_pts));
+          auto package_data_argvars_lower_face =
+              map_array(reconstructed_num_pts, [](size_t package_data_num_pts) {
+                return Variables<dg_package_data_argument_tags>(
+                    package_data_num_pts);
+              });
+          auto package_data_argvars_upper_face =
+              map_array(reconstructed_num_pts, [](size_t package_data_num_pts) {
+                return Variables<dg_package_data_argument_tags>(
+                    package_data_num_pts);
+              });
 
           // Reconstruct data to the face
           call_with_dynamic_type<
@@ -653,13 +665,19 @@ struct TimeDerivative {
           using dg_package_field_tags =
               typename DerivedCorrection::dg_package_field_tags;
           // Allocated outside for loop to reduce allocations
-          Variables<dg_package_field_tags> upper_packaged_data{
-              reconstructed_num_pts};
-          Variables<dg_package_field_tags> lower_packaged_data{
-              reconstructed_num_pts};
+          const size_t number_of_field_components = Variables<
+              dg_package_field_tags>::number_of_independent_components;
+          DataVector buffer{*alg::max_element(reconstructed_num_pts) *
+                            number_of_field_components * 2};
 
           // Compute fluxes on faces
-          for (size_t i = 0; i < comp_dim; ++i) {
+          for (size_t i = 0; i < 3; ++i) {
+            Variables<dg_package_field_tags> upper_packaged_data{
+                buffer.data(),
+                gsl::at(reconstructed_num_pts, i) * number_of_field_components};
+            Variables<dg_package_field_tags> lower_packaged_data{
+                buffer.data() + upper_packaged_data.size(),
+                gsl::at(reconstructed_num_pts, i) * number_of_field_components};
             auto& vars_upper_face = gsl::at(package_data_argvars_upper_face, i);
             auto& vars_lower_face = gsl::at(package_data_argvars_lower_face, i);
             grmhd::ValenciaDivClean::subcell::compute_fluxes(
@@ -668,9 +686,8 @@ struct TimeDerivative {
                 make_not_null(&vars_lower_face));
 
             // Build extents of mesh shifted by half a grid cell in direction i
-            const unsigned long& num_subcells_1d = subcell_mesh.extents(0);
             Index<3> face_mesh_extents = subcell_mesh.extents();
-            face_mesh_extents[i] = num_subcells_1d + 1;
+            face_mesh_extents[i] = subcell_mesh.extents(i) + 1;
             // Add moving mesh corrections to the fluxes, if needed
             std::optional<tnsr::I<DataVector, 3, Frame::Inertial>>
                 mesh_velocity_on_face = {};
@@ -679,7 +696,7 @@ struct TimeDerivative {
               // Can we get away with only doing the normal component? It
               // is also used in the packaged data...
               mesh_velocity_on_face = tnsr::I<DataVector, 3, Frame::Inertial>{
-                  reconstructed_num_pts};
+                  gsl::at(reconstructed_num_pts, i)};
               for (size_t j = 0; j < 3; j++) {
                 // j^th component of the velocity on the i^th directed face
                 mesh_velocity_on_face.value().get(j) =
@@ -735,7 +752,7 @@ struct TimeDerivative {
             // n_j = d \xi^{\hat i}/dx^j
             // with "i" the current face.
             tnsr::i<DataVector, 3, Frame::Inertial> lower_outward_conormal{
-                reconstructed_num_pts, 0.0};
+                gsl::at(reconstructed_num_pts, i), 0.0};
             for (size_t j = 0; j < 3; j++) {
               lower_outward_conormal.get(j) =
                   evolution::dg::subcell::fd::project_to_faces(
@@ -758,7 +775,7 @@ struct TimeDerivative {
             }
 
             tnsr::i<DataVector, 3, Frame::Inertial> upper_outward_conormal{
-                reconstructed_num_pts, 0.0};
+                gsl::at(reconstructed_num_pts, i), 0.0};
             for (size_t j = 0; j < 3; j++) {
               upper_outward_conormal.get(j) = -lower_outward_conormal.get(j);
             }
@@ -802,7 +819,8 @@ struct TimeDerivative {
             // Compute the corrections on the faces. We only need to
             // compute this once because we can just flip the normal
             // vectors then
-            gsl::at(boundary_corrections, i).initialize(reconstructed_num_pts);
+            gsl::at(boundary_corrections, i)
+                .initialize(gsl::at(reconstructed_num_pts, i));
             evolution::dg::subcell::compute_boundary_terms(
                 make_not_null(&gsl::at(boundary_corrections, i)),
                 dynamic_cast<const DerivedCorrection&>(boundary_correction),

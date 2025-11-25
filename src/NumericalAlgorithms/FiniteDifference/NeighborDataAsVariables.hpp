@@ -36,11 +36,13 @@ void neighbor_data_as_variables(
     const DirectionalIdMap<Dim, evolution::dg::subcell::GhostData>&
         all_ghost_data,
     const size_t ghost_zone_size, const Mesh<Dim>& subcell_mesh) {
-  const size_t neighbor_num_pts =
-      ghost_zone_size * subcell_mesh.extents().slice_away(0).product();
-  evolution::dg::subcell::fd::verify_subcell_extents(subcell_mesh.extents());
-
+  std::array<size_t, 3> neighbor_num_pts{};
+  for (size_t i = 0; i < 3; ++i) {
+    gsl::at(neighbor_num_pts, i) =
+        ghost_zone_size * subcell_mesh.extents().slice_away(i).product();
+  }
   vars_neighbor_data->clear();
+  // for (const auto& direction : Direction<3>::all_directions()) {
   for (const auto& [neighbor_id, ghost_data] : all_ghost_data) {
     const DataVector& data =
         ghost_data.neighbor_ghost_data_for_reconstruction();
@@ -48,7 +50,7 @@ void neighbor_data_as_variables(
     (*vars_neighbor_data)[neighbor_id].set_data_ref(
         const_cast<double*>(data.data()),
         Variables<ReconstructionTags>::number_of_independent_components *
-            neighbor_num_pts);
+            gsl::at(neighbor_num_pts, neighbor_id.direction().dimension()));
   }
 }
 }  // namespace fd
