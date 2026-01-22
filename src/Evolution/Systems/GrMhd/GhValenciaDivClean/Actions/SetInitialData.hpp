@@ -325,7 +325,7 @@ struct SetInitialData {
       /*const auto equation_of_state =
           db::get<hydro::Tags::GrmhdEquationOfState>(box);*/
       for (size_t i = 0; i < get(rest_mass_density).size(); ++i) {
-        if (get(magnitude(coords))[i] < 56.4) {
+        if (get(magnitude(coords))[i] < 54.) {
           get(rest_mass_density)[i] = 5.e-8;
           for (size_t j = 0; j < 3; ++j) {
             spatial_velocity.get(j)[i] = 0.;

@@ -75,7 +75,7 @@ struct ZeroMhdTimeDerivatives {
       const auto gamma_time_factor = (time < 250.) ? time / 250. : 1.;
       const auto gamma_mass_factor = (time < 500.) ? time / 500. : 1.;
       const auto gamma_cutoff_factor =
-          (time > 2000.) ? (time < 2500.) ? 1. - (time - 2000.) / 500. : 0.
+          (time > 1750.) ? (time < 2250.) ? 1. - (time - 1750.) / 500. : 0.
                          : 1.;
       /*    time * 1000. * std::exp(-time / 500.) * std::pow(1. / 500., 2);*/
       /*auto& temperature = db::get<hydro::Tags::Temperature<DataVector>>(box);
@@ -89,7 +89,7 @@ struct ZeroMhdTimeDerivatives {
       ASSERT(variables->number_of_grid_points() == mag.size(), "Angry");*/
       for (size_t i = 0; i < mag.size(); ++i) {
         // std::cout << mag[i] << "\n";
-        if (mag[i] < 56.4) {//52.4) {
+        if (mag[i] < 54.) {  // 52.4) {
           get(rest_mass_density)[i] =
               (5.e-8 + gamma_mass_factor * 2.5e-8) * gamma_cutoff_factor;
           for (size_t j = 0; j < 3; ++j) {
