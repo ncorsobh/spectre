@@ -53,21 +53,9 @@ EquationOfState:
 # of the star, avoiding the surface discontinuity. A few pre-made options are
 # provided to test out more or less complicated domains. The least trivial, a
 # Sphere domain with filled interior, is enabled by default.
+# A simpler domain would be a Brick. If the boundaries are set to [-3.5, 3.5]^3,
+# it will remain within the star.
 DomainCreator:
-  #Brick:
-  #  LowerBound: [-3.5, -3.5, -3.5]
-  #  UpperBound: [3.5, 3.5, 3.5]
-  #  Distribution: [Linear, Linear, Linear]
-  #  InitialRefinement: [1,1,1]
-  #  InitialGridPoints: [8,8,8]
-  #  TimeDependence: None
-  #  BoundaryConditions:
-  #    - DirichletAnalytic:
-  #        AnalyticPrescription: *InitialData
-  #    - DirichletAnalytic:
-  #        AnalyticPrescription: *InitialData
-  #    - DirichletAnalytic:
-  #        AnalyticPrescription: *InitialData
   Sphere:
     InnerRadius: 3.
     OuterRadius: 7.
@@ -229,6 +217,7 @@ EventsAndTriggersAtSlabs:
             - SpecificInternalEnergy
             - TciStatus
           InterpolateToMesh: None
+          ProjectToMesh: None
           CoordinatesFloatingPointType: Double
           FloatingPointTypes: [Double]
           BlocksToObserve: All
@@ -260,6 +249,7 @@ EventsRunAtCleanup:
           - Pressure
           - TciStatus
         InterpolateToMesh: None
+        ProjectToMesh: None
         CoordinatesFloatingPointType: Double
         FloatingPointTypes: [Double]
         BlocksToObserve: All

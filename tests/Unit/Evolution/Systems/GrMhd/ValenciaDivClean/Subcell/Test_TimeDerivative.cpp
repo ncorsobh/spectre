@@ -143,7 +143,7 @@ auto face_centered_gr_tags(
   return face_centered_gr_vars;
 }
 
-template <bool aligned_coordinates>
+template <bool AlignedCoordinates>
 std::array<double, 5> test(const size_t num_dg_pts,
                            const ::fd::DerivativeOrder fd_derivative_order,
                            std::optional<double> expansion_velocity) {
@@ -151,8 +151,8 @@ std::array<double, 5> test(const size_t num_dg_pts,
       db::wrap_tags_in<::Tags::Flux, typename System::flux_variables,
                        tmpl::size_t<3>, Frame::Inertial>;
 
-  CoordinateMap<aligned_coordinates> coordinate_map;
-  if constexpr (aligned_coordinates) {
+  CoordinateMap<AlignedCoordinates> coordinate_map;
+  if constexpr (AlignedCoordinates) {
     using Affine = domain::CoordinateMaps::Affine;
     using Affine3D =
         domain::CoordinateMaps::ProductOf3Maps<Affine, Affine, Affine>;

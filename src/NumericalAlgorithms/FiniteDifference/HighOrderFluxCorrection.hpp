@@ -96,15 +96,15 @@ void cartesian_high_order_fluxes_using_nodes(
                  EvolvedVarsTags, tmpl::size_t<Dim>, Frame::Inertial>...>>>&
         ghost_cell_inertial_flux,
     const Mesh<Dim>& subcell_mesh, const size_t number_of_ghost_cells,
-    [[maybe_unused]] const std::array<gsl::span<std::uint8_t>, Dim>&
-        reconstruction_order = {},
-    [[maybe_unused]] const bool aligned_coordinates = true,
-    [[maybe_unused]] const std::array<tnsr::i<DataVector, Dim, Frame::Inertial>,
-                                      Dim>& normal = {},
-    [[maybe_unused]] const std::array<
+    const std::array<gsl::span<std::uint8_t>, Dim>& reconstruction_order = {},
+    const bool aligned_coordinates = true,
+    const std::array<tnsr::i<DataVector, Dim, Frame::Inertial>, Dim>& normal =
+        {},
+    const std::array<
         DirectionMap<Dim, tnsr::i<DataVector, Dim, Frame::Inertial>>, Dim>&
         ghost_cell_normal = {}) {
   using std::min;
+  static_assert(Dim > 0 and Dim <= 3, "Dim must be 1, 2, or 3");
   constexpr int max_correction_order = 10;
   static_assert(static_cast<int>(DerivOrder) <= max_correction_order);
   constexpr size_t stencil_size = static_cast<int>(DerivOrder) < 0
@@ -142,11 +142,14 @@ void cartesian_high_order_fluxes_using_nodes(
                      number_of_ghost_cells,
                      &second_order_boundary_corrections_in_logical_direction,
                      &subcell_mesh, &correction_width, &reconstruction_order,
-                     &reconstruction_extents, &normal, &ghost_cell_normal,
-                     &aligned_coordinates](auto tag_v, auto dim_v) {
+                     &reconstruction_extents, &normal,
+                     &ghost_cell_normal]<typename tag, size_t dim,
+                                         bool AlignedCoordinates>(
+                        tmpl::type_<tag> /*meta*/,
+                        std::integral_constant<size_t, dim> /*meta*/,
+                        std::integral_constant<bool,
+                                               AlignedCoordinates> /*meta*/) {
     (void)reconstruction_extents;
-    using tag = decltype(tag_v);
-    constexpr size_t dim = decltype(dim_v)::value;
 
     auto& high_order_var_correction =
         get<tag>((*high_order_boundary_corrections_in_logical_direction)[dim]);
@@ -171,8 +174,6 @@ void cartesian_high_order_fluxes_using_nodes(
     const size_t number_of_components = second_order_var_correction.size();
     for (size_t storage_index = 0; storage_index < number_of_components;
          ++storage_index) {
-      const auto flux_multi_index = prepend(
-          second_order_var_correction.get_tensor_index(storage_index), dim);
       std::array<size_t, Dim> flux_storage_indices;
       for (size_t n = 0; n < Dim; ++n) {
         auto temp_multi_index = prepend(
@@ -180,8 +181,6 @@ void cartesian_high_order_fluxes_using_nodes(
         flux_storage_indices[n] =
             FluxTensor::get_storage_index(temp_multi_index);
       }
-      const size_t flux_storage_index =
-          FluxTensor::get_storage_index(flux_multi_index);
       for (size_t k = 0; k < (Dim == 3 ? subcell_face_extents[2] : 1); ++k) {
         for (size_t j = 0; j < (Dim >= 2 ? subcell_face_extents[1] : 1); ++j) {
           for (size_t i = 0; i < subcell_face_extents[0]; ++i) {
@@ -210,87 +209,67 @@ void cartesian_high_order_fluxes_using_nodes(
                     0.0;
 
             std::array<double, stencil_size> cell_centered_fluxes_for_stencil{};
-            // fill if we have to retrieve from lower neighbor
+            // fill if we have to retrieve from lower neighbor; compute a
+            // dot-product with normal components when coordinates are not
+            // aligned
             size_t stencil_index = 0;
-            if (aligned_coordinates) {
-              for (int grid_index = static_cast<int>(face_index[dim]) -
-                                    static_cast<int>(correction_width);
-                   grid_index < static_cast<int>(face_index[dim]) +
-                                    static_cast<int>(correction_width);
-                   ++grid_index, ++stencil_index) {
-                if (grid_index < 0) {
-                  neighbor_index[dim] =
-                      number_of_ghost_cells + static_cast<size_t>(grid_index);
-                  gsl::at(cell_centered_fluxes_for_stencil, stencil_index) =
-                      lower_neighbor_cell_centered_flux[flux_storage_index]
-                                                       [collapsed_index(
-                                                           neighbor_index,
-                                                           neighbor_extents)];
-                } else if (grid_index >=
-                           static_cast<int>(subcell_extents[dim])) {
-                  neighbor_index[dim] = static_cast<size_t>(
-                      grid_index - static_cast<int>(subcell_extents[dim]));
-                  gsl::at(cell_centered_fluxes_for_stencil, stencil_index) =
-                      upper_neighbor_cell_centered_flux[flux_storage_index]
-                                                       [collapsed_index(
-                                                           neighbor_index,
-                                                           neighbor_extents)];
-                } else {
-                  Index<Dim> volume_index = face_index;
-                  // volume index[dim] changes to access cell- rather than
-                  // face-centered flux
-                  volume_index[dim] = static_cast<size_t>(grid_index);
-                  gsl::at(cell_centered_fluxes_for_stencil, stencil_index) =
-                      cell_centered_flux[flux_storage_index][collapsed_index(
-                          volume_index, subcell_extents)];
+            for (int grid_index = static_cast<int>(face_index[dim]) -
+                                  static_cast<int>(correction_width);
+                 grid_index < static_cast<int>(face_index[dim]) +
+                                  static_cast<int>(correction_width);
+                 ++grid_index, ++stencil_index) {
+              if (grid_index < 0) {
+                neighbor_index[dim] =
+                    number_of_ghost_cells + static_cast<size_t>(grid_index);
+                const size_t idx_flat =
+                    collapsed_index(neighbor_index, neighbor_extents);
+                double sum = 0.0;
+                for (size_t n = 0; n < Dim; ++n) {
+                  const double mult =
+                      AlignedCoordinates
+                          ? (n == dim ? 1.0 : 0.0)
+                          : ghost_cell_normal[dim]
+                                .at(Direction<Dim>{dim, Side::Lower})
+                                .get(n)[idx_flat];
+                  sum +=
+                      lower_neighbor_cell_centered_flux[flux_storage_indices[n]]
+                                                       [idx_flat] *
+                      mult;
                 }
-              }
-              stencil_index = 0;
-            } else {
-              for (int grid_index = static_cast<int>(face_index[dim]) -
-                                    static_cast<int>(correction_width);
-                   grid_index < static_cast<int>(face_index[dim]) +
-                                    static_cast<int>(correction_width);
-                   ++grid_index, ++stencil_index) {
-                if (grid_index < 0) {
-                  neighbor_index[dim] =
-                      number_of_ghost_cells + static_cast<size_t>(grid_index);
-                  for (size_t n = 0; n < Dim; ++n) {
-                    gsl::at(cell_centered_fluxes_for_stencil, stencil_index) +=
-                        lower_neighbor_cell_centered_flux
-                            [flux_storage_indices[n]][collapsed_index(
-                                neighbor_index, neighbor_extents)] *
-                        ghost_cell_normal[dim]
-                            .at(Direction<Dim>{dim, Side::Lower})
-                            .get(n)[collapsed_index(neighbor_index,
-                                                    neighbor_extents)];
-                  }
-                } else if (grid_index >=
-                           static_cast<int>(subcell_extents[dim])) {
-                  neighbor_index[dim] = static_cast<size_t>(
-                      grid_index - static_cast<int>(subcell_extents[dim]));
-                  for (size_t n = 0; n < Dim; ++n) {
-                    gsl::at(cell_centered_fluxes_for_stencil, stencil_index) +=
-                        upper_neighbor_cell_centered_flux
-                            [flux_storage_indices[n]][collapsed_index(
-                                neighbor_index, neighbor_extents)] *
-                        ghost_cell_normal[dim]
-                            .at(Direction<Dim>{dim, Side::Upper})
-                            .get(n)[collapsed_index(neighbor_index,
-                                                    neighbor_extents)];
-                  }
-                } else {
-                  Index<Dim> volume_index = face_index;
-                  volume_index[dim] = static_cast<size_t>(grid_index);
-                  for (size_t n = 0; n < Dim; ++n) {
-                    gsl::at(cell_centered_fluxes_for_stencil, stencil_index) +=
-                        cell_centered_flux[flux_storage_indices[n]]
-                                          [collapsed_index(volume_index,
-                                                           subcell_extents)] *
-                        normal[dim].get(
-                            n)[collapsed_index(volume_index, subcell_extents)];
-                  }
+                gsl::at(cell_centered_fluxes_for_stencil, stencil_index) = sum;
+              } else if (grid_index >= static_cast<int>(subcell_extents[dim])) {
+                neighbor_index[dim] = static_cast<size_t>(
+                    grid_index - static_cast<int>(subcell_extents[dim]));
+                const size_t idx_flat =
+                    collapsed_index(neighbor_index, neighbor_extents);
+                double sum = 0.0;
+                for (size_t n = 0; n < Dim; ++n) {
+                  const double mult =
+                      AlignedCoordinates
+                          ? (n == dim ? 1.0 : 0.0)
+                          : ghost_cell_normal[dim]
+                                .at(Direction<Dim>{dim, Side::Upper})
+                                .get(n)[idx_flat];
+                  sum +=
+                      upper_neighbor_cell_centered_flux[flux_storage_indices[n]]
+                                                       [idx_flat] *
+                      mult;
                 }
+                gsl::at(cell_centered_fluxes_for_stencil, stencil_index) = sum;
+              } else {
+                Index<Dim> volume_index = face_index;
+                volume_index[dim] = static_cast<size_t>(grid_index);
+                const size_t idx_flat =
+                    collapsed_index(volume_index, subcell_extents);
+                double sum = 0.0;
+                for (size_t n = 0; n < Dim; ++n) {
+                  const double mult = AlignedCoordinates
+                                          ? (n == dim ? 1.0 : 0.0)
+                                          : normal[dim].get(n)[idx_flat];
+                  sum += cell_centered_flux[flux_storage_indices[n]][idx_flat] *
+                         mult;
+                }
+                gsl::at(cell_centered_fluxes_for_stencil, stencil_index) = sum;
               }
             }
 
@@ -421,14 +400,33 @@ void cartesian_high_order_fluxes_using_nodes(
     }
   };
 
-  EXPAND_PACK_LEFT_TO_RIGHT(
-      impl(EvolvedVarsTags{}, std::integral_constant<size_t, 0>{}));
-  if constexpr (Dim > 1) {
-    EXPAND_PACK_LEFT_TO_RIGHT(
-        impl(EvolvedVarsTags{}, std::integral_constant<size_t, 1>{}));
-    if constexpr (Dim > 2) {
-      EXPAND_PACK_LEFT_TO_RIGHT(
-          impl(EvolvedVarsTags{}, std::integral_constant<size_t, 2>{}));
+  if (aligned_coordinates) {
+    EXPAND_PACK_LEFT_TO_RIGHT(impl(tmpl::type_<EvolvedVarsTags>{},
+                                   std::integral_constant<size_t, 0>{},
+                                   std::true_type{}));
+    if constexpr (Dim > 1) {
+      EXPAND_PACK_LEFT_TO_RIGHT(impl(tmpl::type_<EvolvedVarsTags>{},
+                                     std::integral_constant<size_t, 1>{},
+                                     std::true_type{}));
+      if constexpr (Dim > 2) {
+        EXPAND_PACK_LEFT_TO_RIGHT(impl(tmpl::type_<EvolvedVarsTags>{},
+                                       std::integral_constant<size_t, 2>{},
+                                       std::true_type{}));
+      }
+    }
+  } else {
+    EXPAND_PACK_LEFT_TO_RIGHT(impl(tmpl::type_<EvolvedVarsTags>{},
+                                   std::integral_constant<size_t, 0>{},
+                                   std::false_type{}));
+    if constexpr (Dim > 1) {
+      EXPAND_PACK_LEFT_TO_RIGHT(impl(tmpl::type_<EvolvedVarsTags>{},
+                                     std::integral_constant<size_t, 1>{},
+                                     std::false_type{}));
+      if constexpr (Dim > 2) {
+        EXPAND_PACK_LEFT_TO_RIGHT(impl(tmpl::type_<EvolvedVarsTags>{},
+                                       std::integral_constant<size_t, 2>{},
+                                       std::false_type{}));
+      }
     }
   }
 }
@@ -450,12 +448,11 @@ void cartesian_high_order_fluxes_using_nodes(
         ghost_cell_inertial_flux,
     const Mesh<Dim>& subcell_mesh, const size_t number_of_ghost_cells,
     const DerivativeOrder derivative_order,
-    [[maybe_unused]] const std::array<gsl::span<std::uint8_t>, Dim>&
-        reconstruction_order = {},
-    [[maybe_unused]] const bool aligned_coordinates = true,
-    [[maybe_unused]] const std::array<tnsr::i<DataVector, Dim, Frame::Inertial>,
-                                      Dim>& normal = {},
-    [[maybe_unused]] const std::array<
+    const std::array<gsl::span<std::uint8_t>, Dim>& reconstruction_order = {},
+    const bool aligned_coordinates = true,
+    const std::array<tnsr::i<DataVector, Dim, Frame::Inertial>, Dim>& normal =
+        {},
+    const std::array<
         DirectionMap<Dim, tnsr::i<DataVector, Dim, Frame::Inertial>>, Dim>&
         ghost_cell_normal = {}) {
   switch (derivative_order) {
@@ -594,12 +591,11 @@ void cartesian_high_order_flux_corrections(
     const DirectionalIdMap<Dim, evolution::dg::subcell::GhostData>&
         all_ghost_data,
     const Mesh<Dim>& subcell_mesh, const size_t ghost_zone_size,
-    [[maybe_unused]] const std::array<gsl::span<std::uint8_t>, Dim>&
-        reconstruction_order = {},
-    [[maybe_unused]] const bool aligned_coordinates = true,
-    [[maybe_unused]] const std::array<tnsr::i<DataVector, Dim, Frame::Inertial>,
-                                      Dim>& normal = {},
-    [[maybe_unused]] const std::array<
+    const std::array<gsl::span<std::uint8_t>, Dim>& reconstruction_order = {},
+    const bool aligned_coordinates = true,
+    const std::array<tnsr::i<DataVector, Dim, Frame::Inertial>, Dim>& normal =
+        {},
+    const std::array<
         DirectionMap<Dim, tnsr::i<DataVector, Dim, Frame::Inertial>>, Dim>&
         ghost_cell_normal = {},
     const size_t number_of_rdmp_values_in_ghost_data = 0) {

@@ -39,7 +39,6 @@
 #include "Evolution/DgSubcell/SliceData.hpp"
 #include "Evolution/DgSubcell/Tags/GhostZoneInverseJacobian.hpp"
 #include "Framework/TestHelpers.hpp"
-#include "IO/Importers/Test_VolumeDataReaderAlgorithm.hpp"
 #include "NumericalAlgorithms/FiniteDifference/DerivativeOrder.hpp"
 #include "NumericalAlgorithms/FiniteDifference/HighOrderFluxCorrection.hpp"
 #include "NumericalAlgorithms/LinearOperators/Divergence.hpp"
@@ -75,18 +74,18 @@ struct Reconstructor : db::SimpleTag {
 };
 }  // namespace Tags
 
-template <size_t Dim, bool aligned>
+template <size_t Dim, bool AlignedCoordinates>
 using CoordinateMap = tmpl::conditional_t<
-    Dim == 1 or aligned, domain::CoordinateMaps::Identity<Dim>,
-    tmpl::conditional_t<Dim == 2 and not aligned,
+    Dim == 1 or AlignedCoordinates, domain::CoordinateMaps::Identity<Dim>,
+    tmpl::conditional_t<Dim == 2 and not AlignedCoordinates,
                         domain::CoordinateMaps::Wedge<2>,
                         domain::CoordinateMaps::BulgedCube>>;
 
-template <size_t Dim, bool aligned_coordinates>
+template <size_t Dim, bool AlignedCoordinates>
 double test(const fd::DerivativeOrder correction_order) {
-  CAPTURE(aligned_coordinates);
+  CAPTURE(AlignedCoordinates);
   CAPTURE(Dim);
-  if constexpr (not aligned_coordinates) {
+  if constexpr (not AlignedCoordinates) {
     ASSERT(Dim == 2 or Dim == 3,
            "A test for a non-aligned grid is not provided for 1-D.");
   };
@@ -116,33 +115,33 @@ double test(const fd::DerivativeOrder correction_order) {
   const Mesh<Dim> subcell_mesh{points_per_dimension,
                                Spectral::Basis::FiniteDifference,
                                Spectral::Quadrature::CellCentered};
-  auto logical_coords = logical_coordinates(subcell_mesh);
-  auto dg_logical_coords = logical_coordinates(dg_mesh);
+  const auto logical_coords = logical_coordinates(subcell_mesh);
+  const auto dg_logical_coords = logical_coordinates(dg_mesh);
 
-  CoordinateMap<Dim, aligned_coordinates> coordinate_map;
-  if constexpr (Dim == 1 or aligned_coordinates) {
+  CoordinateMap<Dim, AlignedCoordinates> coordinate_map;
+  if constexpr (Dim == 1 or AlignedCoordinates) {
     coordinate_map = domain::CoordinateMaps::Identity<Dim>();
-  } else if constexpr (Dim == 2 and not aligned_coordinates) {
+  } else if constexpr (Dim == 2 and not AlignedCoordinates) {
     coordinate_map = domain::CoordinateMaps::Wedge<2>(
         1., 4., 1., 1., OrientationMap<2>::create_aligned(), true,
         domain::CoordinateMaps::Wedge<2>::WedgeHalves::Both,
         domain::CoordinateMaps::Distribution::Linear,
         std::array<double, 1>{M_PI_2});
-  } else if constexpr (Dim == 3 and not aligned_coordinates) {
+  } else if constexpr (Dim == 3 and not AlignedCoordinates) {
     coordinate_map = domain::CoordinateMaps::BulgedCube(1., 0.1, false);
   }
 
   ElementId<Dim> element_id{};
-  if constexpr (aligned_coordinates) {
+  if constexpr (AlignedCoordinates) {
     element_id = ElementId<Dim>{0, 0};
-  } else if constexpr (Dim == 2 and not aligned_coordinates) {
+  } else if constexpr (Dim == 2 and not AlignedCoordinates) {
     element_id = ElementId<2>{0, {SegmentId{3, 4}, SegmentId{3, 4}}};
-  } else if constexpr (Dim == 3 and not aligned_coordinates) {
+  } else if constexpr (Dim == 3 and not AlignedCoordinates) {
     element_id =
         ElementId<3>{0, {SegmentId{3, 4}, SegmentId{3, 4}, SegmentId{3, 4}}};
   }
 
-  auto element_map = ElementMap<Dim, Frame::Grid>(
+  const auto element_map = ElementMap<Dim, Frame::Grid>(
       element_id,
       domain::make_coordinate_map_base<Frame::BlockLogical, Frame::Grid>(
           coordinate_map));
@@ -323,7 +322,7 @@ double test(const fd::DerivativeOrder correction_order) {
   // In this case, we are `cheating' a bit because the polynomial is defined
   // such that the flux in each direction of the grid frame is the same.
   // This is exploited in the coordinate transformation.
-  if (not aligned_coordinates) {
+  if (not AlignedCoordinates) {
     const auto grid_second_order_corrections = second_order_corrections;
     for (size_t storage_index = 0;
          storage_index <
@@ -376,7 +375,7 @@ double test(const fd::DerivativeOrder correction_order) {
   std::array<tnsr::i<DataVector, Dim, Frame::Inertial>, Dim> conormal;
   std::array<DirectionMap<Dim, tnsr::i<DataVector, Dim, Frame::Inertial>>, Dim>
       ghost_conormal;
-  if (not aligned_coordinates) {
+  if (not AlignedCoordinates) {
     for (size_t i = 0; i < Dim; ++i) {
       for (size_t j = 0; j < Dim; j++) {
         gsl::at(conormal, i).get(j) =
@@ -384,10 +383,10 @@ double test(const fd::DerivativeOrder correction_order) {
       }
 
       for (const auto& direction : Direction<Dim>::all_directions()) {
-        const auto ghost_cells_grid_coords =
+        const auto& ghost_cells_grid_coords =
             get<evolution::dg::subcell::Tags::Coordinates<Dim, Frame::Grid>>(
                 ghost_zone_inv_jac.at(direction));
-        const auto ghost_cells_inv_jacobian =
+        const auto& ghost_cells_inv_jacobian =
             get<evolution::dg::subcell::fd::Tags::InverseJacobianLogicalToGrid<
                 Dim>>(ghost_zone_inv_jac.at(direction));
         const auto ghost_cells_det_inv_jacobian =
@@ -411,7 +410,7 @@ double test(const fd::DerivativeOrder correction_order) {
       make_not_null(&high_order_corrections), volume_vars,
       second_order_corrections, correction_order, reconstruction_ghost_data,
       subcell_mesh, number_of_ghost_points, reconstruction_order,
-      aligned_coordinates, conormal, ghost_conormal);
+      AlignedCoordinates, conormal, ghost_conormal);
 
   CorrectionVars flux_divergence{subcell_mesh.number_of_grid_points(), 0.0};
   for (size_t d = 0; d < Dim; ++d) {
@@ -441,11 +440,15 @@ double test(const fd::DerivativeOrder correction_order) {
   // Jacobian is more difficult to resolve. Note that this is mostly relevant
   // for the lowest derivative orders, which use very few grid points,
   // and the error converges rapidly with derivative order, emphasized by our
-  // use of exponential scaling with `max_degree`.
+  // use of exponential scaling with `max_degree`. We chose a case with
+  // relatively high error for 2nd order (error is ~2e-3) so that we can see the
+  // improvement with each derivative order. Starting with too low an error in
+  // 2nd order case would mean that you would approach error floors too quickly
+  // with e.g. 10th order case, and the improvement would not be apparent.
   const Approx custom_approx =
-      aligned_coordinates ? Approx::custom().epsilon(2.e-10)
-                          : Approx::custom().epsilon(
-                                pow(10., 1. - static_cast<double>(max_degree)));
+      AlignedCoordinates ? Approx::custom().epsilon(2.e-10)
+                         : Approx::custom().epsilon(pow(
+                               10., -0.5 - static_cast<double>(max_degree)));
   CHECK_ITERABLE_CUSTOM_APPROX(get<Scalar0>(flux_divergence),
                                get<Scalar0>(expected_divergence),
                                custom_approx);

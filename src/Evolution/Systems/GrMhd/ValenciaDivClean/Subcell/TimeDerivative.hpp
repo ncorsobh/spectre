@@ -370,15 +370,16 @@ struct TimeDerivative {
                   conormal_in_dir.get(j) / det_inv_jacobian;
             }
 
-            for (const auto& direction : Direction<3>::all_directions()) {
-              const auto ghost_cells_grid_coords = get<
+            for (auto side : {Side::Lower, Side::Upper}) {
+              const Direction<3> direction{i, side};
+              const auto& ghost_cells_grid_coords = get<
                   evolution::dg::subcell::Tags::Coordinates<3, Frame::Grid>>(
                   ghost_zone_inv_jac.at(direction));
-              const auto ghost_cells_grid_inv_jacobian =
+              const auto& ghost_cells_grid_inv_jacobian =
                   get<evolution::dg::subcell::fd::Tags::
                           InverseJacobianLogicalToGrid<3>>(
                       ghost_zone_inv_jac.at(direction));
-              const auto ghost_cells_inertial_inv_jacobian =
+              const auto& ghost_cells_inertial_inv_jacobian =
                   db::get<domain::CoordinateMaps::Tags::CoordinateMap<
                       3, Frame::Grid, Frame::Inertial>>(*box)
                       .inv_jacobian(
@@ -389,7 +390,6 @@ struct TimeDerivative {
                       ghost_cells_inertial_inv_jacobian, 0.0);
               for (size_t m = 0; m < 3; m++) {
                 for (size_t n = 0; n < 3; n++) {
-                  total_inv_jacobian.get(m, n) = 0.;
                   for (size_t j = 0; j < 3; j++) {
                     total_inv_jacobian.get(m, n) +=
                         ghost_cells_grid_inv_jacobian.get(m, j) *
