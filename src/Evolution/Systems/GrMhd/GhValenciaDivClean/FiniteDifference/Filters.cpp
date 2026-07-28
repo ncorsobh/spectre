@@ -48,7 +48,7 @@ void spacetime_kreiss_oliger_filter(
         make_not_null(&ghost_cell_spacetime_vars), all_ghost_data,
         number_of_gh_components);
   } else {
-    using flux_variables = System::flux_variables;
+    using flux_variables = typename System::flux_variables;
     using NeighborVariables = Variables<
         tmpl::append<grmhd::GhValenciaDivClean::Tags::
                          primitive_grmhd_and_spacetime_reconstruction_tags,
