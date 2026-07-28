@@ -8,8 +8,11 @@
 #include <cstddef>
 #include <optional>
 
+#include "DataStructures/DataBox/PrefixHelpers.hpp"
+#include "DataStructures/DataBox/Prefixes.hpp"
 #include "DataStructures/DataVector.hpp"
 #include "DataStructures/Tensor/Tensor.hpp"
+#include "DataStructures/Variables.hpp"
 #include "Domain/Structure/Direction.hpp"
 #include "Evolution/Systems/GrMhd/GhValenciaDivClean/BoundaryConditions/CartoonGhost.hpp"
 #include "Evolution/Systems/GrMhd/GhValenciaDivClean/FiniteDifference/MonotonisedCentral.hpp"
@@ -170,12 +173,17 @@ void test_gh_fd_derivative_consistency(const size_t ghost_zone_size) {
   tnsr::I<DataVector, 3> ghost_B{};
   Scalar<DataVector> ghost_div_phi{};
 
+  using FluxVars =
+      Variables<db::wrap_tags_in<::Tags::Flux, typename System::flux_variables,
+                                 tmpl::size_t<3>, Frame::Inertial>>;
+  std::optional<FluxVars> cell_centered_ghost_fluxes{};
+
   grmhd::GhValenciaDivClean::BoundaryConditions::CartoonGhost<System>::fd_ghost(
       make_not_null(&ghost_spacetime_metric), make_not_null(&ghost_pi),
       make_not_null(&ghost_phi), make_not_null(&ghost_rho),
       make_not_null(&ghost_ye), make_not_null(&ghost_temp),
       make_not_null(&ghost_lf_vel), make_not_null(&ghost_B),
-      make_not_null(&ghost_div_phi),
+      make_not_null(&ghost_div_phi), make_not_null(&cell_centered_ghost_fluxes),
 
       Direction<3>::lower_xi(), interior_spacetime_metric, interior_pi,
       interior_phi, subcell_mesh,
@@ -290,17 +298,23 @@ void test_gh_fd_ghost_wrong_direction() {
                      Spectral::Quadrature::CellCentered};
   const grmhd::GhValenciaDivClean::fd::MonotonisedCentralPrim<System>
       reconstructor{};
+  using FluxVars2 =
+      Variables<db::wrap_tags_in<::Tags::Flux, typename System::flux_variables,
+                                 tmpl::size_t<3>, Frame::Inertial>>;
+  std::optional<FluxVars2> cell_centered_ghost_fluxes2{};
   CHECK_THROWS_WITH(
       (grmhd::GhValenciaDivClean::BoundaryConditions::CartoonGhost<
           System>::fd_ghost(make_not_null(&out_psi), make_not_null(&out_pi),
                             make_not_null(&out_phi), make_not_null(&out_rho),
                             make_not_null(&out_ye), make_not_null(&out_temp),
                             make_not_null(&out_lf_vel), make_not_null(&out_B),
-                            make_not_null(&out_dcf), Direction<3>::lower_eta(),
-                            empty_aa, empty_aa, empty_iaa, mesh, empty_scalar,
+                            make_not_null(&out_dcf),
+                            make_not_null(&cell_centered_ghost_fluxes2),
+                            Direction<3>::lower_eta(), empty_aa, empty_aa,
+                            empty_iaa, mesh, empty_scalar, empty_scalar,
                             empty_scalar, empty_scalar, empty_scalar,
-                            empty_scalar, empty_scalar, empty_scalar, empty_vec,
-                            empty_vec, reconstructor)),
+                            empty_scalar, empty_scalar, empty_vec, empty_vec,
+                            reconstructor)),
       Catch::Matchers::ContainsSubstring(
           "Cartoon BC can only be applied in the x-direction"));
 }

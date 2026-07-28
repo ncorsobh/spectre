@@ -62,6 +62,9 @@ void CartoonGhost<System>::fd_ghost(
     const gsl::not_null<tnsr::I<DataVector, 3, Frame::Inertial>*>
         magnetic_field,
     const gsl::not_null<Scalar<DataVector>*> divergence_cleaning_field,
+    const gsl::not_null<std::optional<
+        Variables<db::wrap_tags_in<Flux, typename System::flux_variables>>>*>
+    /*cell_centered_ghost_fluxes*/,
     const Direction<3>& direction,
     // fd_interior_evolved_variables_tags
     const tnsr::aa<DataVector, 3, Frame::Inertial>& interior_spacetime_metric,
