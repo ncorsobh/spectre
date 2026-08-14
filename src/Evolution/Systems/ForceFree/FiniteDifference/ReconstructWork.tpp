@@ -38,15 +38,16 @@ void reconstruct_work(
     const Element<3>& element,
     const DirectionalIdMap<3, evolution::dg::subcell::GhostData>& neighbor_data,
     const Mesh<3>& subcell_mesh, const size_t ghost_zone_size) {
-  ASSERT(is_isotropic(subcell_mesh),
-         "The subcell mesh should be isotropic but got " << subcell_mesh);
-
   const size_t volume_num_pts = subcell_mesh.number_of_grid_points();
-  const size_t reconstructed_num_pts =
-      (subcell_mesh.extents(0) + 1) *
-      subcell_mesh.extents().slice_away(0).product();
-  const size_t neighbor_num_pts =
-      ghost_zone_size * subcell_mesh.extents().slice_away(0).product();
+  std::array<size_t, 3> reconstructed_num_pts{};
+  std::array<size_t, 3> neighbor_num_pts{};
+  for (size_t i = 0; i < 3; ++i) {
+    gsl::at(reconstructed_num_pts, i) =
+        (subcell_mesh.extents(i) + 1) *
+        subcell_mesh.extents().slice_away(i).product();
+    gsl::at(neighbor_num_pts, i) =
+        ghost_zone_size * subcell_mesh.extents().slice_away(i).product();
+  }
 
   // We reconstruct the evolved variables (TildeE, TildeB, TildePsi, TildePhi,
   // TildeQ) which are contained in the function argument `volume_evolved_vars`,
@@ -100,10 +101,12 @@ void reconstruct_work(
     for (size_t i = 0; i < 3; ++i) {
       gsl::at(upper_face_vars, i) =
           gsl::make_span(get<tag>(gsl::at(*vars_on_upper_face, i))[0].data(),
-                         number_of_variables * reconstructed_num_pts);
+                         number_of_variables *
+                             gsl::at(reconstructed_num_pts, i));
       gsl::at(lower_face_vars, i) =
           gsl::make_span(get<tag>(gsl::at(*vars_on_lower_face, i))[0].data(),
-                         number_of_variables * reconstructed_num_pts);
+                         number_of_variables *
+                             gsl::at(reconstructed_num_pts, i));
     }
 
     DirectionMap<3, gsl::span<const double>> ghost_cell_vars{};
@@ -128,9 +131,11 @@ void reconstruct_work(
                "The neighber data is empty in direction "
                    << direction << " on element id " << element.id());
 
+        const size_t dir_neighbor_num_pts =
+            gsl::at(neighbor_num_pts, direction.dimension());
         ghost_cell_vars[direction] = gsl::make_span(
-            &neighbor_data_dv[vars_in_neighbor_count * neighbor_num_pts],
-            number_of_variables * neighbor_num_pts);
+            &neighbor_data_dv[vars_in_neighbor_count * dir_neighbor_num_pts],
+            number_of_variables * dir_neighbor_num_pts);
       } else {
         // retrieve boundary ghost data from neighbor_data
         ASSERT(
@@ -145,7 +150,9 @@ void reconstruct_work(
                 .neighbor_ghost_data_for_reconstruction();
 
         ghost_cell_vars[direction] = gsl::make_span(
-            &neighbor_data_dv[0], number_of_variables * neighbor_num_pts);
+            &neighbor_data_dv[0],
+            number_of_variables *
+                gsl::at(neighbor_num_pts, direction.dimension()));
       }
     }
 

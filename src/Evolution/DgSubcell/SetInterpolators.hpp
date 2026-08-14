@@ -245,9 +245,9 @@ struct SetInterpolators {
                 "faces of the Element that are external boundaries.");
           }
 
-          auto new_basis = make_array<Dim>(my_fd_mesh.basis(0));
-          auto new_extents = make_array<Dim>(my_fd_mesh.extents(0));
-          auto new_quads = make_array<Dim>(my_fd_mesh.quadrature(0));
+          auto new_basis = my_fd_mesh.basis();
+          auto new_extents = my_fd_mesh.extents().indices();
+          auto new_quads = my_fd_mesh.quadrature();
 
           const size_t problematic_dim =
               direction_to_extend.value().dimension();

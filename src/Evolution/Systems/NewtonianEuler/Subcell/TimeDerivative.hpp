@@ -39,6 +39,7 @@
 #include "NumericalAlgorithms/Spectral/Mesh.hpp"
 #include "PointwiseFunctions/Hydro/Tags.hpp"
 #include "Utilities/CallWithDynamicType.hpp"
+#include "Utilities/ContainerHelpers.hpp"
 #include "Utilities/ErrorHandling/Assert.hpp"
 #include "Utilities/Gsl.hpp"
 #include "Utilities/TMPL.hpp"
@@ -74,17 +75,13 @@ struct TimeDerivative {
     // The copy of Mesh is intentional to avoid a GCC-7 internal compiler error.
     const Mesh<Dim> subcell_mesh =
         db::get<evolution::dg::subcell::Tags::Mesh<Dim>>(*box);
-    ASSERT(
-        subcell_mesh == Mesh<Dim>(subcell_mesh.extents(0),
-                                  subcell_mesh.basis(0),
-                                  subcell_mesh.quadrature(0)),
-        "The subcell/FD mesh must be isotropic for the FD time derivative but "
-        "got "
-            << subcell_mesh);
     const size_t num_pts = subcell_mesh.number_of_grid_points();
-    const size_t reconstructed_num_pts =
-        (subcell_mesh.extents(0) + 1) *
-        subcell_mesh.extents().slice_away(0).product();
+    std::array<size_t, Dim> reconstructed_num_pts{};
+    for (size_t i = 0; i < Dim; ++i) {
+      gsl::at(reconstructed_num_pts, i) =
+          (subcell_mesh.extents(i) + 1) *
+          subcell_mesh.extents().slice_away(i).product();
+    }
 
     const tnsr::I<DataVector, Dim, Frame::ElementLogical>&
         cell_centered_logical_coords =
@@ -92,10 +89,13 @@ struct TimeDerivative {
                 Dim, Frame::ElementLogical>>(*box);
     std::array<double, Dim> one_over_delta_xi{};
     for (size_t i = 0; i < Dim; ++i) {
-      // Note: assumes isotropic extents
+      size_t stride = 1;
+      for (size_t d = 0; d < i; ++d) {
+        stride *= subcell_mesh.extents(d);
+      }
       gsl::at(one_over_delta_xi, i) =
-          1.0 / (get<0>(cell_centered_logical_coords)[1] -
-                 get<0>(cell_centered_logical_coords)[0]);
+          1.0 / (get_element(cell_centered_logical_coords, i)[stride] -
+                 get_element(cell_centered_logical_coords, i)[0]);
     }
 
     const NewtonianEuler::fd::Reconstructor<Dim>& recons =
@@ -128,10 +128,18 @@ struct TimeDerivative {
             tmpl::append<evolved_vars_tags, prim_tags, fluxes_tags,
                          dg_package_data_temporary_tags>;
         // Computed prims and cons on face via reconstruction
-        auto package_data_argvars_lower_face = make_array<Dim>(
-            Variables<dg_package_data_argument_tags>(reconstructed_num_pts));
-        auto package_data_argvars_upper_face = make_array<Dim>(
-            Variables<dg_package_data_argument_tags>(reconstructed_num_pts));
+        std::array<Variables<dg_package_data_argument_tags>, Dim>
+            package_data_argvars_lower_face{};
+        std::array<Variables<dg_package_data_argument_tags>, Dim>
+            package_data_argvars_upper_face{};
+        for (size_t i = 0; i < Dim; ++i) {
+          gsl::at(package_data_argvars_lower_face, i) =
+              Variables<dg_package_data_argument_tags>(
+                  gsl::at(reconstructed_num_pts, i));
+          gsl::at(package_data_argvars_upper_face, i) =
+              Variables<dg_package_data_argument_tags>(
+                  gsl::at(reconstructed_num_pts, i));
+        }
 
         // Reconstruct data to the face
         call_with_dynamic_type<void, typename NewtonianEuler::fd::Reconstructor<
@@ -154,11 +162,6 @@ struct TimeDerivative {
 
         using dg_package_field_tags =
             typename DerivedCorrection::dg_package_field_tags;
-        // Allocated outside for loop to reduce allocations
-        Variables<dg_package_field_tags> upper_packaged_data{
-            reconstructed_num_pts};
-        Variables<dg_package_field_tags> lower_packaged_data{
-            reconstructed_num_pts};
 
         // Compute fluxes on faces
         for (size_t i = 0; i < Dim; ++i) {
@@ -169,12 +172,17 @@ struct TimeDerivative {
           NewtonianEuler::subcell::compute_fluxes<Dim>(
               make_not_null(&vars_lower_face));
 
+          Variables<dg_package_field_tags> upper_packaged_data{
+              gsl::at(reconstructed_num_pts, i)};
+          Variables<dg_package_field_tags> lower_packaged_data{
+              gsl::at(reconstructed_num_pts, i)};
+
           tnsr::i<DataVector, Dim, Frame::Inertial> lower_outward_conormal{
-              reconstructed_num_pts, 0.0};
+              gsl::at(reconstructed_num_pts, i), 0.0};
           lower_outward_conormal.get(i) = 1.0;
 
           tnsr::i<DataVector, Dim, Frame::Inertial> upper_outward_conormal{
-              reconstructed_num_pts, 0.0};
+              gsl::at(reconstructed_num_pts, i), 0.0};
           upper_outward_conormal.get(i) = -1.0;
 
           // Compute the packaged data
@@ -210,7 +218,8 @@ struct TimeDerivative {
           // Compute the corrections on the faces. We only need to
           // compute this once because we can just flip the normal
           // vectors then
-          gsl::at(boundary_corrections, i).initialize(reconstructed_num_pts);
+          gsl::at(boundary_corrections, i)
+              .initialize(gsl::at(reconstructed_num_pts, i));
           evolution::dg::subcell::compute_boundary_terms(
               make_not_null(&gsl::at(boundary_corrections, i)),
               dynamic_cast<const DerivedCorrection&>(boundary_correction),

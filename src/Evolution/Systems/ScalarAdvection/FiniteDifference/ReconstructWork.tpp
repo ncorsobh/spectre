@@ -35,16 +35,17 @@ void reconstruct_work(
     const Element<Dim>& element,
     const DirectionalIdMap<Dim, evolution::dg::subcell::GhostData>& ghost_data,
     const Mesh<Dim>& subcell_mesh, const size_t ghost_zone_size) {
-  // check if subcell mesh is isotropic
-  ASSERT(Mesh<Dim>(subcell_mesh.extents(0), subcell_mesh.basis(0),
-                   subcell_mesh.quadrature(0)) == subcell_mesh,
-         "The subcell mesh should be isotropic but got " << subcell_mesh);
-
   // the number of subcell interface points, which is equal to the number of
   // points we reconstruct to
-  const size_t reconstructed_num_pts =
-      (subcell_mesh.extents(0) + 1) *
-      subcell_mesh.extents().slice_away(0).product();
+  std::array<size_t, Dim> reconstructed_num_pts{};
+  std::array<size_t, Dim> neighbor_num_ghost_fd_points{};
+  for (size_t i = 0; i < Dim; ++i) {
+    gsl::at(reconstructed_num_pts, i) =
+        (subcell_mesh.extents(i) + 1) *
+        subcell_mesh.extents().slice_away(i).product();
+    gsl::at(neighbor_num_ghost_fd_points, i) =
+        ghost_zone_size * subcell_mesh.extents().slice_away(i).product();
+  }
 
   // create views/spans into the face data, which will be filled by the
   // reconstructor
@@ -53,14 +54,11 @@ void reconstruct_work(
   for (size_t i = 0; i < Dim; i++) {
     gsl::at(upper_face_vars, i) =
         gsl::make_span(get<Tags::U>(gsl::at(*vars_on_upper_face, i))[0].data(),
-                       reconstructed_num_pts);
+                       gsl::at(reconstructed_num_pts, i));
     gsl::at(lower_face_vars, i) =
         gsl::make_span(get<Tags::U>(gsl::at(*vars_on_lower_face, i))[0].data(),
-                       reconstructed_num_pts);
+                       gsl::at(reconstructed_num_pts, i));
   }
-
-  const size_t neighbor_num_ghost_fd_points =
-      ghost_zone_size * subcell_mesh.extents().slice_away(0).product();
 
   // make span of ghost cell variables for each direction
   DirectionMap<Dim, gsl::span<const double>> ghost_cell_vars{};
@@ -85,8 +83,9 @@ void reconstruct_work(
                                           << direction << " on element id "
                                           << element.id());
 
-    ghost_cell_vars[direction] =
-        gsl::make_span(&neighbor_data[0], neighbor_num_ghost_fd_points);
+    ghost_cell_vars[direction] = gsl::make_span(
+        &neighbor_data[0],
+        gsl::at(neighbor_num_ghost_fd_points, direction.dimension()));
   }
 
   // make span of volume variables

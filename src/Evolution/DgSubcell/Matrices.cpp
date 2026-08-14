@@ -384,8 +384,13 @@ const Matrix& reconstruction_matrix(const Mesh<Dim>& dg_mesh,
          "FD Subcell reconstruction only supports Legendre or Cartoon bases "
          "right now, got "
              << dg_mesh);
-  verify_subcell_mesh(dg_mesh);
-  verify_subcell_extents(subcell_extents);
+  ASSERT(dg_mesh == Mesh<Dim>(dg_mesh.extents(0), dg_mesh.basis(0),
+                              dg_mesh.quadrature(0)),
+         "AllDimsAtOnce reconstruction requires an isotropic DG mesh, got "
+             << dg_mesh);
+  ASSERT(subcell_extents == Index<Dim>(subcell_extents[0]),
+         "AllDimsAtOnce reconstruction requires isotropic subcell extents, got "
+             << subcell_extents);
 
   switch (dg_mesh.quadrature(0)) {
     case Spectral::Quadrature::GaussLobatto:

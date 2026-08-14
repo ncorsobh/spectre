@@ -53,15 +53,16 @@ void reconstruct_prims_work(
   using prim_tags_for_reconstruction =
       tmpl::list<MassDensity, Velocity, Pressure>;
 
-  ASSERT(Mesh<Dim>(subcell_mesh.extents(0), subcell_mesh.basis(0),
-                   subcell_mesh.quadrature(0)) == subcell_mesh,
-         "The subcell mesh should be isotropic but got " << subcell_mesh);
   const size_t volume_num_pts = subcell_mesh.number_of_grid_points();
-  const size_t reconstructed_num_pts =
-      (subcell_mesh.extents(0) + 1) *
-      subcell_mesh.extents().slice_away(0).product();
-  const size_t neighbor_num_pts =
-      ghost_zone_size * subcell_mesh.extents().slice_away(0).product();
+  std::array<size_t, Dim> reconstructed_num_pts{};
+  std::array<size_t, Dim> neighbor_num_pts{};
+  for (size_t i = 0; i < Dim; ++i) {
+    gsl::at(reconstructed_num_pts, i) =
+        (subcell_mesh.extents(i) + 1) *
+        subcell_mesh.extents().slice_away(i).product();
+    gsl::at(neighbor_num_pts, i) =
+        ghost_zone_size * subcell_mesh.extents().slice_away(i).product();
+  }
   size_t vars_in_neighbor_count = 0;
   tmpl::for_each<prim_tags_for_reconstruction>([&element, &ghost_data,
                                                 neighbor_num_pts, &reconstruct,
@@ -82,10 +83,12 @@ void reconstruct_prims_work(
     for (size_t i = 0; i < Dim; ++i) {
       gsl::at(upper_face_vars, i) =
           gsl::make_span(get<tag>(gsl::at(*vars_on_upper_face, i))[0].data(),
-                         number_of_components * reconstructed_num_pts);
+                         number_of_components *
+                             gsl::at(reconstructed_num_pts, i));
       gsl::at(lower_face_vars, i) =
           gsl::make_span(get<tag>(gsl::at(*vars_on_lower_face, i))[0].data(),
-                         number_of_components * reconstructed_num_pts);
+                         number_of_components *
+                             gsl::at(reconstructed_num_pts, i));
     }
 
     DirectionMap<Dim, gsl::span<const double>> ghost_cell_vars{};
@@ -106,9 +109,11 @@ void reconstruct_prims_work(
       ASSERT(neighbor_data.size() != 0,
              "The neighber data is empty in direction "
                  << direction << " on element id " << element.id());
+      const size_t dir_neighbor_num_pts =
+          gsl::at(neighbor_num_pts, direction.dimension());
       ghost_cell_vars[direction] = gsl::make_span(
-          &neighbor_data[vars_in_neighbor_count * neighbor_num_pts],
-          number_of_components * neighbor_num_pts);
+          &neighbor_data[vars_in_neighbor_count * dir_neighbor_num_pts],
+          number_of_components * dir_neighbor_num_pts);
     }
 
     reconstruct(make_not_null(&upper_face_vars),
