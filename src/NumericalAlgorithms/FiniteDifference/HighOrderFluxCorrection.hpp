@@ -604,30 +604,36 @@ void cartesian_high_order_flux_corrections(
         ghost_cell_normal = {},
     const size_t number_of_rdmp_values_in_ghost_data = 0) {
   if (cell_centered_fluxes.has_value()) {
-    ASSERT(alg::all_of(
-               second_order_boundary_corrections,
-               [expected_size = second_order_boundary_corrections[0]
-                                    .number_of_grid_points()](const auto& e) {
-                 return e.number_of_grid_points() == expected_size;
-               }),
-           "All second-order boundary corrections must be of the same size, "
-               << second_order_boundary_corrections[0].number_of_grid_points());
+    for (size_t d = 0; d < Dim; ++d) {
+      const size_t expected_face_pts =
+          (subcell_mesh.extents(d) + 1) *
+          subcell_mesh.extents().slice_away(d).product();
+      ASSERT(second_order_boundary_corrections[d].number_of_grid_points() ==
+                 expected_face_pts,
+             "second_order_boundary_corrections["
+                 << d << "] has "
+                 << second_order_boundary_corrections[d].number_of_grid_points()
+                 << " grid points but expected " << expected_face_pts
+                 << " for the given subcell mesh");
+    }
     if (fd_derivative_order != DerivativeOrder::Two) {
       if (not high_order_corrections->has_value()) {
-        (*high_order_corrections) =
-            make_array<Dim>(Variables<tmpl::list<EvolvedVarsTags...>>{
-                second_order_boundary_corrections[0].number_of_grid_points()});
+        high_order_corrections->emplace();
+      } else {
+        for (size_t d = 0; d < Dim; ++d) {
+          ASSERT(
+              gsl::at(high_order_corrections->value(), d)
+                      .number_of_grid_points() ==
+                  second_order_boundary_corrections[d].number_of_grid_points(),
+              "The high_order_corrections must all have size "
+                  << second_order_boundary_corrections[d]
+                         .number_of_grid_points()
+                  << " (direction " << d << ") but high_order_corrections[" << d
+                  << "] has "
+                  << gsl::at(high_order_corrections->value(), d)
+                         .number_of_grid_points());
+        }
       }
-      ASSERT(
-          high_order_corrections->has_value() and
-              alg::all_of(high_order_corrections->value(),
-                          [expected_size =
-                               second_order_boundary_corrections[0]
-                                   .number_of_grid_points()](const auto& e) {
-                            return e.number_of_grid_points() == expected_size;
-                          }),
-          "The high_order_corrections must all have size "
-              << second_order_boundary_corrections[0].number_of_grid_points());
       DirectionMap<Dim, Variables<FluxesTags>> flux_neighbor_data{};
       set_cartesian_neighbor_cell_centered_fluxes(
           make_not_null(&flux_neighbor_data), all_ghost_data, subcell_mesh,

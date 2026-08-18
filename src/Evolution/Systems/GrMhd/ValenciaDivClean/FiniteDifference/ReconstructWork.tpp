@@ -172,11 +172,6 @@ void reconstruct_prims_work(
     gsl::at(number_of_pts_for_thermodynamic_var, i) =
         6 * gsl::at(neighbor_num_pts, i) + volume_num_pts;
   }
-  // const size_t neighbor_num_pts =
-  //     ghost_zone_size * subcell_mesh.extents().slice_away(0).product();
-  size_t vars_in_neighbor_count = 0;
-  // const size_t number_of_pts_for_thermodynamic_var =
-  //     6 * neighbor_num_pts + volume_num_pts;
   DataVector buffer_for_recons_vars{
       std::max(*alg::max_element(number_of_pts_for_thermodynamic_var),
                3 * volume_num_pts)};
@@ -187,7 +182,8 @@ void reconstruct_prims_work(
                                   reconstruct_density_times_temperature,
                                   reconstructed_num_pts, volume_num_pts,
                                   &volume_prims, &vars_on_lower_face,
-                                  &vars_on_upper_face, &subcell_mesh](auto tag_v) {
+                                  &vars_on_upper_face,
+                                  &subcell_mesh](auto tag_v) {
     (void)reconstruct_density_times_temperature;
     using tag = tmpl::type_from<decltype(tag_v)>;
     const typename tag::type* volume_tensor_ptr = nullptr;

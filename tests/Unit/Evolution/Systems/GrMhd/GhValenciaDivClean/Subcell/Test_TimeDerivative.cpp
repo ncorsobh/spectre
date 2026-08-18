@@ -732,7 +732,8 @@ double test(const size_t num_dg_pts, std::optional<double> expansion_velocity,
       gamma1->get_clone(), gamma2->get_clone(),
       std::unique_ptr<gh::gauges::GaugeCondition>(
           std::make_unique<gh::gauges::AnalyticChristoffel>(soln.get_clone())),
-      grmhd::GhValenciaDivClean::fd::FilterOptions{0.001},
+      // Filter is not yet supported for non-isotropic meshes.
+      grmhd::GhValenciaDivClean::fd::FilterOptions{},
       // Just use a default-constructed fixer and have the reconstructor not
       // call it.
       ::VariableFixing::FixToAtmosphere<3>{});

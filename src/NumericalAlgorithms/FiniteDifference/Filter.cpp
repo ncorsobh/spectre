@@ -417,26 +417,36 @@ void filter_impl(
       // Might not be the most efficient (unclear), but easiest.
       // We use a single large buffer for both the y and z derivatives
       // to reduce the number of memory allocations and improve data locality.
-      // Note: the eta and zeta ghost data sizes are assumed equal to the
-      // xi ghost data size (requires isotropic FD extents).
       const auto& lower_eta_ghost =
           ghost_cell_vars.at(Direction<Dim>::lower_eta());
       const auto& upper_eta_ghost =
           ghost_cell_vars.at(Direction<Dim>::upper_eta());
+      // For non-isotropic meshes the zeta ghost can be larger than the eta
+      // ghost. Use the maximum ghost-pair size so that filter_view is always
+      // placed after all ghost data and the two regions do not overlap.
+      size_t max_ghost_pair_size =
+          lower_eta_ghost.size() + upper_eta_ghost.size();
+      if constexpr (Dim > 2) {
+        if (comp_dim > 2) {
+          const size_t zeta_pair =
+              ghost_cell_vars.at(Direction<Dim>::lower_zeta()).size() +
+              ghost_cell_vars.at(Direction<Dim>::upper_zeta()).size();
+          max_ghost_pair_size = std::max(max_ghost_pair_size, zeta_pair);
+        }
+      }
       const size_t filter_size = filtered_data->size();
       DataVector buffer{};
       if (in_buffer != nullptr) {
         ASSERT(
-            (in_buffer->size() >= volume_vars.size() + lower_eta_ghost.size() +
-                                      upper_eta_ghost.size() + 3 * filter_size),
+            (in_buffer->size() >=
+             volume_vars.size() + max_ghost_pair_size + 3 * filter_size),
             "The buffer must have size greater than or equal to "
-                << (volume_vars.size() + lower_eta_ghost.size() +
-                    upper_eta_ghost.size() + 3 * filter_size)
+                << (volume_vars.size() + max_ghost_pair_size + 3 * filter_size)
                 << " but has size " << in_buffer->size());
         buffer.set_data_ref(in_buffer->data(), in_buffer->size());
       } else {
-        buffer = DataVector{volume_vars.size() + lower_eta_ghost.size() +
-                            upper_eta_ghost.size() + 3 * filter_size};
+        buffer = DataVector{volume_vars.size() + max_ghost_pair_size +
+                            3 * filter_size};
       }
       raw_transpose(make_not_null(buffer.data()), volume_vars.data(),
                     volume_extents[0], volume_vars.size() / volume_extents[0]);
@@ -449,17 +459,28 @@ void filter_impl(
           upper_eta_ghost.size() / volume_extents[0]);
 
       const size_t filter_offset_in_buffer =
-          volume_vars.size() + lower_eta_ghost.size() + upper_eta_ghost.size();
+          volume_vars.size() + max_ghost_pair_size;
       gsl::span<double> filter_view =
           gsl::make_span(&buffer[filter_offset_in_buffer], filter_size);
 
+      // After transposing to (y, z, vars, x) ordering, y is the fastest
+      // dimension. Build permuted extents: (Ny, Nz, Nx) for 3D, (Ny, Nx) for
+      // 2D.
+      Index<Dim> eta_extents{};
+      eta_extents[0] = volume_extents[1];
+      if constexpr (Dim == 3) {
+        eta_extents[1] = volume_extents[2];
+        eta_extents[2] = volume_extents[0];
+      } else {
+        eta_extents[1] = volume_extents[0];
+      }
       filter_fastest_dim<FilterComputer>(
           make_not_null(&filter_view),
           gsl::make_span(buffer.data(), volume_vars.size()),
           gsl::make_span(&buffer[volume_vars.size()], lower_eta_ghost.size()),
           gsl::make_span(&buffer[volume_vars.size() + lower_eta_ghost.size()],
                          upper_eta_ghost.size()),
-          volume_extents, number_of_variables, args...);
+          eta_extents, number_of_variables, args...);
       // Transpose result back and add to filtered_data
       const gsl::span<double> filter_data_in_xyz_order =
           gsl::make_span(&buffer[filter_offset_in_buffer + volume_vars.size()],
@@ -500,6 +521,10 @@ void filter_impl(
                   &buffer[volume_vars.size() + lower_zeta_ghost.size()]),
               upper_zeta_ghost.data(), chunk_size, number_of_neighbor_chunks);
 
+          // After transposing to (z, vars, x, y) ordering, z is the fastest
+          // dimension. Build permuted extents: (Nz, Nx, Ny).
+          const Index<3> zeta_extents{volume_extents[2], volume_extents[0],
+                                      volume_extents[1]};
           filter_fastest_dim<FilterComputer>(
               make_not_null(&filter_view),
               gsl::make_span(buffer.data(), volume_vars.size()),
@@ -508,7 +533,7 @@ void filter_impl(
               gsl::make_span(
                   &buffer[volume_vars.size() + lower_zeta_ghost.size()],
                   upper_zeta_ghost.size()),
-              volume_extents, number_of_variables, args...);
+              zeta_extents, number_of_variables, args...);
           // Transpose result back
           raw_transpose(make_not_null(filter_data_in_xyz_order.data()),
                         filter_view.data(), filter_view.size() / chunk_size,

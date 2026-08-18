@@ -585,28 +585,30 @@ void test_asserts() {
   }
   {
     INFO("Non-isotropic 3D mesh (all FD dims)");
+    // Verify the filter works on non-isotropic meshes: a constant field should
+    // be unchanged since KO dissipation vanishes for constant data.
+    const size_t num_vars_aniso = 1;
     const Mesh<3> mesh_aniso{{5, 7, 5},
                              Spectral::Basis::FiniteDifference,
                              Spectral::Quadrature::CellCentered};
-    const DataVector vol(5_st * 7_st * 5_st, 1.0);
-    // Provide ghost data for all directions with any size; assert fires before
-    // accessing it.
-    const DataVector ghost_data(1, 1.0);
+    const DataVector vol_aniso(5_st * 7_st * 5_st, 1.0);
     DirectionMap<3, DataVector> store3{};
     for (const auto& dir : Direction<3>::all_directions()) {
-      store3[dir] = ghost_data;
+      const size_t ghost_size =
+          mesh_aniso.extents().slice_away(dir.dimension()).product();
+      store3[dir] = DataVector{ghost_size * num_vars_aniso, 1.0};
     }
     DirectionMap<3, gsl::span<const double>> ghost3{};
     for (const auto& [dir, data] : store3) {
       ghost3[dir] = gsl::make_span(data.data(), data.size());
     }
-    DataVector filtered(5_st * 7_st * 5_st, 0.0);
-    auto fspan = gsl::make_span(filtered.data(), filtered.size());
-    const auto vspan = gsl::make_span(vol.data(), vol.size());
-    CHECK_THROWS_WITH(
-        fd::kreiss_oliger_filter(make_not_null(&fspan), vspan, ghost3,
-                                 mesh_aniso, number_of_vars, 2, epsilon),
-        Catch::Matchers::ContainsSubstring("The mesh must be isotropic"));
+    DataVector filtered_aniso(5_st * 7_st * 5_st, 0.0);
+    auto fspan_aniso =
+        gsl::make_span(filtered_aniso.data(), filtered_aniso.size());
+    const auto vspan_aniso = gsl::make_span(vol_aniso.data(), vol_aniso.size());
+    fd::kreiss_oliger_filter(make_not_null(&fspan_aniso), vspan_aniso, ghost3,
+                             mesh_aniso, num_vars_aniso, 2, epsilon);
+    CHECK_ITERABLE_APPROX(filtered_aniso, vol_aniso);
   }
 #endif  // SPECTRE_DEBUG
 }

@@ -36,8 +36,8 @@ void neighbor_data_as_variables(
     const DirectionalIdMap<Dim, evolution::dg::subcell::GhostData>&
         all_ghost_data,
     const size_t ghost_zone_size, const Mesh<Dim>& subcell_mesh) {
-  std::array<size_t, 3> neighbor_num_pts{};
-  for (size_t i = 0; i < 3; ++i) {
+  std::array<size_t, Dim> neighbor_num_pts{};
+  for (size_t i = 0; i < Dim; ++i) {
     gsl::at(neighbor_num_pts, i) =
         ghost_zone_size * subcell_mesh.extents().slice_away(i).product();
   }

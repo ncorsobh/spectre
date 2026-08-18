@@ -492,7 +492,7 @@ double test(const fd::DerivativeOrder correction_order) {
             second_order_corrections_copy, correction_order,
             reconstruction_ghost_data, subcell_mesh, number_of_ghost_points),
         Catch::Matchers::ContainsSubstring(
-            "All second-order boundary corrections must be of the same size"));
+            "second_order_boundary_corrections"));
   }
 #endif  // SPECTRE_DEBUG
 
