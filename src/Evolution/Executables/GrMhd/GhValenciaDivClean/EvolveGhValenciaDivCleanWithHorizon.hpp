@@ -111,7 +111,7 @@ struct EvolutionMetavars
       gh::Tags::DampingFunctionGamma0<volume_dim, Frame::Grid>,
       gh::Tags::DampingFunctionGamma1<volume_dim, Frame::Grid>,
       gh::Tags::DampingFunctionGamma2<volume_dim, Frame::Grid>,
-      ah::Tags::LMax>>;
+      grmhd::GhValenciaDivClean::Tags::WaveZoneBlockIds, ah::Tags::LMax>>;
 
   using observed_reduction_data_tags = observers::collect_reduction_data_tags<
       tmpl::at<typename factory_creation::factory_classes, Event>>;

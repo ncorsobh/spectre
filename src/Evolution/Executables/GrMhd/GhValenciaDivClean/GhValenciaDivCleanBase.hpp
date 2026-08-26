@@ -98,6 +98,7 @@
 #include "Evolution/Systems/GrMhd/GhValenciaDivClean/Subcell/ZeroTimeDerivatives.hpp"
 #include "Evolution/Systems/GrMhd/GhValenciaDivClean/SystemM1.hpp"
 #include "Evolution/Systems/GrMhd/GhValenciaDivClean/TimeDerivativeTerms.hpp"
+#include "Evolution/Systems/GrMhd/GhValenciaDivClean/WaveZone.hpp"
 #include "Evolution/Systems/GrMhd/ValenciaDivClean/AllSolutions.hpp"
 #include "Evolution/Systems/GrMhd/ValenciaDivClean/BoundaryConditions/Factory.hpp"
 #include "Evolution/Systems/GrMhd/ValenciaDivClean/FixConservatives.hpp"
@@ -295,6 +296,8 @@ struct GhValenciaDivCleanDefaults {
           VariableFixing::FixToAtmosphere<volume_dim>>,
       VariableFixing::Actions::FixVariables<VariableFixing::LimitLorentzFactor>,
       Actions::UpdateConservatives,
+      Actions::MutateApply<
+          grmhd::GhValenciaDivClean::ZeroMhdVariablesInWaveZone<system>>,
       tmpl::conditional_t<
           UseDgSubcell,
           tmpl::list<
@@ -318,6 +321,8 @@ struct GhValenciaDivCleanDefaults {
               VariableFixing::Actions::FixVariables<
                   VariableFixing::LimitLorentzFactor>,
               Actions::UpdateConservatives,
+              Actions::MutateApply<grmhd::GhValenciaDivClean::
+                                       ZeroMhdVariablesInWaveZone<system>>,
               grmhd::GhValenciaDivClean::SetPiAndPhiFromConstraints>,
           tmpl::list<>>,
       Parallel::Actions::TerminatePhase>;
@@ -698,7 +703,8 @@ struct GhValenciaDivCleanTemplateBase<
       equation_of_state_tag,
       gh::Tags::DampingFunctionGamma0<volume_dim, Frame::Grid>,
       gh::Tags::DampingFunctionGamma1<volume_dim, Frame::Grid>,
-      gh::Tags::DampingFunctionGamma2<volume_dim, Frame::Grid>>>;
+      gh::Tags::DampingFunctionGamma2<volume_dim, Frame::Grid>,
+      grmhd::GhValenciaDivClean::Tags::WaveZoneBlockIds>>;
 
   using dg_registration_list =
       tmpl::list<observers::Actions::RegisterEventsWithObservers>;
@@ -789,16 +795,22 @@ struct GhValenciaDivCleanTemplateBase<
       Actions::MutateApply<evolution::dg::CleanMortarHistory<volume_dim>>,
       tmpl::conditional_t<
           use_dg_subcell,
-          tmpl::list<parameterized_deleptonization,
-                     VariableFixing::Actions::FixVariables<
-                         VariableFixing::FixToAtmosphere<volume_dim>>,
-                     VariableFixing::Actions::FixVariables<
-                         VariableFixing::LimitLorentzFactor>,
-                     Actions::UpdateConservatives>,
-          tmpl::list<parameterized_deleptonization,
-                     VariableFixing::Actions::FixVariables<
-                         grmhd::ValenciaDivClean::FixConservatives>,
-                     Actions::UpdatePrimitives>>>>;
+          tmpl::list<
+              parameterized_deleptonization,
+              VariableFixing::Actions::FixVariables<
+                  VariableFixing::FixToAtmosphere<volume_dim>>,
+              VariableFixing::Actions::FixVariables<
+                  VariableFixing::LimitLorentzFactor>,
+              Actions::UpdateConservatives,
+              Actions::MutateApply<grmhd::GhValenciaDivClean::
+                                       ZeroMhdVariablesInWaveZone<system>>>,
+          tmpl::list<
+              parameterized_deleptonization,
+              VariableFixing::Actions::FixVariables<
+                  grmhd::ValenciaDivClean::FixConservatives>,
+              Actions::UpdatePrimitives,
+              Actions::MutateApply<grmhd::GhValenciaDivClean::
+                                       ZeroMhdVariablesInWaveZone<system>>>>>>;
 
   using dg_subcell_step_actions = tmpl::flatten<tmpl::list<
       evolution::dg::subcell::Actions::SelectNumericalMethod,
@@ -847,6 +859,8 @@ struct GhValenciaDivCleanTemplateBase<
           VariableFixing::FixToAtmosphere<volume_dim>>,
       VariableFixing::Actions::FixVariables<VariableFixing::LimitLorentzFactor>,
       Actions::UpdateConservatives,
+      Actions::MutateApply<
+          grmhd::GhValenciaDivClean::ZeroMhdVariablesInWaveZone<system>>,
 
       Actions::Label<evolution::dg::subcell::Actions::Labels::EndOfSolvers>>>;
 
@@ -938,6 +952,8 @@ struct GhValenciaDivCleanTemplateBase<
                   VariableFixing::Actions::FixVariables<
                       VariableFixing::LimitLorentzFactor>,
                   Actions::UpdateConservatives,
+                  Actions::MutateApply<grmhd::GhValenciaDivClean::
+                                           ZeroMhdVariablesInWaveZone<system>>,
                   evolution::Actions::RunEventsAndTriggers<
                       Triggers::WhenToCheck::AtSteps>,
                   evolution::Actions::RunEventsAndTriggers<
