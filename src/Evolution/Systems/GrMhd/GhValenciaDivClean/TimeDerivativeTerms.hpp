@@ -13,6 +13,8 @@
 #include "DataStructures/TaggedContainers.hpp"
 #include "DataStructures/TaggedTuple.hpp"
 #include "DataStructures/Tensor/Tensor.hpp"
+#include "Domain/Structure/Element.hpp"
+#include "Domain/Tags.hpp"
 #include "Evolution/DiscontinuousGalerkin/TimeDerivativeDecisions.hpp"
 #include "Evolution/PassVariables.hpp"
 #include "Evolution/Systems/GeneralizedHarmonic/GaugeSourceFunctions/Harmonic.hpp"
@@ -22,13 +24,15 @@
 #include "Evolution/Systems/GrMhd/GhValenciaDivClean/StressEnergy.hpp"
 #include "Evolution/Systems/GrMhd/GhValenciaDivClean/System.hpp"
 #include "Evolution/Systems/GrMhd/GhValenciaDivClean/Tags.hpp"
+#include "Evolution/Systems/GrMhd/GhValenciaDivClean/WaveZone.hpp"
 #include "Evolution/Systems/GrMhd/ValenciaDivClean/System.hpp"
 #include "Evolution/Systems/GrMhd/ValenciaDivClean/TimeDerivativeTerms.hpp"
 #include "Evolution/VariableFixing/FixToAtmosphere.hpp"
 #include "Evolution/VariableFixing/Tags.hpp"
-#include "PointwiseFunctions/GeneralRelativity/Tags.hpp" // For reference tag
+#include "PointwiseFunctions/GeneralRelativity/Tags.hpp"  // For reference tag
 #include "PointwiseFunctions/Hydro/Tags.hpp"
 #include "Time/Tags/Time.hpp"
+#include "Utilities/Algorithm.hpp"
 #include "Utilities/Gsl.hpp"
 #include "Utilities/Literals.hpp"
 #include "Utilities/TMPL.hpp"
@@ -108,6 +112,24 @@ struct TimeDerivativeTermsImpl {
       const tnsr::ijaa<DataVector, 3>& d_phi,
 
       const tuples::TaggedTuple<ExtraTags...>& arguments) {
+    // If in a wave zone block, skip MHD entirely (only evolve GH)
+    if (const auto& wave_zone_block_ids =
+            get<Tags::detail::TemporaryReference<Tags::WaveZoneBlockIds>>(
+                arguments);
+        not wave_zone_block_ids.empty() and
+        alg::found(
+            wave_zone_block_ids,
+            get<Tags::detail::TemporaryReference<domain::Tags::Element<3>>>(
+                arguments)
+                .id()
+                .block_id())) {
+      generalized_harmonic_time_derivative(
+          dt_vars_ptr, temps_ptr, d_spacetime_metric, d_pi, d_phi, arguments,
+          dt_type_aliases::gh_dt_tags{}, gh_temp_tags{}, gh_arg_tags{});
+      fluxes_ptr->initialize(fluxes_ptr->number_of_grid_points(), 0.0);
+      return evolution::dg::TimeDerivativeDecisions<3>{false};
+    }
+
     generalized_harmonic_time_derivative(
         dt_vars_ptr, temps_ptr, d_spacetime_metric, d_pi, d_phi, arguments,
         dt_type_aliases::gh_dt_tags{}, gh_temp_tags{}, gh_arg_tags{});
@@ -382,13 +404,13 @@ struct TimeDerivativeTerms : evolution::PassVariables {
           trace_reversed_stress_result_tags, extra_temp_tags>>,
       gr::Tags::SpatialMetric<DataVector, 3>>;
   using argument_tags = tmpl::remove<
-      tmpl::remove<tmpl::append<gh_arg_tags,
-
-                                valencia_arg_tags,
-
-                                tmpl::list<::Tags::VariableFixer<
-                                    ::VariableFixing::FixToAtmosphere<3>>>>,
-                   gr::Tags::SpatialMetric<DataVector, 3>>,
+      tmpl::remove<
+          tmpl::append<
+              gh_arg_tags, valencia_arg_tags,
+              tmpl::list<
+                  ::Tags::VariableFixer<::VariableFixing::FixToAtmosphere<3>>,
+                  domain::Tags::Element<3>, Tags::WaveZoneBlockIds>>,
+          gr::Tags::SpatialMetric<DataVector, 3>>,
       d_spatial_metric>;
 
   template <typename... Args>

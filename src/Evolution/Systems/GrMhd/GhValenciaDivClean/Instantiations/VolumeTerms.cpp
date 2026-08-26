@@ -2,9 +2,11 @@
 // See LICENSE.txt for details.
 
 #include <optional>
+#include <vector>
 
 #include "DataStructures/DataBox/PrefixHelpers.hpp"
 #include "DataStructures/DataBox/Prefixes.hpp"
+#include "Domain/Structure/Element.hpp"
 #include "Evolution/DiscontinuousGalerkin/Actions/VolumeTermsImpl.tpp"
 #include "Evolution/Systems/GrMhd/GhValenciaDivClean/System.hpp"
 #include "Evolution/Systems/GrMhd/GhValenciaDivClean/TimeDerivativeTerms.hpp"
@@ -80,7 +82,9 @@
       const Scalar<DataVector>& electron_fraction,                             \
       const Scalar<DataVector>& specific_internal_energy,                      \
       const double& constraint_damping_parameter,                              \
-      const ::VariableFixing::FixToAtmosphere<3>& fix_to_atmosphere);          \
+      const ::VariableFixing::FixToAtmosphere<3>& fix_to_atmosphere,           \
+      const ::Element<3>& element,                                             \
+      const std::vector<size_t>& wave_zone_block_ids);                         \
   INSTANTIATE_PARTIAL_DERIVATIVES_WITH_SYSTEM(                                 \
       grmhd::GhValenciaDivClean::System<NEUTRINO(data)>, 3, Frame::Inertial)   \
   INSTANTIATE_CARTOON_PARTIAL_DERIVATIVES_WITH_SYSTEM(                         \
