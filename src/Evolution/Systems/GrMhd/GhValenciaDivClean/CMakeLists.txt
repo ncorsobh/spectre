@@ -23,11 +23,12 @@ spectre_target_headers(
   Constraints.hpp
   NeutrinoSystems.hpp
   SetPiAndPhiFromConstraints.hpp
+  StressEnergy.hpp
   System.hpp
   SystemM1.hpp
-  StressEnergy.hpp
   Tags.hpp
   TimeDerivativeTerms.hpp
+  WaveZone.hpp
   )
 
 target_link_libraries(
@@ -36,6 +37,8 @@ target_link_libraries(
   DataStructures
   DiscontinuousGalerkin
   DomainBoundaryConditions
+  DomainCreators
+  DomainStructure
   FiniteDifference
   GeneralRelativity
   GeneralizedHarmonic
