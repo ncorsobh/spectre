@@ -234,6 +234,50 @@ void reconstruction_matrix(const double eps) {
   }
 }
 
+// Reconstruct the DG nodal values of a polynomial from its subcell values on a
+// mesh whose extents differ in every dimension.
+template <size_t Dim, Spectral::Basis BasisType,
+          Spectral::Quadrature QuadratureType>
+void test_non_isotropic_reconstruction_matrix(
+    const std::array<size_t, Dim>& dg_extents, const double eps) {
+  CAPTURE(Dim);
+  CAPTURE(BasisType);
+  CAPTURE(QuadratureType);
+  CAPTURE(dg_extents);
+  const Approx local_approx = Approx::custom().epsilon(eps).scale(1.);
+
+  const Mesh<Dim> dg_mesh{dg_extents, BasisType, QuadratureType};
+  auto subcell_extents = dg_extents;
+  for (size_t d = 0; d < Dim; ++d) {
+    gsl::at(subcell_extents, d) = 2 * gsl::at(dg_extents, d) - 1;
+  }
+  const Mesh<Dim> subcell_mesh{subcell_extents,
+                               Spectral::Basis::FiniteDifference,
+                               Spectral::Quadrature::CellCentered};
+
+  const size_t degree =
+      std::min(*alg::min_element(dg_extents) - 2, static_cast<size_t>(6));
+  const DataVector expected_nodal_coeffs =
+      TestHelpers::evolution::dg::subcell::cell_values(
+          degree, logical_coordinates(dg_mesh));
+  const DataVector subcell_values =
+      TestHelpers::evolution::dg::subcell::cell_values(
+          degree, logical_coordinates(subcell_mesh));
+
+  const Matrix& recons =
+      subcell::fd::reconstruction_matrix(dg_mesh, subcell_mesh.extents());
+  REQUIRE(recons.rows() == dg_mesh.number_of_grid_points());
+  REQUIRE(recons.columns() == subcell_mesh.number_of_grid_points());
+
+  DataVector reconstructed_nodal_coeffs(dg_mesh.number_of_grid_points());
+  dgemv_('N', recons.rows(), recons.columns(), 1.0, recons.data(),
+         recons.spacing(), subcell_values.data(), 1, 0.0,
+         reconstructed_nodal_coeffs.data(), 1);
+
+  CHECK_ITERABLE_CUSTOM_APPROX(expected_nodal_coeffs,
+                               reconstructed_nodal_coeffs, local_approx);
+}
+
 void test_cartoon_matrices() {
   for (const auto quad : {Spectral::Quadrature::SphericalSymmetry,
                           Spectral::Quadrature::AxialSymmetry}) {
@@ -288,24 +332,17 @@ void test_cartoon_matrices() {
           Index<1>{5}),
       Catch::Matchers::ContainsSubstring(
           "FD Subcell reconstruction only supports Legendre or Cartoon bases"));
-  // reconstruction_matrix 1D: non-uniform subcell extents (trivially can't
-  // fail for 1D since Index<1> is always "uniform", so test non-uniform mesh
-  // instead via 2D).
+  // A DG mesh whose basis differs between dimensions is rejected; differing
+  // extents are not.
   CHECK_THROWS_WITH(
       subcell::fd::reconstruction_matrix(
           Mesh<2>{{3, 4},
-                  {Spectral::Basis::Legendre, Spectral::Basis::Legendre},
+                  {Spectral::Basis::Legendre, Spectral::Basis::Cartoon},
                   {Spectral::Quadrature::GaussLobatto,
-                   Spectral::Quadrature::GaussLobatto}},
+                   Spectral::Quadrature::AxialSymmetry}},
           Index<2>{5}),
       Catch::Matchers::ContainsSubstring(
-          "The subcell mesh must have isotropic basis"));
-  CHECK_THROWS_WITH(
-      subcell::fd::reconstruction_matrix(
-          Mesh<2>{3, Spectral::Basis::Legendre,
-                  Spectral::Quadrature::GaussLobatto},
-          Index<2>{{5, 7}}),
-      Catch::Matchers::ContainsSubstring("The subcell mesh must be uniform"));
+          "does not support a Cartoon or otherwise mixed-basis mesh"));
 #endif
 }
 
@@ -398,8 +435,7 @@ void test_cartoon_mixed_matrices() {
                    Spectral::Quadrature::SphericalSymmetry}},
           Index<3>{{5, 3, 1}}),
       Catch::Matchers::ContainsSubstring(
-          "The subcell extents are neither isotropic nor a valid cartoon "
-          "pattern"));
+          "does not support a Cartoon or otherwise mixed-basis mesh"));
   // reconstruction_matrix 3D axial: non-uniform DG extents in non-cartoon dims.
   CHECK_THROWS_WITH(
       subcell::fd::reconstruction_matrix(
@@ -410,7 +446,7 @@ void test_cartoon_mixed_matrices() {
                    Spectral::Quadrature::AxialSymmetry}},
           Index<3>{{5, 5, 1}}),
       Catch::Matchers::ContainsSubstring(
-          "The non-cartoon subcell sub-mesh must have isotropic basis"));
+          "does not support a Cartoon or otherwise mixed-basis mesh"));
   // reconstruction_matrix 3D axial: subcell extents not {n,n,1}.
   CHECK_THROWS_WITH(
       subcell::fd::reconstruction_matrix(
@@ -421,7 +457,7 @@ void test_cartoon_mixed_matrices() {
                    Spectral::Quadrature::AxialSymmetry}},
           Index<3>{{5, 7, 1}}),
       Catch::Matchers::ContainsSubstring(
-          "The subcell extents are neither isotropic nor a valid cartoon"));
+          "does not support a Cartoon or otherwise mixed-basis mesh"));
   // reconstruction_matrix 3D axial: cartoon subcell extent not 1.
   CHECK_THROWS_WITH(
       subcell::fd::reconstruction_matrix(
@@ -432,7 +468,7 @@ void test_cartoon_mixed_matrices() {
                    Spectral::Quadrature::AxialSymmetry}},
           Index<3>{{5, 5, 3}}),
       Catch::Matchers::ContainsSubstring(
-          "The subcell mesh must be uniform but is"));
+          "does not support a Cartoon or otherwise mixed-basis mesh"));
 #endif
 }
 
@@ -695,6 +731,19 @@ SPECTRE_TEST_CASE("Unit.Evolution.Subcell.Fd.ReconstructionMatrix",
                         Spectral::Quadrature::GaussLobatto>(1.0e-11);
   reconstruction_matrix<4, 3, Spectral::Basis::Legendre,
                         Spectral::Quadrature::Gauss>(1.0e-11);
+
+  test_non_isotropic_reconstruction_matrix<2, Spectral::Basis::Legendre,
+                                           Spectral::Quadrature::GaussLobatto>(
+      {{5, 6}}, 1.0e-10);
+  // These two share extents(0) but differ elsewhere, so a cache keyed only on
+  // the first dimension's extent would hand the second call the first's matrix.
+  test_non_isotropic_reconstruction_matrix<3, Spectral::Basis::Legendre,
+                                           Spectral::Quadrature::GaussLobatto>(
+      {{4, 5, 6}}, 1.0e-11);
+  test_non_isotropic_reconstruction_matrix<3, Spectral::Basis::Legendre,
+                                           Spectral::Quadrature::GaussLobatto>(
+      {{4, 6, 5}}, 1.0e-11);
+
   test_zernike_b1_reconstruction_matrix();
 }
 }  // namespace
