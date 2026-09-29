@@ -1,0 +1,128 @@
+# Distributed under the MIT License.
+# See LICENSE.txt for details.
+
+Executable: EvolveNewtonianMhd
+Testing:
+  Check: parse;execute
+  Timeout: 30
+
+---
+
+# The Orszag-Tang vortex on the periodic unit square, with a thin periodic
+# third dimension. The initial data are smooth, so the shocks are produced by
+# the evolution; together with the periodic domain this exercises the
+# multidimensional reconstruction and the divergence cleaning at once.
+
+Parallelization:
+  ElementDistribution: NumGridPoints
+  UseSubcellGridPointsForDistribution: False
+
+ResourceInfo:
+  AvoidGlobalProc0: false
+
+Evolution:
+  InitialTime: 0.0
+  InitialTimeStep: &initial_time_step 0.0008
+  InitialSlabSize: *initial_time_step
+  MinimumTimeStep: 1e-9
+  LocalTimeStepping: Off
+  TimeStepper:
+    Rk3HesthavenSsp
+  LtsStepChoosers:
+  VariableOrderAlgorithm:
+    GoalOrder: 3
+
+PhaseChangeAndTriggers:
+
+EquationOfState:
+  IdealFluid:
+    AdiabaticIndex: 1.6666666666666667
+    MinTemperature: 0.0
+
+InitialData: &InitialData
+  OrszagTangVortex:
+    AdiabaticIndex: 1.6666666666666667
+    Pressure: 0.07957747154594767
+    MagneticFieldAmplitude: 0.28209479177387814
+
+DomainCreator:
+  Brick:
+    LowerBound: [0.0, 0.0, 0.0]
+    UpperBound: [1.0, 1.0, 0.125]
+    Distribution: [Linear, Linear, Linear]
+    InitialRefinement: [2, 2, 0]
+    InitialGridPoints: [5, 5, 5]
+    TimeDependence: None
+    BoundaryConditions: [Periodic, Periodic, Periodic]
+
+SpatialDiscretization:
+  BoundaryCorrection:
+    Hll:
+  DiscontinuousGalerkin:
+    Formulation: StrongInertial
+    Quadrature: GaussLobatto
+    Filtering:
+      - None:
+          BlocksToFilter: All
+    OnlyDgBlocksAndGroups: None
+    Subcell:
+      TroubledCellIndicator:
+        PerssonTci:
+          Exponent: 4.0
+          NumHighestModes: 1
+        RdmpTci:
+          Delta0: 1.0e-7
+          Epsilon: 1.0e-3
+        FdToDgTci:
+          NumberOfStepsBetweenTciCalls: 1
+          MinTciCallsAfterRollback: 1
+          MinimumClearTcis: 1
+        AlwaysUseSubcells: false
+        EnableExtensionDirections: false
+        UseHalo: false
+      SubcellToDgReconstructionMethod: DimByDim
+      FiniteDifferenceDerivativeOrder: 2
+      FdInterpolationOrder: 1
+  SubcellSolver:
+    Reconstructor:
+      MonotonisedCentralPrim:
+
+EvolutionSystem:
+  DivergenceCleaningSpeed: 2.0
+  ConstraintDampingParameter: 0.1
+  SourceTerm:
+    NoSource:
+
+EventsAndTriggersAtCheckpoints:
+
+EventsAndTriggersAtSlabs:
+  - Trigger:
+      Slabs:
+        Specified:
+          Values: [10]
+    Events:
+      - Completion
+  - Trigger:
+      Always
+    Events:
+      - ObserveFields:
+          SubfileName: VolumeData
+          VariablesToObserve:
+            - RestMassDensity
+            - SpatialVelocity
+            - MagneticField
+            - Pressure
+            - TciStatus
+          InterpolateToMesh: None
+          ProjectToMesh: None
+          BlocksToObserve: All
+          CoordinatesFloatingPointType: Float
+          FloatingPointTypes: [Float]
+
+EventsAndTriggersAtSteps:
+
+EventsAndDenseTriggers:
+
+Observers:
+  VolumeFileName: "NewtonianMhdOrszagTangVolume"
+  ReductionFileName: "NewtonianMhdOrszagTangReductions"

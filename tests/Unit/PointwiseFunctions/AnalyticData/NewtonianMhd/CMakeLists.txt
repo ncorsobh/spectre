@@ -5,6 +5,7 @@ set(LIBRARY "Test_NewtonianMhdAnalyticData")
 
 set(LIBRARY_SOURCES
   Test_BrioWu.cpp
+  Test_OrszagTangVortex.cpp
   )
 
 add_test_library(${LIBRARY} "${LIBRARY_SOURCES}")

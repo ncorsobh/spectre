@@ -6,6 +6,7 @@
 #include <cstddef>
 
 #include "PointwiseFunctions/AnalyticData/NewtonianMhd/BrioWu.hpp"
+#include "PointwiseFunctions/AnalyticData/NewtonianMhd/OrszagTangVortex.hpp"
 #include "PointwiseFunctions/AnalyticSolutions/NewtonianMhd/AlfvenWave.hpp"
 #include "Utilities/TMPL.hpp"
 
@@ -17,7 +18,7 @@ namespace NewtonianMhd::InitialData {
 template <size_t Dim>
 using initial_data_list = tmpl::conditional_t<
     Dim == 3,
-    tmpl::list<AnalyticData::BrioWu, Solutions::AlfvenWave>,
+    tmpl::list<AnalyticData::BrioWu, AnalyticData::OrszagTangVortex, Solutions::AlfvenWave>,
     tmpl::list<>>;
 
 /// The initial data whose magnetic field can be split into a static background

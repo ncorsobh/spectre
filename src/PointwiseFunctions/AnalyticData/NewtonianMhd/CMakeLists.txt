@@ -9,6 +9,7 @@ spectre_target_sources(
   ${LIBRARY}
   PRIVATE
   BrioWu.cpp
+  OrszagTangVortex.cpp
   )
 
 spectre_target_headers(
@@ -16,6 +17,7 @@ spectre_target_headers(
   INCLUDE_DIRECTORY ${CMAKE_SOURCE_DIR}/src
   HEADERS
   BrioWu.hpp
+  OrszagTangVortex.hpp
   )
 
 target_link_libraries(
