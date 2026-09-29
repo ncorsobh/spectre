@@ -4,6 +4,8 @@
 set(LIBRARY "Test_NewtonianMhd")
 
 set(LIBRARY_SOURCES
+  BoundaryConditions/Test_BoundaryConditions.cpp
+  BoundaryCorrections/Test_BoundaryCorrections.cpp
   Sources/Test_Sources.cpp
   Test_Characteristics.cpp
   Test_ConservativeFromPrimitive.cpp
@@ -20,6 +22,7 @@ target_link_libraries(
   PRIVATE
   DataStructures
   Domain
+  DomainBoundaryConditionsHelpers
   Framework
   Hydro
   NewtonianMhd

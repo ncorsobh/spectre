@@ -4,18 +4,16 @@
 spectre_target_sources(
   ${LIBRARY}
   PRIVATE
-  BoundaryCondition.cpp
-  ConductorReflection.cpp
-  DemandOutgoingCharSpeeds.cpp
-  Reflection.cpp
+  Hll.cpp
+  Rusanov.cpp
   )
 
 spectre_target_headers(
   ${LIBRARY}
   INCLUDE_DIRECTORY ${CMAKE_SOURCE_DIR}/src
   HEADERS
-  BoundaryCondition.hpp
-  ConductorReflection.hpp
-  DemandOutgoingCharSpeeds.hpp
-  Reflection.hpp
+  Factory.hpp
+  Hll.hpp
+  NamespaceDocs.hpp
+  Rusanov.hpp
   )
