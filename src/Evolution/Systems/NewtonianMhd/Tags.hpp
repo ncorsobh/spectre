@@ -22,25 +22,25 @@ namespace NewtonianMhd {
 
 /// %OptionTags for the Newtonian MHD system
 namespace OptionTags {
-template <size_t Dim>
+template <size_t Dim, bool UseBackgroundMagneticField = false>
 struct SourceTerm {
-  using type = std::unique_ptr<NewtonianMhd::Sources::Source<Dim>>;
+  using type = std::unique_ptr<
+      NewtonianMhd::Sources::Source<Dim, UseBackgroundMagneticField>>;
   static constexpr Options::String help = "The volume source term to be used.";
   using group = ::evolution::OptionTags::SystemGroup;
 };
 
-struct GlmCleaningSpeed {
+struct DivergenceCleaningSpeed {
   using type = double;
   static constexpr Options::String help =
-      "GLM divergence-cleaning propagation speed c_h.";
+      "Propagation speed of the hyperbolic divergence-cleaning waves.";
   using group = ::evolution::OptionTags::SystemGroup;
 };
 
-struct GlmConstraintDampingFactor {
+struct ConstraintDampingParameter {
   using type = double;
   static constexpr Options::String help =
-      "Dimensionless GLM constraint damping factor alpha "
-      "(source term = - alpha * c_h * psi).";
+      "Constraint damping parameter for divergence cleaning.";
   using group = ::evolution::OptionTags::SystemGroup;
 };
 }  // namespace OptionTags
@@ -65,21 +65,44 @@ struct EnergyDensity : db::SimpleTag {
   using type = Scalar<DataVector>;
 };
 
-/// The evolved (perturbation) magnetic field \f$B_1^i\f$.
+/// The evolved (perturbation) magnetic field \f$B_1^i\f$ as a conservative
+/// variable.
 ///
 /// When the background-field splitting is enabled the total magnetic field is
 /// \f$B^i = B_0^i + B_1^i\f$ where \f$B_0\f$ is the static curl-free /
 /// divergence-free background stored in `BackgroundMagneticField`.  When it is
 /// disabled the "perturbation" holds the entire physical field.
+///
+/// The primitive counterpart is `hydro::Tags::MagneticField`; the two are
+/// numerically identical but must be distinct tags so that both can live in the
+/// DataBox.
 template <size_t Dim, typename Fr>
-struct MagneticField : db::SimpleTag {
+struct MagneticFieldCons : db::SimpleTag {
   using type = tnsr::I<DataVector, Dim, Fr>;
-  static std::string name() { return Frame::prefix<Fr>() + "MagneticField"; }
+  static std::string name() {
+    return Frame::prefix<Fr>() + "MagneticFieldCons";
+  }
 };
 
-/// The static background magnetic field \f$B_0^i\f$.  Non-evolved; set once
-/// during initialization from an analytic function.  Zero when the
-/// background-field splitting is disabled.
+/// The static background magnetic field \f$B_0^i\f$ as stored in the DataBox.
+///
+/// Non-evolved; set once during initialization from an analytic function.  Zero
+/// when the background-field splitting is disabled.
+template <size_t Dim, typename Fr>
+struct BackgroundMagneticFieldVolume : db::SimpleTag {
+  using type = tnsr::I<DataVector, Dim, Fr>;
+  static std::string name() {
+    return Frame::prefix<Fr>() + "BackgroundMagneticFieldVolume";
+  }
+};
+
+/// The static background magnetic field \f$B_0^i\f$ as a temporary of the
+/// volume time derivative.
+///
+/// `TimeDerivativeTerms` copies `BackgroundMagneticFieldVolume` into this tag
+/// every step.  The copy is what lets the DG machinery project \f$B_0\f$ onto
+/// element faces for the boundary corrections and boundary conditions, which
+/// can only see evolved variables, fluxes and time-derivative temporaries.
 template <size_t Dim, typename Fr>
 struct BackgroundMagneticField : db::SimpleTag {
   using type = tnsr::I<DataVector, Dim, Fr>;
@@ -88,24 +111,26 @@ struct BackgroundMagneticField : db::SimpleTag {
   }
 };
 
-/// The GLM divergence-cleaning field \f$\psi\f$.
-struct DivergenceCleaningField : db::SimpleTag {
+/// The GLM divergence-cleaning field \f$\psi\f$ as a conservative variable.
+///
+/// The primitive counterpart is `hydro::Tags::DivergenceCleaningField`.
+struct DivergenceCleaningFieldCons : db::SimpleTag {
   using type = Scalar<DataVector>;
 };
 
 /// The GLM cleaning propagation speed \f$c_h\f$ (a scalar constant per
 /// element).
-struct GlmCleaningSpeed : db::SimpleTag {
+struct DivergenceCleaningSpeed : db::SimpleTag {
   using type = double;
-  using option_tags = tmpl::list<OptionTags::GlmCleaningSpeed>;
+  using option_tags = tmpl::list<OptionTags::DivergenceCleaningSpeed>;
   static constexpr bool pass_metavariables = false;
   static type create_from_options(const double value) { return value; }
 };
 
 /// Dimensionless GLM constraint damping factor \f$\alpha\f$.
-struct GlmConstraintDampingFactor : db::SimpleTag {
+struct ConstraintDampingParameter : db::SimpleTag {
   using type = double;
-  using option_tags = tmpl::list<OptionTags::GlmConstraintDampingFactor>;
+  using option_tags = tmpl::list<OptionTags::ConstraintDampingParameter>;
   static constexpr bool pass_metavariables = false;
   static type create_from_options(const double value) { return value; }
 };
@@ -114,14 +139,16 @@ struct GlmConstraintDampingFactor : db::SimpleTag {
 /// v_n +/- c_slow, v_n).
 template <size_t Dim>
 struct CharacteristicSpeeds : db::SimpleTag {
-  using type = std::array<DataVector, 2 * Dim + 3>;
+  using type = std::array<DataVector, (2 * Dim) + 3>;
 };
 
 /// The source term in the evolution equations.
-template <size_t Dim>
+template <size_t Dim, bool UseBackgroundMagneticField>
 struct SourceTerm : db::SimpleTag {
-  using type = std::unique_ptr<NewtonianMhd::Sources::Source<Dim>>;
-  using option_tags = tmpl::list<OptionTags::SourceTerm<Dim>>;
+  using type = std::unique_ptr<
+      NewtonianMhd::Sources::Source<Dim, UseBackgroundMagneticField>>;
+  using option_tags =
+      tmpl::list<OptionTags::SourceTerm<Dim, UseBackgroundMagneticField>>;
   static constexpr bool pass_metavariables = false;
   static type create_from_options(const type& source_term) {
     return source_term->get_clone();

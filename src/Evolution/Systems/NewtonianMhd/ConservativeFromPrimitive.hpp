@@ -43,14 +43,15 @@ template <size_t Dim>
 struct ConservativeFromPrimitive {
   using return_tags =
       tmpl::list<Tags::MassDensityCons, Tags::MomentumDensity<Dim>,
-                 Tags::EnergyDensity, Tags::MagneticField<Dim>,
-                 Tags::DivergenceCleaningField>;
+                 Tags::EnergyDensity, Tags::MagneticFieldCons<Dim>,
+                 Tags::DivergenceCleaningFieldCons>;
 
   using argument_tags =
       tmpl::list<hydro::Tags::RestMassDensity<DataVector>,
                  hydro::Tags::SpatialVelocity<DataVector, Dim>,
                  hydro::Tags::SpecificInternalEnergy<DataVector>,
-                 Tags::MagneticField<Dim>, Tags::DivergenceCleaningField>;
+                 hydro::Tags::MagneticField<DataVector, Dim>,
+                 hydro::Tags::DivergenceCleaningField<DataVector>>;
 
   static void apply(
       gsl::not_null<Scalar<DataVector>*> mass_density_cons,

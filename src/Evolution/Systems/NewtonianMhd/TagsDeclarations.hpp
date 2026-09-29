@@ -17,15 +17,21 @@ struct MomentumDensity;
 struct EnergyDensity;
 
 template <size_t Dim, typename Fr = Frame::Inertial>
+struct MagneticFieldCons;
+struct DivergenceCleaningFieldCons;
+
+template <size_t Dim, typename Fr = Frame::Inertial>
+struct BackgroundMagneticFieldVolume;
+template <size_t Dim, typename Fr = Frame::Inertial>
 struct BackgroundMagneticField;
 
-struct GlmCleaningSpeed;
-struct GlmConstraintDampingFactor;
+struct DivergenceCleaningSpeed;
+struct ConstraintDampingParameter;
 
 template <size_t Dim>
 struct CharacteristicSpeeds;
 
-template <size_t Dim>
+template <size_t Dim, bool UseBackgroundMagneticField>
 struct SourceTerm;
 }  // namespace Tags
 }  // namespace NewtonianMhd

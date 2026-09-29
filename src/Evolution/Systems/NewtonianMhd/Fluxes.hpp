@@ -7,6 +7,7 @@
 
 #include "DataStructures/DataBox/Prefixes.hpp"
 #include "DataStructures/Tensor/TypeAliases.hpp"
+#include "Evolution/Systems/NewtonianMhd/OptionalBackgroundMagneticField.hpp"
 #include "Evolution/Systems/NewtonianMhd/TagsDeclarations.hpp"
 #include "PointwiseFunctions/Hydro/Tags.hpp"
 #include "Utilities/TMPL.hpp"
@@ -27,8 +28,9 @@ namespace detail {
 ///
 /// Called internally by `ComputeFluxes::apply` and by
 /// `TimeDerivativeTerms::apply`. The temporary `magnetic_pressure` holds
-/// \f$p_{\rm mag} = |B_1|^2/2 + B_0\cdot B_1\f$ on output.
-template <size_t Dim>
+/// \f$p_{\rm mag} = |B_1|^2/2 + B_0\cdot B_1\f$ on output, dropping the
+/// \f$B_0\f$ term when the splitting is disabled.
+template <size_t Dim, bool UseBackgroundMagneticField = false>
 void fluxes_impl(
     gsl::not_null<tnsr::I<DataVector, Dim>*> mass_density_cons_flux,
     gsl::not_null<tnsr::IJ<DataVector, Dim>*> momentum_density_flux,
@@ -41,9 +43,9 @@ void fluxes_impl(
     const tnsr::I<DataVector, Dim>& magnetic_field,
     const Scalar<DataVector>& divergence_cleaning_field,
     const tnsr::I<DataVector, Dim>& velocity,
-    const Scalar<DataVector>& pressure,
-    const tnsr::I<DataVector, Dim>& background_magnetic_field,
-    double glm_cleaning_speed);
+    const Scalar<DataVector>& pressure, double divergence_cleaning_speed,
+    BackgroundMagneticFieldArgument<Dim, UseBackgroundMagneticField>
+        background_magnetic_field);
 }  // namespace detail
 
 /*!
@@ -66,25 +68,39 @@ void fluxes_impl(
  * The \f$B_0\f$-only pieces of the standard MHD flux cancel identically in the
  * divergence because \f$B_0\f$ is curl-free and divergence-free by
  * construction, so they are not included here.
+ *
+ * With `UseBackgroundMagneticField == false` every \f$B_0\f$ term above is
+ * dropped at compile time and \f$B_0\f$ is not an argument tag at all, so these
+ * become the standard MHD fluxes with no residual cost.
+ *
+ * \note For the rank-2 fluxes the *first* index is the flux direction, as
+ * `divergence` and `normal_dot_flux` require: `flux.get(j, i)` is
+ * \f$F^j\f$ of the \f$i\f$th component. The momentum flux is symmetric so the
+ * distinction is invisible there, but the induction flux is antisymmetric and
+ * transposing it flips the sign of the induction term.
  */
-template <size_t Dim>
+template <size_t Dim, bool UseBackgroundMagneticField = false>
 struct ComputeFluxes {
   using return_tags = tmpl::list<
       ::Tags::Flux<Tags::MassDensityCons, tmpl::size_t<Dim>, Frame::Inertial>,
       ::Tags::Flux<Tags::MomentumDensity<Dim>, tmpl::size_t<Dim>,
                    Frame::Inertial>,
       ::Tags::Flux<Tags::EnergyDensity, tmpl::size_t<Dim>, Frame::Inertial>,
-      ::Tags::Flux<Tags::MagneticField<Dim>, tmpl::size_t<Dim>,
+      ::Tags::Flux<Tags::MagneticFieldCons<Dim>, tmpl::size_t<Dim>,
                    Frame::Inertial>,
-      ::Tags::Flux<Tags::DivergenceCleaningField, tmpl::size_t<Dim>,
+      ::Tags::Flux<Tags::DivergenceCleaningFieldCons, tmpl::size_t<Dim>,
                    Frame::Inertial>>;
 
-  using argument_tags =
-      tmpl::list<Tags::MomentumDensity<Dim>, Tags::EnergyDensity,
-                 Tags::MagneticField<Dim>, Tags::DivergenceCleaningField,
-                 hydro::Tags::SpatialVelocity<DataVector, Dim>,
-                 hydro::Tags::Pressure<DataVector>,
-                 Tags::BackgroundMagneticField<Dim>, Tags::GlmCleaningSpeed>;
+  // The background field is last so that omitting it simply shortens the
+  // argument list.
+  using argument_tags = tmpl::append<
+      tmpl::list<
+          Tags::MomentumDensity<Dim>, Tags::EnergyDensity,
+          Tags::MagneticFieldCons<Dim>, Tags::DivergenceCleaningFieldCons,
+          hydro::Tags::SpatialVelocity<DataVector, Dim>,
+          hydro::Tags::Pressure<DataVector>, Tags::DivergenceCleaningSpeed>,
+      background_magnetic_field_tag_list<Tags::BackgroundMagneticField<Dim>,
+                                         UseBackgroundMagneticField>>;
 
   static void apply(
       gsl::not_null<tnsr::I<DataVector, Dim>*> mass_density_cons_flux,
@@ -97,9 +113,9 @@ struct ComputeFluxes {
       const tnsr::I<DataVector, Dim>& magnetic_field,
       const Scalar<DataVector>& divergence_cleaning_field,
       const tnsr::I<DataVector, Dim>& velocity,
-      const Scalar<DataVector>& pressure,
-      const tnsr::I<DataVector, Dim>& background_magnetic_field,
-      double glm_cleaning_speed);
+      const Scalar<DataVector>& pressure, double divergence_cleaning_speed,
+      BackgroundMagneticFieldArgument<Dim, UseBackgroundMagneticField>
+          background_magnetic_field = {});
 };
 
 }  // namespace NewtonianMhd

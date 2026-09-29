@@ -3,6 +3,7 @@
 
 #pragma once
 
+#include <algorithm>
 #include <array>
 #include <cstddef>
 
@@ -11,6 +12,7 @@
 #include "DataStructures/Tensor/Tensor.hpp"
 #include "DataStructures/Tensor/TypeAliases.hpp"
 #include "Domain/FaceNormal.hpp"
+#include "Evolution/Systems/NewtonianMhd/OptionalBackgroundMagneticField.hpp"
 #include "Evolution/Systems/NewtonianMhd/Tags.hpp"
 #include "PointwiseFunctions/Hydro/Tags.hpp"
 #include "Utilities/Gsl.hpp"
@@ -32,14 +34,18 @@ namespace NewtonianMhd {
  * where \f$B_{\rm tot} = B_0 + B_1\f$ and \f$c_s\f$ is the (Newtonian) sound
  * speed.  This is the *approximate* Dedner-type upper bound on the fast wave
  * speed which is commonly used in HLL-type solvers for Newtonian MHD.
+ *
+ * With `UseBackgroundMagneticField == false` this reduces to \f$B_{\rm tot} =
+ * B_1\f$ at compile time.
  */
-template <size_t Dim>
+template <size_t Dim, bool UseBackgroundMagneticField = false>
 void fast_magnetosonic_speed(
     gsl::not_null<Scalar<DataVector>*> fast_speed,
     const Scalar<DataVector>& mass_density,
     const Scalar<DataVector>& sound_speed_squared,
     const tnsr::I<DataVector, Dim>& magnetic_field,
-    const tnsr::I<DataVector, Dim>& background_magnetic_field);
+    BackgroundMagneticFieldArgument<Dim, UseBackgroundMagneticField>
+        background_magnetic_field = {});
 
 /*!
  * \brief Characteristic speeds of the Newtonian MHD system.
@@ -52,24 +58,26 @@ void fast_magnetosonic_speed(
  * \f$\pm c_h\f$ and \f$v_n \pm c_f\f$; interior entries are filled with
  * \f$v_n\f$ or \f$v_n \pm c_A\f$ (Alfvén speed) as placeholders.
  */
-template <size_t Dim>
+template <size_t Dim, bool UseBackgroundMagneticField = false>
 void characteristic_speeds(
-    gsl::not_null<std::array<DataVector, 2 * Dim + 3>*> char_speeds,
+    gsl::not_null<std::array<DataVector, (2 * Dim) + 3>*> char_speeds,
     const Scalar<DataVector>& mass_density,
     const tnsr::I<DataVector, Dim>& velocity,
     const Scalar<DataVector>& sound_speed_squared,
     const tnsr::I<DataVector, Dim>& magnetic_field,
-    const tnsr::I<DataVector, Dim>& background_magnetic_field,
-    const tnsr::i<DataVector, Dim>& normal, double glm_cleaning_speed);
+    const tnsr::i<DataVector, Dim>& normal, double divergence_cleaning_speed,
+    BackgroundMagneticFieldArgument<Dim, UseBackgroundMagneticField>
+        background_magnetic_field = {});
 
-template <size_t Dim>
-std::array<DataVector, 2 * Dim + 3> characteristic_speeds(
+template <size_t Dim, bool UseBackgroundMagneticField = false>
+std::array<DataVector, (2 * Dim) + 3> characteristic_speeds(
     const Scalar<DataVector>& mass_density,
     const tnsr::I<DataVector, Dim>& velocity,
     const Scalar<DataVector>& sound_speed_squared,
     const tnsr::I<DataVector, Dim>& magnetic_field,
-    const tnsr::I<DataVector, Dim>& background_magnetic_field,
-    const tnsr::i<DataVector, Dim>& normal, double glm_cleaning_speed);
+    const tnsr::i<DataVector, Dim>& normal, double divergence_cleaning_speed,
+    BackgroundMagneticFieldArgument<Dim, UseBackgroundMagneticField>
+        background_magnetic_field = {});
 
 namespace Tags {
 
@@ -78,9 +86,31 @@ struct FastMagnetosonicSpeed : db::SimpleTag {
   using type = Scalar<DataVector>;
 };
 
-/// The sound speed squared.
-struct SoundSpeedSquared : db::SimpleTag {
-  using type = Scalar<DataVector>;
+/// Compute item for the fast magnetosonic speed \f$c_f\f$.
+///
+/// Can be retrieved using `NewtonianMhd::Tags::FastMagnetosonicSpeed`.
+template <size_t Dim, bool UseBackgroundMagneticField = false>
+struct FastMagnetosonicSpeedCompute : FastMagnetosonicSpeed, db::ComputeTag {
+  using argument_tags =
+      tmpl::append<tmpl::list<hydro::Tags::RestMassDensity<DataVector>,
+                              hydro::Tags::SoundSpeedSquared<DataVector>,
+                              hydro::Tags::MagneticField<DataVector, Dim>>,
+                   background_magnetic_field_tag_list<
+                       NewtonianMhd::Tags::BackgroundMagneticFieldVolume<Dim>,
+                       UseBackgroundMagneticField>>;
+  using return_type = Scalar<DataVector>;
+  using base = FastMagnetosonicSpeed;
+  static void function(
+      const gsl::not_null<Scalar<DataVector>*> fast_speed,
+      const Scalar<DataVector>& mass_density,
+      const Scalar<DataVector>& sound_speed_squared,
+      const tnsr::I<DataVector, Dim>& magnetic_field,
+      BackgroundMagneticFieldArgument<Dim, UseBackgroundMagneticField>
+          background_magnetic_field = {}) {
+    fast_magnetosonic_speed<Dim, UseBackgroundMagneticField>(
+        fast_speed, mass_density, sound_speed_squared, magnetic_field,
+        background_magnetic_field);
+  }
 };
 
 /// The scalar largest characteristic speed used for CFL control.
@@ -96,15 +126,16 @@ struct ComputeLargestCharacteristicSpeed : LargestCharacteristicSpeed,
                                            db::ComputeTag {
   using argument_tags =
       tmpl::list<hydro::Tags::SpatialVelocity<DataVector, Dim>,
-                 FastMagnetosonicSpeed, NewtonianMhd::Tags::GlmCleaningSpeed>;
+                 FastMagnetosonicSpeed,
+                 NewtonianMhd::Tags::DivergenceCleaningSpeed>;
   using return_type = double;
   using base = LargestCharacteristicSpeed;
   static void function(gsl::not_null<double*> speed,
                        const tnsr::I<DataVector, Dim>& velocity,
                        const Scalar<DataVector>& fast_speed,
-                       double glm_cleaning_speed) {
+                       double divergence_cleaning_speed) {
     *speed = std::max(max(get(magnitude(velocity)) + get(fast_speed)),
-                      glm_cleaning_speed);
+                      divergence_cleaning_speed);
   }
 };
 }  // namespace Tags

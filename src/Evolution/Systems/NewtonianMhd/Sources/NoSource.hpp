@@ -5,12 +5,11 @@
 
 #include <cstddef>
 #include <memory>
-#include <pup.h>
-#include <pup_stl.h>
 
-#include "DataStructures/Tensor/Tensor.hpp"
-#include "Evolution/Systems/NewtonianMhd/OptionalBackgroundMagneticField.hpp"
-#include "Utilities/Serialization/CharmPupable.hpp"
+#include "DataStructures/Tensor/TypeAliases.hpp"
+#include "Evolution/Systems/NewtonianMhd/Sources/Source.hpp"
+#include "Options/String.hpp"
+#include "Utilities/TMPL.hpp"
 
 /// \cond
 class DataVector;
@@ -22,34 +21,42 @@ namespace EquationsOfState {
 template <bool IsRelativistic, size_t ThermodynamicDim>
 class EquationOfState;
 }  // namespace EquationsOfState
+namespace PUP {
+class er;
+}  // namespace PUP
 /// \endcond
 
-namespace NewtonianMhd {
-/// Volume-source terms for the Newtonian MHD system.
-namespace Sources {
-
-/// \brief Base class for a NewtonianMhd volume source term.
-///
-/// The source term modifies the RHS of the mass, momentum, energy,
-/// perturbation-magnetic-field, and GLM-cleaning-field equations.  It is
-/// invoked from `TimeDerivativeTerms::apply` after fluxes and prior to
-/// integration.
+namespace NewtonianMhd::Sources {
+/*!
+ * \brief Used to mark that the initial data do not require source terms in the
+ * evolution equations.
+ */
 template <size_t Dim, bool UseBackgroundMagneticField = false>
-class Source : public PUP::able {
- protected:
-  Source() = default;
-
+class NoSource : public Source<Dim, UseBackgroundMagneticField> {
  public:
-  ~Source() override = default;
+  using options = tmpl::list<>;
+
+  static constexpr Options::String help = {"No source terms added."};
+
+  NoSource() = default;
+  NoSource(const NoSource& /*rhs*/) = default;
+  NoSource& operator=(const NoSource& /*rhs*/) = default;
+  NoSource(NoSource&& /*rhs*/) = default;
+  NoSource& operator=(NoSource&& /*rhs*/) = default;
+  ~NoSource() override = default;
 
   /// \cond
-  explicit Source(CkMigrateMessage* msg) : PUP::able(msg) {}
-  WRAPPED_PUPable_abstract(Source);
+  explicit NoSource(CkMigrateMessage* msg);
+  using PUP::able::register_constructor;
+  WRAPPED_PUPable_decl_template(NoSource);
   /// \endcond
 
-  virtual auto get_clone() const -> std::unique_ptr<Source> = 0;
+  // NOLINTNEXTLINE(google-runtime-references)
+  void pup(PUP::er& p) override;
 
-  virtual void operator()(
+  auto get_clone() const -> std::unique_ptr<Source<Dim, UseBackgroundMagneticField>> override;
+
+  void operator()(
       gsl::not_null<Scalar<DataVector>*> source_mass_density_cons,
       gsl::not_null<tnsr::I<DataVector, Dim>*> source_momentum_density,
       gsl::not_null<Scalar<DataVector>*> source_energy_density,
@@ -65,7 +72,9 @@ class Source : public PUP::able {
       BackgroundMagneticFieldArgument<Dim, UseBackgroundMagneticField>
           background_magnetic_field,
       const EquationsOfState::EquationOfState<false, 2>& eos,
-      const tnsr::I<DataVector, Dim>& coords, double time) const = 0;
+      const tnsr::I<DataVector, Dim>& coords, double time) const override;
+
+  using sourced_variables = tmpl::list<>;
+  using argument_tags = tmpl::list<>;
 };
-}  // namespace Sources
-}  // namespace NewtonianMhd
+}  // namespace NewtonianMhd::Sources

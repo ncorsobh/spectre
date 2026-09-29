@@ -44,13 +44,14 @@ struct PrimitiveFromConservative {
       tmpl::list<hydro::Tags::RestMassDensity<DataVector>,
                  hydro::Tags::SpatialVelocity<DataVector, Dim>,
                  hydro::Tags::SpecificInternalEnergy<DataVector>,
-                 hydro::Tags::Pressure<DataVector>, Tags::MagneticField<Dim>,
-                 Tags::DivergenceCleaningField>;
+                 hydro::Tags::Pressure<DataVector>,
+                 hydro::Tags::MagneticField<DataVector, Dim>,
+                 hydro::Tags::DivergenceCleaningField<DataVector>>;
 
   using argument_tags =
       tmpl::list<Tags::MassDensityCons, Tags::MomentumDensity<Dim>,
-                 Tags::EnergyDensity, Tags::MagneticField<Dim>,
-                 Tags::DivergenceCleaningField,
+                 Tags::EnergyDensity, Tags::MagneticFieldCons<Dim>,
+                 Tags::DivergenceCleaningFieldCons,
                  hydro::Tags::EquationOfState<false, 2>>;
 
   template <size_t ThermodynamicDim>
