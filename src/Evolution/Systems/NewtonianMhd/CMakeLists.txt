@@ -48,6 +48,7 @@ target_link_libraries(
   Options
   Serialization
   PRIVATE
+  FiniteDifference
   NewtonianMhdAnalyticData
   NewtonianMhdSolutions
   NewtonianMhdSources
@@ -55,6 +56,7 @@ target_link_libraries(
 
 add_subdirectory(BoundaryConditions)
 add_subdirectory(BoundaryCorrections)
+add_subdirectory(FiniteDifference)
 add_subdirectory(Initialization)
 add_subdirectory(Instantiations)
 add_subdirectory(Sources)

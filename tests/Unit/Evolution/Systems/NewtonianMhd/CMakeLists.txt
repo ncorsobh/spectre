@@ -6,6 +6,9 @@ set(LIBRARY "Test_NewtonianMhd")
 set(LIBRARY_SOURCES
   BoundaryConditions/Test_BoundaryConditions.cpp
   BoundaryCorrections/Test_BoundaryCorrections.cpp
+  FiniteDifference/Test_AoWeno.cpp
+  FiniteDifference/Test_MonotonisedCentral.cpp
+  FiniteDifference/Test_Tag.cpp
   Sources/Test_Sources.cpp
   Test_Characteristics.cpp
   Test_ConservativeFromPrimitive.cpp
