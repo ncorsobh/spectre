@@ -7,6 +7,7 @@ spectre_target_sources(
   BoundaryCondition.cpp
   ConductorReflection.cpp
   DemandOutgoingCharSpeeds.cpp
+  DirichletAnalytic.cpp
   Reflection.cpp
   )
 
@@ -17,5 +18,7 @@ spectre_target_headers(
   BoundaryCondition.hpp
   ConductorReflection.hpp
   DemandOutgoingCharSpeeds.hpp
+  DirichletAnalytic.hpp
+  Factory.hpp
   Reflection.hpp
   )

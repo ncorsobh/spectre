@@ -21,6 +21,7 @@ spectre_target_headers(
   ${LIBRARY}
   INCLUDE_DIRECTORY ${CMAKE_SOURCE_DIR}/src
   HEADERS
+  AllSolutions.hpp
   OptionalBackgroundMagneticField.hpp
   Characteristics.hpp
   ConservativeFromPrimitive.hpp
@@ -47,10 +48,13 @@ target_link_libraries(
   Options
   Serialization
   PRIVATE
+  NewtonianMhdAnalyticData
+  NewtonianMhdSolutions
   NewtonianMhdSources
   )
 
 add_subdirectory(BoundaryConditions)
 add_subdirectory(BoundaryCorrections)
+add_subdirectory(Initialization)
 add_subdirectory(Instantiations)
 add_subdirectory(Sources)

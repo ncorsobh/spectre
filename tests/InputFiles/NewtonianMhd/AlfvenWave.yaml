@@ -1,0 +1,108 @@
+# Distributed under the MIT License.
+# See LICENSE.txt for details.
+
+Executable: EvolveNewtonianMhd
+Testing:
+  Check: parse;execute
+  Timeout: 30
+
+---
+
+# A circularly polarized Alfven wave propagating along the diagonal of a
+# periodic unit cube. The wave is an exact solution, so the L2 errors reported
+# in the reduction file measure the discretization error directly and should
+# converge spectrally under p-refinement.
+
+Parallelization:
+  ElementDistribution: NumGridPoints
+  UseSubcellGridPointsForDistribution: False
+
+ResourceInfo:
+  AvoidGlobalProc0: false
+
+Evolution:
+  InitialTime: 0.0
+  InitialTimeStep: &initial_time_step 0.002
+  InitialSlabSize: *initial_time_step
+  MinimumTimeStep: 1e-9
+  LocalTimeStepping: Off
+  TimeStepper:
+    Rk3HesthavenSsp
+  LtsStepChoosers:
+  VariableOrderAlgorithm:
+    GoalOrder: 3
+
+PhaseChangeAndTriggers:
+
+EquationOfState:
+  IdealFluid:
+    AdiabaticIndex: 1.6666666666666667
+    MinTemperature: 0.0
+
+InitialData: &InitialData
+  AlfvenWave:
+    WaveVector: [1.0, 1.0, 1.0]
+    BackgroundDensity: 1.0
+    BackgroundPressure: 1.0
+    ParallelMagneticField: 1.0
+    Amplitude: 0.1
+    AdiabaticIndex: 1.6666666666666667
+
+DomainCreator:
+  Brick:
+    LowerBound: [0.0, 0.0, 0.0]
+    UpperBound: [1.0, 1.0, 1.0]
+    Distribution: [Linear, Linear, Linear]
+    InitialRefinement: [0, 0, 0]
+    InitialGridPoints: [5, 5, 5]
+    TimeDependence: None
+    BoundaryConditions: [Periodic, Periodic, Periodic]
+
+SpatialDiscretization:
+  BoundaryCorrection:
+    Hll:
+  DiscontinuousGalerkin:
+    Formulation: StrongInertial
+    Quadrature: GaussLobatto
+    Filtering:
+      - None:
+          BlocksToFilter: All
+
+EvolutionSystem:
+  DivergenceCleaningSpeed: 2.0
+  ConstraintDampingParameter: 0.1
+  SourceTerm:
+    NoSource:
+
+EventsAndTriggersAtCheckpoints:
+
+EventsAndTriggersAtSlabs:
+  - Trigger:
+      Slabs:
+        Specified:
+          Values: [5]
+    Events:
+      - Completion
+  - Trigger:
+      Always
+    Events:
+      - ObserveNorms:
+          SubfileName: Errors
+          TensorsToObserve:
+            - Name: Error(RestMassDensity)
+              NormType: L2Norm
+              Components: Sum
+            - Name: Error(SpatialVelocity)
+              NormType: L2Norm
+              Components: Sum
+            - Name: Error(MagneticField)
+              NormType: L2Norm
+              Components: Sum
+
+EventsAndTriggersAtSteps:
+
+EventsAndDenseTriggers:
+
+Observers:
+  VolumeFileName: "NewtonianMhdAlfvenWaveVolume"
+  ReductionFileName: "NewtonianMhdAlfvenWaveReductions"
