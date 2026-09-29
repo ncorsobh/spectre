@@ -1,0 +1,138 @@
+# Distributed under the MIT License.
+# See LICENSE.txt for details.
+
+Executable: EvolveNewtonianMhd
+Testing:
+  Check: parse;execute
+  Timeout: 30
+
+---
+
+# The Brio-Wu magnetohydrodynamic shock tube, run along x in a domain that is
+# thin and periodic in y and z. The discontinuities make this a test of the
+# DG-subcell scheme: elements away from the x boundaries fall back to finite
+# differences wherever the troubled-cell indicator fires.
+
+Parallelization:
+  ElementDistribution: NumGridPoints
+  UseSubcellGridPointsForDistribution: False
+
+ResourceInfo:
+  AvoidGlobalProc0: false
+
+Evolution:
+  InitialTime: 0.0
+  InitialTimeStep: &initial_time_step 0.0005
+  InitialSlabSize: *initial_time_step
+  MinimumTimeStep: 1e-9
+  LocalTimeStepping: Off
+  TimeStepper:
+    Rk3HesthavenSsp
+  LtsStepChoosers:
+  VariableOrderAlgorithm:
+    GoalOrder: 3
+
+PhaseChangeAndTriggers:
+
+EquationOfState:
+  IdealFluid:
+    AdiabaticIndex: 2.0
+    MinTemperature: 0.0
+
+InitialData: &InitialData
+  BrioWu:
+    AdiabaticIndex: 2.0
+    LeftDensity: 1.0
+    LeftPressure: 1.0
+    LeftTransverseMagneticField: 1.0
+    RightDensity: 0.125
+    RightPressure: 0.1
+    RightTransverseMagneticField: -1.0
+    ParallelMagneticField: 0.75
+
+DomainCreator:
+  Brick:
+    LowerBound: [-0.5, -0.0625, -0.0625]
+    UpperBound: [0.5, 0.0625, 0.0625]
+    Distribution: [Linear, Linear, Linear]
+    InitialRefinement: [3, 0, 0]
+    InitialGridPoints: [5, 5, 5]
+    TimeDependence: None
+    BoundaryConditions:
+      - DirichletAnalytic:
+          AnalyticPrescription:
+            *InitialData
+      - Periodic
+      - Periodic
+
+SpatialDiscretization:
+  BoundaryCorrection:
+    Hll:
+  DiscontinuousGalerkin:
+    Formulation: StrongInertial
+    Quadrature: GaussLobatto
+    Filtering:
+      - None:
+          BlocksToFilter: All
+    OnlyDgBlocksAndGroups: None
+    Subcell:
+      TroubledCellIndicator:
+        PerssonTci:
+          Exponent: 4.0
+          NumHighestModes: 1
+        RdmpTci:
+          Delta0: 1.0e-7
+          Epsilon: 1.0e-3
+        FdToDgTci:
+          NumberOfStepsBetweenTciCalls: 1
+          MinTciCallsAfterRollback: 1
+          MinimumClearTcis: 1
+        AlwaysUseSubcells: false
+        EnableExtensionDirections: false
+        UseHalo: false
+      SubcellToDgReconstructionMethod: DimByDim
+      FiniteDifferenceDerivativeOrder: 2
+      FdInterpolationOrder: 1
+  SubcellSolver:
+    Reconstructor:
+      MonotonisedCentralPrim:
+
+EvolutionSystem:
+  DivergenceCleaningSpeed: 2.0
+  ConstraintDampingParameter: 0.1
+  SourceTerm:
+    NoSource:
+
+EventsAndTriggersAtCheckpoints:
+
+EventsAndTriggersAtSlabs:
+  - Trigger:
+      Slabs:
+        Specified:
+          Values: [10]
+    Events:
+      - Completion
+  - Trigger:
+      Always
+    Events:
+      - ObserveFields:
+          SubfileName: VolumeData
+          VariablesToObserve:
+            - RestMassDensity
+            - SpatialVelocity
+            - MagneticField
+            - Pressure
+            - TciStatus
+          InterpolateToMesh: None
+          ProjectToMesh: None
+          BlocksToObserve: All
+          CoordinatesFloatingPointType: Float
+          FloatingPointTypes: [Float]
+
+EventsAndTriggersAtSteps:
+
+EventsAndDenseTriggers:
+
+Observers:
+  VolumeFileName: "NewtonianMhdBrioWuVolume"
+  ReductionFileName: "NewtonianMhdBrioWuReductions"
