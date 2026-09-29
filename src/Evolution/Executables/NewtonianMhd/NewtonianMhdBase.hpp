@@ -14,6 +14,21 @@
 #include "Evolution/BoundaryCorrection.hpp"
 #include "Evolution/ComputeTags.hpp"
 #include "Evolution/Conservative/UpdateConservatives.hpp"
+#include "Evolution/DgSubcell/Actions/Initialize.hpp"
+#include "Evolution/DgSubcell/Actions/Labels.hpp"
+#include "Evolution/DgSubcell/Actions/ReconstructionCommunication.hpp"
+#include "Evolution/DgSubcell/Actions/SelectNumericalMethod.hpp"
+#include "Evolution/DgSubcell/Actions/TakeTimeStep.hpp"
+#include "Evolution/DgSubcell/Actions/TciAndRollback.hpp"
+#include "Evolution/DgSubcell/Actions/TciAndSwitchToDg.hpp"
+#include "Evolution/DgSubcell/GetTciDecision.hpp"
+#include "Evolution/DgSubcell/NeighborReconstructedFaceSolution.hpp"
+#include "Evolution/DgSubcell/NeighborTciDecision.hpp"
+#include "Evolution/DgSubcell/PrepareNeighborData.hpp"
+#include "Evolution/DgSubcell/SubcellEqualRateRegion.hpp"
+#include "Evolution/DgSubcell/Tags/ObserverCoordinates.hpp"
+#include "Evolution/DgSubcell/Tags/ObserverMesh.hpp"
+#include "Evolution/DgSubcell/Tags/TciStatus.hpp"
 #include "Evolution/DiscontinuousGalerkin/Actions/ApplyBoundaryCorrections.hpp"
 #include "Evolution/DiscontinuousGalerkin/Actions/ComputeTimeDerivative.hpp"
 #include "Evolution/DiscontinuousGalerkin/CleanMortarHistory.hpp"
@@ -33,9 +48,21 @@
 #include "Evolution/Systems/NewtonianMhd/BoundaryConditions/Factory.hpp"
 #include "Evolution/Systems/NewtonianMhd/BoundaryCorrections/Factory.hpp"
 #include "Evolution/Systems/NewtonianMhd/Characteristics.hpp"
+#include "Evolution/Systems/NewtonianMhd/FiniteDifference/Factory.hpp"
+#include "Evolution/Systems/NewtonianMhd/FiniteDifference/Tag.hpp"
+#include "Evolution/Systems/NewtonianMhd/Initialization/BackgroundMagneticField.hpp"
 #include "Evolution/Systems/NewtonianMhd/OptionalBackgroundMagneticField.hpp"
 #include "Evolution/Systems/NewtonianMhd/SoundSpeedSquared.hpp"
 #include "Evolution/Systems/NewtonianMhd/Sources/Factory.hpp"
+#include "Evolution/Systems/NewtonianMhd/Subcell/BackgroundMagneticFieldVars.hpp"
+#include "Evolution/Systems/NewtonianMhd/Subcell/NeighborPackagedData.hpp"
+#include "Evolution/Systems/NewtonianMhd/Subcell/PrimitiveGhostData.hpp"
+#include "Evolution/Systems/NewtonianMhd/Subcell/PrimsAfterRollback.hpp"
+#include "Evolution/Systems/NewtonianMhd/Subcell/ResizeAndComputePrimitives.hpp"
+#include "Evolution/Systems/NewtonianMhd/Subcell/SetInitialRdmpData.hpp"
+#include "Evolution/Systems/NewtonianMhd/Subcell/TciOnDgGrid.hpp"
+#include "Evolution/Systems/NewtonianMhd/Subcell/TciOnFdGrid.hpp"
+#include "Evolution/Systems/NewtonianMhd/Subcell/TimeDerivative.hpp"
 #include "Evolution/Systems/NewtonianMhd/System.hpp"
 #include "Evolution/Systems/NewtonianMhd/Tags.hpp"
 #include "IO/Observer/Actions/RegisterEvents.hpp"
@@ -109,19 +136,20 @@ class CProxy_GlobalCache;
 /*!
  * \brief Metavariables for the Newtonian MHD system.
  *
- * `BackgroundMagneticFieldInitialization` picks how the initial magnetic field
- * is divided between the static background \f$B_0\f$ and the evolved
- * perturbation
- * \f$B_1\f$: `ZeroBackgroundMagneticField` gives standard MHD, while
- * `SplitBackgroundMagneticField` evolves only the perturbation. The latter
- * needs initial data that supply a background field, so `InitialDataList` is
+ * `UseBackgroundMagneticField` picks how the initial magnetic field is divided
+ * between the static background \f$B_0\f$ and the evolved perturbation
+ * \f$B_1\f$: with it disabled the whole field is evolved, which is standard
+ * MHD, while with it enabled only the perturbation is. The latter needs
+ * initial data that supply a background field, so `InitialDataList` is
  * restricted accordingly.
  */
-template <typename BackgroundMagneticFieldInitialization,
-          typename InitialDataList, bool UseBackgroundMagneticField>
+template <typename InitialDataList, bool UseBackgroundMagneticField>
 struct NewtonianMhdMetavars {
   using metavariables = NewtonianMhdMetavars;
   static constexpr size_t volume_dim = 3;
+  // Controls whether to use unlimited DG (false) or a DG-FD hybrid scheme
+  // (true).
+  static constexpr bool use_dg_subcell = true;
 
   using system = NewtonianMhd::System<volume_dim, UseBackgroundMagneticField>;
 
@@ -137,11 +165,11 @@ struct NewtonianMhdMetavars {
   using analytic_variables_tags =
       typename system::primitive_variables_tag::tags_list;
 
-  // Errors against an analytic solution are only meaningful when the whole
-  // field is evolved; with background-field splitting the evolved B1 is the
-  // perturbation, not the solution's total field.
+  // Note that with background-field splitting the evolved magnetic field is
+  // the perturbation, so its error against an analytic solution's total field
+  // is not meaningful.
   using analytic_compute = evolution::Tags::AnalyticSolutionsCompute<
-      volume_dim, analytic_variables_tags, false, initial_data_list>;
+      volume_dim, analytic_variables_tags, use_dg_subcell, initial_data_list>;
   using error_compute = Tags::ErrorsCompute<analytic_variables_tags>;
   using error_tags = db::wrap_tags_in<Tags::Error, analytic_variables_tags>;
 
@@ -149,21 +177,47 @@ struct NewtonianMhdMetavars {
       tmpl::append<
           typename system::variables_tag::tags_list,
           typename system::primitive_variables_tag::tags_list, error_tags,
+          NewtonianMhd::background_magnetic_field_tag_list<
+              NewtonianMhd::Tags::BackgroundMagneticFieldVolume<volume_dim>,
+              UseBackgroundMagneticField>,
+          tmpl::conditional_t<use_dg_subcell,
+                              tmpl::list<evolution::dg::subcell::Tags::
+                                             TciStatusCompute<volume_dim>>,
+                              tmpl::list<>>>,
+      tmpl::conditional_t<
+          use_dg_subcell,
+          evolution::dg::subcell::Tags::ObserverCoordinatesCompute<
+              volume_dim, Frame::ElementLogical>,
+          ::Events::Tags::ObserverCoordinatesCompute<volume_dim,
+                                                     Frame::ElementLogical>>,
+      tmpl::conditional_t<
+          use_dg_subcell,
+          evolution::dg::subcell::Tags::ObserverCoordinatesCompute<volume_dim,
+                                                                   Frame::Grid>,
+          domain::Tags::Coordinates<volume_dim, Frame::Grid>>,
+      tmpl::conditional_t<
+          use_dg_subcell,
+          evolution::dg::subcell::Tags::ObserverCoordinatesCompute<
+              volume_dim, Frame::Inertial>,
+          domain::Tags::Coordinates<volume_dim, Frame::Inertial>>>;
+  using non_tensor_compute_tags = tmpl::append<
+      tmpl::conditional_t<
+          use_dg_subcell,
           tmpl::list<
-              NewtonianMhd::Tags::BackgroundMagneticFieldVolume<volume_dim>>>,
-      ::Events::Tags::ObserverCoordinatesCompute<volume_dim,
-                                                 Frame::ElementLogical>,
-      domain::Tags::Coordinates<volume_dim, Frame::Grid>,
-      domain::Tags::Coordinates<volume_dim, Frame::Inertial>>;
-  using non_tensor_compute_tags =
-      tmpl::list<::Events::Tags::ObserverMeshCompute<volume_dim>,
-                 ::Events::Tags::ObserverInverseJacobianCompute<
-                     volume_dim, Frame::ElementLogical, Frame::Inertial>,
-                 ::Events::Tags::ObserverJacobianCompute<
-                     volume_dim, Frame::ElementLogical, Frame::Inertial>,
-                 ::Events::Tags::ObserverDetInvJacobianCompute<
-                     Frame::ElementLogical, Frame::Inertial>,
-                 analytic_compute, error_compute>;
+              evolution::dg::subcell::Tags::ObserverMeshCompute<volume_dim>,
+              evolution::dg::subcell::Tags::ObserverInverseJacobianCompute<
+                  volume_dim, Frame::ElementLogical, Frame::Inertial>,
+              evolution::dg::subcell::Tags::
+                  ObserverJacobianAndDetInvJacobianCompute<
+                      volume_dim, Frame::ElementLogical, Frame::Inertial>>,
+          tmpl::list<::Events::Tags::ObserverMeshCompute<volume_dim>,
+                     ::Events::Tags::ObserverInverseJacobianCompute<
+                         volume_dim, Frame::ElementLogical, Frame::Inertial>,
+                     ::Events::Tags::ObserverJacobianCompute<
+                         volume_dim, Frame::ElementLogical, Frame::Inertial>,
+                     ::Events::Tags::ObserverDetInvJacobianCompute<
+                         Frame::ElementLogical, Frame::Inertial>>>,
+      tmpl::list<analytic_compute, error_compute>>;
 
   struct factory_creation
       : tt::ConformsTo<Options::protocols::FactoryCreation> {
@@ -219,8 +273,36 @@ struct NewtonianMhdMetavars {
   using dg_registration_list =
       tmpl::list<observers::Actions::RegisterEventsWithObservers>;
 
-  using equal_rate_regions =
-      tmpl::list<evolution::dg::NonconformingEqualRateRegions<volume_dim>>;
+  using equal_rate_regions = tmpl::flatten<
+      tmpl::list<evolution::dg::NonconformingEqualRateRegions<volume_dim>,
+                 tmpl::conditional_t<
+                     use_dg_subcell,
+                     evolution::dg::subcell::SubcellEqualRateRegion<volume_dim>,
+                     tmpl::list<>>>>;
+
+  // Sets the static background field on the active grid, then replaces the
+  // initial data's total magnetic field by the evolved perturbation.
+  using background_magnetic_field_actions = tmpl::conditional_t<
+      UseBackgroundMagneticField,
+      tmpl::list<
+          Initialization::Actions::InitializeItems<tmpl::conditional_t<
+              use_dg_subcell,
+              NewtonianMhd::subcell::BackgroundMagneticFieldVars<volume_dim>,
+              NewtonianMhd::Initialization::BackgroundMagneticField<
+                  volume_dim>>>,
+          Actions::MutateApply<
+              NewtonianMhd::Initialization::SubtractBackgroundMagneticField<
+                  volume_dim>>>,
+      tmpl::list<>>;
+
+  // Re-evaluates the background field after the active grid has changed. The
+  // perturbation is not touched: it is projected or reconstructed along with
+  // the other evolved variables.
+  using background_magnetic_field_update = tmpl::conditional_t<
+      UseBackgroundMagneticField and use_dg_subcell,
+      Actions::MutateApply<
+          NewtonianMhd::subcell::BackgroundMagneticFieldVars<volume_dim>>,
+      tmpl::list<>>;
 
   using initialization_actions = tmpl::flatten<tmpl::list<
       Initialization::Actions::InitializeItems<
@@ -228,11 +310,27 @@ struct NewtonianMhdMetavars {
           evolution::dg::Initialization::Domain<metavariables>,
           Initialization::TimeStepperHistory<system>>,
       Initialization::Actions::ConservativeSystem<system>,
-      evolution::Initialization::Actions::SetVariables<
-          domain::Tags::Coordinates<volume_dim, Frame::ElementLogical>>,
-      Initialization::Actions::InitializeItems<
-          BackgroundMagneticFieldInitialization>,
-      Actions::UpdateConservatives,
+      tmpl::conditional_t<
+          use_dg_subcell,
+          tmpl::list<
+              evolution::dg::subcell::Actions::SetSubcellGrid<volume_dim,
+                                                              system, false>,
+              background_magnetic_field_actions, Actions::UpdateConservatives,
+              evolution::dg::subcell::Actions::SetAndCommunicateInitialRdmpData<
+                  volume_dim,
+                  NewtonianMhd::subcell::SetInitialRdmpData<volume_dim>>,
+              evolution::dg::subcell::Actions::ComputeAndSendTciOnInitialGrid<
+                  volume_dim, system,
+                  NewtonianMhd::subcell::TciOnFdGrid<volume_dim>>,
+              evolution::dg::subcell::Actions::SetInitialGridFromTciData<
+                  volume_dim, system>,
+              Actions::MutateApply<
+                  NewtonianMhd::subcell::ResizeAndComputePrims<volume_dim>>,
+              background_magnetic_field_update, Actions::UpdateConservatives>,
+          tmpl::list<
+              evolution::Initialization::Actions::SetVariables<
+                  domain::Tags::Coordinates<volume_dim, Frame::ElementLogical>>,
+              background_magnetic_field_actions, Actions::UpdateConservatives>>,
       Initialization::Actions::AddComputeTags<
           tmpl::list<NewtonianMhd::Tags::SoundSpeedSquaredCompute<DataVector>,
                      NewtonianMhd::Tags::FastMagnetosonicSpeedCompute<
@@ -251,7 +349,7 @@ struct NewtonianMhdMetavars {
   using events_and_dense_triggers_postprocessors = tmpl::list<
       AlwaysReadyPostprocessor<typename system::primitive_from_conservative>>;
 
-  using step_actions = tmpl::flatten<tmpl::list<
+  using dg_step_actions = tmpl::flatten<tmpl::list<
       evolution::dg::Actions::ComputeTimeDerivative<
           volume_dim, system, AllStepChoosers, use_dg_element_collection>,
       evolution::dg::Actions::ApplyBoundaryCorrectionsToTimeDerivative<
@@ -264,11 +362,77 @@ struct NewtonianMhdMetavars {
       evolution::dg::Actions::ApplyLtsBoundaryCorrections<
           volume_dim, use_dg_element_collection>,
       Actions::MutateApply<ChangeTimeStepperOrder<system>>,
-      Actions::MutateApply<typename system::primitive_from_conservative>,
+      tmpl::conditional_t<
+          use_dg_subcell,
+          // The primitive variables are computed as part of the TCI.
+          tmpl::list<evolution::dg::subcell::Actions::TciAndRollback<
+                         NewtonianMhd::subcell::TciOnDgGrid<volume_dim>>,
+                     background_magnetic_field_update>,
+          Actions::MutateApply<typename system::primitive_from_conservative>>,
       Actions::MutateApply<CleanHistory<system>>,
       Actions::MutateApply<evolution::dg::CleanMortarHistory<volume_dim>>,
       dg::Actions::SpectralFilter<
           volume_dim, typename system::variables_tag::tags_list>>>;
+
+  struct SubcellOptions {
+    static constexpr bool subcell_enabled = use_dg_subcell;
+    static constexpr bool subcell_enabled_at_external_boundary = false;
+
+    template <typename DbTagsList>
+    static constexpr size_t ghost_zone_size(
+        const db::DataBox<DbTagsList>& box) {
+      return db::get<NewtonianMhd::fd::Tags::Reconstructor<volume_dim>>(box)
+          .ghost_zone_size();
+    }
+
+    using DgComputeSubcellNeighborPackagedData =
+        NewtonianMhd::subcell::NeighborPackagedData<UseBackgroundMagneticField>;
+
+    using GhostVariables =
+        NewtonianMhd::subcell::PrimitiveGhostVariables<volume_dim>;
+  };
+
+  using dg_subcell_step_actions = tmpl::flatten<tmpl::list<
+      evolution::dg::subcell::Actions::SelectNumericalMethod,
+
+      Actions::Label<evolution::dg::subcell::Actions::Labels::BeginDg>,
+      dg_step_actions,
+      Actions::Goto<evolution::dg::subcell::Actions::Labels::EndOfSolvers>,
+
+      Actions::Label<evolution::dg::subcell::Actions::Labels::BeginSubcell>,
+      // This is just to adjust for FixedLtsRatio, so we can pass an empty list
+      // of StepChoosers.
+      Actions::MutateApply<ChangeStepSize<tmpl::list<>>>,
+      evolution::dg::subcell::Actions::SendDataForReconstruction<
+          volume_dim,
+          NewtonianMhd::subcell::PrimitiveGhostVariables<volume_dim>,
+          use_dg_element_collection>,
+      evolution::dg::subcell::Actions::ReceiveDataForReconstruction<volume_dim>,
+      Actions::Label<
+          evolution::dg::subcell::Actions::Labels::BeginSubcellAfterDgRollback>,
+      Actions::MutateApply<
+          NewtonianMhd::subcell::PrimsAfterRollback<volume_dim>>,
+      background_magnetic_field_update,
+      evolution::dg::subcell::fd::Actions::TakeTimeStep<
+          NewtonianMhd::subcell::TimeDerivative<volume_dim>>,
+      Actions::MutateApply<RecordTimeStepperData<system>>,
+      evolution::Actions::RunEventsAndDenseTriggers<
+          events_and_dense_triggers_postprocessors>,
+      Actions::MutateApply<UpdateU<system>>,
+      Actions::MutateApply<CleanHistory<system>>,
+      Actions::MutateApply<evolution::dg::CleanMortarHistory<volume_dim>>,
+      Actions::MutateApply<typename system::primitive_from_conservative>,
+      evolution::dg::subcell::Actions::TciAndSwitchToDg<
+          NewtonianMhd::subcell::TciOnFdGrid<volume_dim>>,
+      Actions::MutateApply<
+          NewtonianMhd::subcell::ResizeAndComputePrims<volume_dim>>,
+      background_magnetic_field_update,
+
+      Actions::Label<evolution::dg::subcell::Actions::Labels::EndOfSolvers>>>;
+
+  using step_actions =
+      tmpl::conditional_t<use_dg_subcell, dg_subcell_step_actions,
+                          dg_step_actions>;
 
   using dg_element_array = DgElementArray<
       metavariables,
@@ -316,7 +480,11 @@ struct NewtonianMhdMetavars {
       tmpl::list<observers::Observer<metavariables>,
                  observers::ObserverWriter<metavariables>, dg_element_array>;
 
-  using const_global_cache_tags = tmpl::list<
+  using const_global_cache_tags = tmpl::push_back<
+      tmpl::conditional_t<
+          use_dg_subcell,
+          tmpl::list<NewtonianMhd::fd::Tags::Reconstructor<volume_dim>>,
+          tmpl::list<>>,
       initial_data_tag, equation_of_state_tag,
       NewtonianMhd::Tags::SourceTerm<volume_dim, UseBackgroundMagneticField>,
       NewtonianMhd::Tags::DivergenceCleaningSpeed,

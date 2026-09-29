@@ -67,6 +67,30 @@ SpatialDiscretization:
     Filtering:
       - None:
           BlocksToFilter: All
+    # Smooth by construction, so this stays on DG: the L2 errors then
+    # measure the spectral discretization error and nothing else.
+    OnlyDgBlocksAndGroups: [Brick]
+    Subcell:
+      TroubledCellIndicator:
+        PerssonTci:
+          Exponent: 4.0
+          NumHighestModes: 1
+        RdmpTci:
+          Delta0: 1.0e-7
+          Epsilon: 1.0e-3
+        FdToDgTci:
+          NumberOfStepsBetweenTciCalls: 1
+          MinTciCallsAfterRollback: 1
+          MinimumClearTcis: 1
+        AlwaysUseSubcells: false
+        EnableExtensionDirections: false
+        UseHalo: false
+      SubcellToDgReconstructionMethod: DimByDim
+      FiniteDifferenceDerivativeOrder: 2
+      FdInterpolationOrder: 1
+  SubcellSolver:
+    Reconstructor:
+      MonotonisedCentralPrim:
 
 EvolutionSystem:
   DivergenceCleaningSpeed: 2.0

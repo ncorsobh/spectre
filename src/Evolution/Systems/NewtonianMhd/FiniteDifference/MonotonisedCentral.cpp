@@ -132,15 +132,18 @@ void MonotonisedCentralPrim<Dim>::reconstruct_fd_neighbor(
              ::Tags::Flux<Tags::DivergenceCleaningFieldCons,              \
                           tmpl::size_t<DIM(data)>, Frame::Inertial>>
 
+#define TAGS_LIST_BACKGROUND(data) \
+  tmpl::push_back<TAGS_LIST(data), Tags::BackgroundMagneticField<DIM(data)>>
+
 #define INSTANTIATION(r, data) template class MonotonisedCentralPrim<DIM(data)>;
 GENERATE_INSTANTIATIONS(INSTANTIATION, (1, 2, 3))
 #undef INSTANTIATION
 
-#define INSTANTIATION(r, data)                                              \
+#define INSTANTIATION_IMPL(TAGS, data)                                      \
   template void MonotonisedCentralPrim<DIM(data)>::reconstruct(             \
-      gsl::not_null<std::array<Variables<TAGS_LIST(data)>, DIM(data)>*>     \
+      gsl::not_null<std::array<Variables<TAGS>, DIM(data)>*>                \
           vars_on_lower_face,                                               \
-      gsl::not_null<std::array<Variables<TAGS_LIST(data)>, DIM(data)>*>     \
+      gsl::not_null<std::array<Variables<TAGS>, DIM(data)>*>                \
           vars_on_upper_face,                                               \
       const Variables<prims_tags>& volume_prims,                            \
       const EquationsOfState::EquationOfState<false, 2>& eos,               \
@@ -149,7 +152,7 @@ GENERATE_INSTANTIATIONS(INSTANTIATION, (1, 2, 3))
           ghost_data,                                                       \
       const Mesh<DIM(data)>& subcell_mesh) const;                           \
   template void MonotonisedCentralPrim<DIM(data)>::reconstruct_fd_neighbor( \
-      gsl::not_null<Variables<TAGS_LIST(data)>*> vars_on_face,              \
+      gsl::not_null<Variables<TAGS>*> vars_on_face,                         \
       const Variables<prims_tags>& subcell_volume_prims,                    \
       const EquationsOfState::EquationOfState<false, 2>& eos,               \
       const Element<DIM(data)>& element,                                    \
@@ -158,9 +161,15 @@ GENERATE_INSTANTIATIONS(INSTANTIATION, (1, 2, 3))
       const Mesh<DIM(data)>& subcell_mesh,                                  \
       const Direction<DIM(data)> direction_to_reconstruct) const;
 
+#define INSTANTIATION(r, data)              \
+  INSTANTIATION_IMPL(TAGS_LIST(data), data) \
+  INSTANTIATION_IMPL(TAGS_LIST_BACKGROUND(data), data)
+
 GENERATE_INSTANTIATIONS(INSTANTIATION, (1, 2, 3))
 
 #undef INSTANTIATION
+#undef INSTANTIATION_IMPL
 #undef TAGS_LIST
+#undef TAGS_LIST_BACKGROUND
 #undef DIM
 }  // namespace NewtonianMhd::fd

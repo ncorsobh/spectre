@@ -9,7 +9,17 @@ set(LIBRARY_SOURCES
   FiniteDifference/Test_AoWeno.cpp
   FiniteDifference/Test_MonotonisedCentral.cpp
   FiniteDifference/Test_Tag.cpp
+  Initialization/Test_BackgroundMagneticField.cpp
   Sources/Test_Sources.cpp
+  Subcell/Test_ComputeFluxes.cpp
+  Subcell/Test_NeighborPackagedData.cpp
+  Subcell/Test_PrimitiveGhostData.cpp
+  Subcell/Test_PrimsAfterRollback.cpp
+  Subcell/Test_ResizeAndComputePrimitives.cpp
+  Subcell/Test_SetInitialRdmpData.cpp
+  Subcell/Test_TciOnDgGrid.cpp
+  Subcell/Test_TciOnFdGrid.cpp
+  Subcell/Test_TimeDerivative.cpp
   Test_Characteristics.cpp
   Test_ConservativeFromPrimitive.cpp
   Test_Fluxes.cpp
@@ -29,6 +39,7 @@ target_link_libraries(
   Framework
   Hydro
   NewtonianMhd
+  NewtonianMhdAnalyticData
   NewtonianMhdSources
   Utilities
   )

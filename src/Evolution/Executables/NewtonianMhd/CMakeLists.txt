@@ -10,6 +10,7 @@ set(LIBS_TO_LINK
   EventsAndDenseTriggers
   EventsAndTriggers
   Evolution
+  FiniteDifference
   Hydro
   Informer
   LinearOperators
