@@ -12,7 +12,10 @@
 #include "DataStructures/Tensor/TypeAliases.hpp"
 #include "Domain/BoundaryConditions/BoundaryCondition.hpp"
 #include "Evolution/BoundaryConditions/Type.hpp"
+#include "Evolution/DgSubcell/Tags/Mesh.hpp"
 #include "Evolution/Systems/NewtonianMhd/BoundaryConditions/BoundaryCondition.hpp"
+#include "Evolution/Systems/NewtonianMhd/FiniteDifference/Reconstructor.hpp"
+#include "Evolution/Systems/NewtonianMhd/FiniteDifference/Tag.hpp"
 #include "Evolution/Systems/NewtonianMhd/OptionalBackgroundMagneticField.hpp"
 #include "Evolution/Systems/NewtonianMhd/Tags.hpp"
 #include "Options/String.hpp"
@@ -82,6 +85,39 @@ class ConductorReflection final : public BoundaryCondition<Dim> {
                  hydro::Tags::SpecificInternalEnergy<DataVector>,
                  hydro::Tags::Pressure<DataVector>>;
   using dg_gridless_tags = tmpl::list<Tags::DivergenceCleaningSpeed>;
+
+  using fd_interior_evolved_variables_tags = tmpl::list<>;
+  using fd_interior_temporary_tags =
+      tmpl::list<evolution::dg::subcell::Tags::Mesh<Dim>>;
+  using fd_interior_primitive_variables_tags =
+      tmpl::list<hydro::Tags::RestMassDensity<DataVector>,
+                 hydro::Tags::SpatialVelocity<DataVector, Dim>,
+                 hydro::Tags::Pressure<DataVector>,
+                 hydro::Tags::MagneticField<DataVector, Dim>,
+                 hydro::Tags::DivergenceCleaningField<DataVector>>;
+  using fd_gridless_tags = tmpl::list<fd::Tags::Reconstructor<Dim>>;
+
+  void fd_ghost(
+      gsl::not_null<Scalar<DataVector>*> mass_density,
+      gsl::not_null<tnsr::I<DataVector, Dim, Frame::Inertial>*> velocity,
+      gsl::not_null<Scalar<DataVector>*> pressure,
+      gsl::not_null<tnsr::I<DataVector, Dim, Frame::Inertial>*> magnetic_field,
+      gsl::not_null<Scalar<DataVector>*> divergence_cleaning_field,
+
+      const Direction<Dim>& direction,
+
+      // interior temporary tags
+      const Mesh<Dim>& subcell_mesh,
+
+      // interior primitive variables tags
+      const Scalar<DataVector>& interior_mass_density,
+      const tnsr::I<DataVector, Dim, Frame::Inertial>& interior_velocity,
+      const Scalar<DataVector>& interior_pressure,
+      const tnsr::I<DataVector, Dim, Frame::Inertial>& interior_magnetic_field,
+      const Scalar<DataVector>& interior_divergence_cleaning_field,
+
+      // gridless tags
+      const fd::Reconstructor<Dim>& reconstructor) const;
 
   /// @{
   /// The background-field overload is selected by the boundary correction's

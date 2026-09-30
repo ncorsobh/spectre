@@ -25,6 +25,7 @@
 #include "Evolution/DgSubcell/NeighborReconstructedFaceSolution.hpp"
 #include "Evolution/DgSubcell/NeighborTciDecision.hpp"
 #include "Evolution/DgSubcell/PrepareNeighborData.hpp"
+#include "Evolution/DgSubcell/SetInterpolators.hpp"
 #include "Evolution/DgSubcell/SubcellEqualRateRegion.hpp"
 #include "Evolution/DgSubcell/Tags/ObserverCoordinates.hpp"
 #include "Evolution/DgSubcell/Tags/ObserverMesh.hpp"
@@ -315,6 +316,9 @@ struct NewtonianMhdMetavars {
           tmpl::list<
               evolution::dg::subcell::Actions::SetSubcellGrid<volume_dim,
                                                               system, false>,
+              Actions::MutateApply<evolution::dg::subcell::SetInterpolators<
+                  volume_dim,
+                  NewtonianMhd::fd::Tags::Reconstructor<volume_dim>>>,
               background_magnetic_field_actions, Actions::UpdateConservatives,
               evolution::dg::subcell::Actions::SetAndCommunicateInitialRdmpData<
                   volume_dim,
@@ -376,7 +380,7 @@ struct NewtonianMhdMetavars {
 
   struct SubcellOptions {
     static constexpr bool subcell_enabled = use_dg_subcell;
-    static constexpr bool subcell_enabled_at_external_boundary = false;
+    static constexpr bool subcell_enabled_at_external_boundary = true;
 
     template <typename DbTagsList>
     static constexpr size_t ghost_zone_size(

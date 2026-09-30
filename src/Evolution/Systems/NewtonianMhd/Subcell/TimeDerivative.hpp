@@ -31,6 +31,7 @@
 #include "Evolution/DiscontinuousGalerkin/Actions/NormalCovectorAndMagnitude.hpp"
 #include "Evolution/DiscontinuousGalerkin/Actions/PackageDataImpl.hpp"
 #include "Evolution/DiscontinuousGalerkin/MortarTags.hpp"
+#include "Evolution/Systems/NewtonianMhd/FiniteDifference/BoundaryConditionGhostData.hpp"
 #include "Evolution/Systems/NewtonianMhd/FiniteDifference/Reconstructor.hpp"
 #include "Evolution/Systems/NewtonianMhd/FiniteDifference/Tag.hpp"
 #include "Evolution/Systems/NewtonianMhd/Fluxes.hpp"
@@ -110,9 +111,21 @@ struct TimeDerivative {
         db::get<NewtonianMhd::fd::Tags::Reconstructor<Dim>>(*box);
 
     const Element<Dim>& element = db::get<domain::Tags::Element<Dim>>(*box);
-    ASSERT(element.external_boundaries().size() == 0,
-           "Can't have external boundaries right now with subcell. ElementID "
+    constexpr bool subcell_enabled_at_external_boundary =
+        metavariables::SubcellOptions::subcell_enabled_at_external_boundary;
+    ASSERT(element.external_boundaries().empty() or
+               subcell_enabled_at_external_boundary,
+           "Subcell time derivative is called at a boundary element while "
+           "using subcell is disabled at external boundaries. ElementID "
                << element.id());
+
+    // Fill the ghost zones outside external boundaries from the boundary
+    // conditions, so that the reconstruction below has neighbour data there.
+    if constexpr (subcell_enabled_at_external_boundary) {
+      if (not element.external_boundaries().empty()) {
+        fd::BoundaryConditionGhostData<Dim>::apply(box, element, recons);
+      }
+    }
 
     // Now package the data and compute the correction
     const auto& boundary_correction =

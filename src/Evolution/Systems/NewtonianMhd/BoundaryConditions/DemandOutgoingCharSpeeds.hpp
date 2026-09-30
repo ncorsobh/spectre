@@ -11,8 +11,12 @@
 
 #include "DataStructures/Tensor/TypeAliases.hpp"
 #include "Domain/BoundaryConditions/BoundaryCondition.hpp"
+#include "Domain/Structure/Direction.hpp"
 #include "Evolution/BoundaryConditions/Type.hpp"
+#include "Evolution/DgSubcell/Tags/Mesh.hpp"
 #include "Evolution/Systems/NewtonianMhd/BoundaryConditions/BoundaryCondition.hpp"
+#include "Evolution/Systems/NewtonianMhd/FiniteDifference/Reconstructor.hpp"
+#include "Evolution/Systems/NewtonianMhd/FiniteDifference/Tag.hpp"
 #include "Evolution/Systems/NewtonianMhd/OptionalBackgroundMagneticField.hpp"
 #include "Evolution/Systems/NewtonianMhd/Tags.hpp"
 #include "Options/String.hpp"
@@ -87,6 +91,89 @@ class DemandOutgoingCharSpeeds final : public BoundaryCondition<Dim> {
                  hydro::Tags::SpatialVelocity<DataVector, Dim>,
                  hydro::Tags::SpecificInternalEnergy<DataVector>>;
   using dg_gridless_tags = tmpl::list<hydro::Tags::EquationOfState<false, 2>>;
+
+  using fd_interior_evolved_variables_tags = tmpl::list<>;
+  using fd_interior_temporary_tags =
+      tmpl::append<tmpl::list<evolution::dg::subcell::Tags::Mesh<Dim>>,
+                   background_magnetic_field_tag_list<
+                       Tags::BackgroundMagneticFieldVolume<Dim>,
+                       UseBackgroundMagneticField>>;
+  using fd_interior_primitive_variables_tags =
+      tmpl::list<hydro::Tags::RestMassDensity<DataVector>,
+                 hydro::Tags::SpatialVelocity<DataVector, Dim>,
+                 hydro::Tags::SpecificInternalEnergy<DataVector>,
+                 hydro::Tags::Pressure<DataVector>,
+                 hydro::Tags::MagneticField<DataVector, Dim>,
+                 hydro::Tags::DivergenceCleaningField<DataVector>>;
+  using fd_gridless_tags = tmpl::list<hydro::Tags::EquationOfState<false, 2>,
+                                      fd::Tags::Reconstructor<Dim>>;
+
+  /// \brief Copies the outermost cells into the ghost zone, after checking
+  /// that no fluid characteristic enters the domain.
+  ///
+  /// This is a piecewise-constant (lowest-order) reconstruction at the
+  /// external boundary. As in `dg_demand_outgoing_char_speeds`, only the
+  /// fluid speed \f$v_n - c_f\f$ is checked: the GLM cleaning waves travel at
+  /// \f$\pm c_h\f$ whatever the state, so one of them always enters and
+  /// requiring otherwise would reject every boundary.
+  static void fd_demand_outgoing_char_speeds(
+      gsl::not_null<Scalar<DataVector>*> mass_density,
+      gsl::not_null<tnsr::I<DataVector, Dim, Frame::Inertial>*> velocity,
+      gsl::not_null<Scalar<DataVector>*> pressure,
+      gsl::not_null<tnsr::I<DataVector, Dim, Frame::Inertial>*> magnetic_field,
+      gsl::not_null<Scalar<DataVector>*> divergence_cleaning_field,
+
+      const Direction<Dim>& direction,
+
+      const std::optional<tnsr::I<DataVector, Dim, Frame::Inertial>>&
+          face_mesh_velocity,
+      const tnsr::i<DataVector, Dim, Frame::Inertial>&
+          outward_directed_normal_covector,
+
+      // fd_interior_temporary_tags
+      const Mesh<Dim>& subcell_mesh,
+      BackgroundMagneticFieldArgument<Dim, UseBackgroundMagneticField>
+          interior_background_magnetic_field,
+
+      // fd_interior_primitive_variables_tags
+      const Scalar<DataVector>& interior_mass_density,
+      const tnsr::I<DataVector, Dim, Frame::Inertial>& interior_velocity,
+      const Scalar<DataVector>& interior_specific_internal_energy,
+      const Scalar<DataVector>& interior_pressure,
+      const tnsr::I<DataVector, Dim, Frame::Inertial>& interior_magnetic_field,
+      const Scalar<DataVector>& interior_divergence_cleaning_field,
+
+      // fd_gridless_tags
+      const EquationsOfState::EquationOfState<false, 2>& equation_of_state,
+      const fd::Reconstructor<Dim>& reconstructor);
+
+  /// \brief Overload selected when the background-field splitting is
+  /// disabled, where `fd_interior_temporary_tags` holds no \f$B_0\f$.
+  static void fd_demand_outgoing_char_speeds(
+      gsl::not_null<Scalar<DataVector>*> mass_density,
+      gsl::not_null<tnsr::I<DataVector, Dim, Frame::Inertial>*> velocity,
+      gsl::not_null<Scalar<DataVector>*> pressure,
+      gsl::not_null<tnsr::I<DataVector, Dim, Frame::Inertial>*> magnetic_field,
+      gsl::not_null<Scalar<DataVector>*> divergence_cleaning_field,
+
+      const Direction<Dim>& direction,
+
+      const std::optional<tnsr::I<DataVector, Dim, Frame::Inertial>>&
+          face_mesh_velocity,
+      const tnsr::i<DataVector, Dim, Frame::Inertial>&
+          outward_directed_normal_covector,
+
+      const Mesh<Dim>& subcell_mesh,
+
+      const Scalar<DataVector>& interior_mass_density,
+      const tnsr::I<DataVector, Dim, Frame::Inertial>& interior_velocity,
+      const Scalar<DataVector>& interior_specific_internal_energy,
+      const Scalar<DataVector>& interior_pressure,
+      const tnsr::I<DataVector, Dim, Frame::Inertial>& interior_magnetic_field,
+      const Scalar<DataVector>& interior_divergence_cleaning_field,
+
+      const EquationsOfState::EquationOfState<false, 2>& equation_of_state,
+      const fd::Reconstructor<Dim>& reconstructor);
 
   /// @{
   /// The background-field overload is selected by

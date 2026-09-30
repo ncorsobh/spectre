@@ -12,7 +12,10 @@
 #include "DataStructures/DataVector.hpp"
 #include "DataStructures/Tensor/Tensor.hpp"
 #include "Domain/BoundaryConditions/BoundaryCondition.hpp"
+#include "Domain/Structure/Direction.hpp"
 #include "Evolution/Systems/NewtonianMhd/BoundaryConditions/Reflection.hpp"
+#include "Evolution/Systems/NewtonianMhd/FiniteDifference/Reconstructor.hpp"
+#include "NumericalAlgorithms/Spectral/Mesh.hpp"
 #include "Utilities/ErrorHandling/Error.hpp"
 #include "Utilities/GenerateInstantiations.hpp"
 #include "Utilities/Gsl.hpp"
@@ -151,6 +154,29 @@ template <size_t Dim, bool UseBackgroundMagneticField>
 // NOLINTNEXTLINE
 PUP::able::PUP_ID
     ConductorReflection<Dim, UseBackgroundMagneticField>::my_PUP_ID = 0;
+
+template <size_t Dim, bool UseBackgroundMagneticField>
+void ConductorReflection<Dim, UseBackgroundMagneticField>::fd_ghost(
+    const gsl::not_null<Scalar<DataVector>*> mass_density,
+    const gsl::not_null<tnsr::I<DataVector, Dim, Frame::Inertial>*> velocity,
+    const gsl::not_null<Scalar<DataVector>*> pressure,
+    const gsl::not_null<tnsr::I<DataVector, Dim, Frame::Inertial>*>
+        magnetic_field,
+    const gsl::not_null<Scalar<DataVector>*> divergence_cleaning_field,
+    const Direction<Dim>& direction, const Mesh<Dim>& subcell_mesh,
+    const Scalar<DataVector>& interior_mass_density,
+    const tnsr::I<DataVector, Dim, Frame::Inertial>& interior_velocity,
+    const Scalar<DataVector>& interior_pressure,
+    const tnsr::I<DataVector, Dim, Frame::Inertial>& interior_magnetic_field,
+    const Scalar<DataVector>& interior_divergence_cleaning_field,
+    const fd::Reconstructor<Dim>& reconstructor) const {
+  detail::reflection_fd_ghost<Dim>(
+      mass_density, velocity, pressure, magnetic_field,
+      divergence_cleaning_field, direction, subcell_mesh, interior_mass_density,
+      interior_velocity, interior_pressure, interior_magnetic_field,
+      interior_divergence_cleaning_field, reconstructor.ghost_zone_size(),
+      true);
+}
 
 #define DIM(data) BOOST_PP_TUPLE_ELEM(0, data)
 #define USE_BG(data) BOOST_PP_TUPLE_ELEM(1, data)

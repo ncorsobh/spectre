@@ -10,13 +10,21 @@
 #include <string>
 
 #include "DataStructures/DataVector.hpp"
+#include "DataStructures/Index.hpp"
+#include "DataStructures/SliceVariables.hpp"
 #include "DataStructures/Tags/TempTensor.hpp"
 #include "DataStructures/Tensor/EagerMath/DotProduct.hpp"
 #include "DataStructures/Tensor/Tensor.hpp"
 #include "DataStructures/Variables.hpp"
 #include "Domain/BoundaryConditions/BoundaryCondition.hpp"
+#include "Domain/Structure/Direction.hpp"
+#include "Evolution/DgSubcell/SliceTensor.hpp"
 #include "Evolution/Systems/NewtonianMhd/ConservativeFromPrimitive.hpp"
+#include "Evolution/Systems/NewtonianMhd/FiniteDifference/Reconstructor.hpp"
 #include "Evolution/Systems/NewtonianMhd/Fluxes.hpp"
+#include "NumericalAlgorithms/LinearOperators/PartialDerivatives.hpp"
+#include "NumericalAlgorithms/Spectral/Mesh.hpp"
+#include "PointwiseFunctions/Hydro/Tags.hpp"
 #include "Utilities/ErrorHandling/Error.hpp"
 #include "Utilities/GenerateInstantiations.hpp"
 #include "Utilities/Gsl.hpp"
@@ -124,6 +132,76 @@ void reflection_dg_ghost(
       *energy_density, *magnetic_field_cons, *divergence_cleaning_field_cons,
       *velocity, interior_pressure, divergence_cleaning_speed,
       interior_background_magnetic_field);
+}
+template <size_t Dim>
+void reflection_fd_ghost(
+    const gsl::not_null<Scalar<DataVector>*> mass_density,
+    const gsl::not_null<tnsr::I<DataVector, Dim, Frame::Inertial>*> velocity,
+    const gsl::not_null<Scalar<DataVector>*> pressure,
+    const gsl::not_null<tnsr::I<DataVector, Dim, Frame::Inertial>*>
+        magnetic_field,
+    const gsl::not_null<Scalar<DataVector>*> divergence_cleaning_field,
+    const Direction<Dim>& direction, const Mesh<Dim>& subcell_mesh,
+    const Scalar<DataVector>& interior_mass_density,
+    const tnsr::I<DataVector, Dim, Frame::Inertial>& interior_velocity,
+    const Scalar<DataVector>& interior_pressure,
+    const tnsr::I<DataVector, Dim, Frame::Inertial>& interior_magnetic_field,
+    const Scalar<DataVector>& interior_divergence_cleaning_field,
+    const size_t ghost_zone_size, const bool no_slip) {
+  const size_t dim_direction = direction.dimension();
+  const auto subcell_extents = subcell_mesh.extents();
+
+  using MassDensity = hydro::Tags::RestMassDensity<DataVector>;
+  using Velocity = hydro::Tags::SpatialVelocity<DataVector, Dim>;
+  using Pressure = hydro::Tags::Pressure<DataVector>;
+  using MagneticField = hydro::Tags::MagneticField<DataVector, Dim>;
+  using DivergenceCleaningField =
+      hydro::Tags::DivergenceCleaningField<DataVector>;
+  using prim_tags = tmpl::list<MassDensity, Velocity, Pressure, MagneticField,
+                               DivergenceCleaningField>;
+
+  const size_t num_face_pts =
+      subcell_extents.slice_away(dim_direction).product();
+  Variables<prim_tags> outermost_prim_vars{num_face_pts};
+
+  const auto get_boundary_val = [&direction,
+                                 &subcell_extents](const auto& volume_tensor) {
+    return evolution::dg::subcell::slice_tensor_for_subcell(
+        volume_tensor, subcell_extents, 1, direction, {});
+  };
+
+  get<MassDensity>(outermost_prim_vars) =
+      get_boundary_val(interior_mass_density);
+  get<Pressure>(outermost_prim_vars) = get_boundary_val(interior_pressure);
+  // Anti-symmetric, matching the DG ghost state: this is what makes the
+  // interface value of psi, and hence of B^i n_i, vanish.
+  get(get<DivergenceCleaningField>(outermost_prim_vars)) =
+      -get(get_boundary_val(interior_divergence_cleaning_field));
+
+  const auto boundary_velocity = get_boundary_val(interior_velocity);
+  const auto boundary_magnetic_field =
+      get_boundary_val(interior_magnetic_field);
+  for (size_t i = 0; i < Dim; ++i) {
+    const bool flip_velocity = no_slip or i == dim_direction;
+    get<Velocity>(outermost_prim_vars).get(i) =
+        (flip_velocity ? -1.0 : 1.0) * boundary_velocity.get(i);
+    get<MagneticField>(outermost_prim_vars).get(i) =
+        (i == dim_direction ? -1.0 : 1.0) * boundary_magnetic_field.get(i);
+  }
+
+  Index<Dim> ghost_data_extents = subcell_extents;
+  ghost_data_extents[dim_direction] = ghost_zone_size;
+  Variables<prim_tags> ghost_prim_vars{ghost_data_extents.product(), 0.0};
+  for (size_t i_ghost = 0; i_ghost < ghost_zone_size; ++i_ghost) {
+    add_slice_to_data(make_not_null(&ghost_prim_vars), outermost_prim_vars,
+                      ghost_data_extents, dim_direction, i_ghost);
+  }
+
+  *mass_density = get<MassDensity>(ghost_prim_vars);
+  *velocity = get<Velocity>(ghost_prim_vars);
+  *pressure = get<Pressure>(ghost_prim_vars);
+  *magnetic_field = get<MagneticField>(ghost_prim_vars);
+  *divergence_cleaning_field = get<DivergenceCleaningField>(ghost_prim_vars);
 }
 }  // namespace detail
 
@@ -260,6 +338,29 @@ template <size_t Dim, bool UseBackgroundMagneticField>
 // NOLINTNEXTLINE
 PUP::able::PUP_ID Reflection<Dim, UseBackgroundMagneticField>::my_PUP_ID = 0;
 
+template <size_t Dim, bool UseBackgroundMagneticField>
+void Reflection<Dim, UseBackgroundMagneticField>::fd_ghost(
+    const gsl::not_null<Scalar<DataVector>*> mass_density,
+    const gsl::not_null<tnsr::I<DataVector, Dim, Frame::Inertial>*> velocity,
+    const gsl::not_null<Scalar<DataVector>*> pressure,
+    const gsl::not_null<tnsr::I<DataVector, Dim, Frame::Inertial>*>
+        magnetic_field,
+    const gsl::not_null<Scalar<DataVector>*> divergence_cleaning_field,
+    const Direction<Dim>& direction, const Mesh<Dim>& subcell_mesh,
+    const Scalar<DataVector>& interior_mass_density,
+    const tnsr::I<DataVector, Dim, Frame::Inertial>& interior_velocity,
+    const Scalar<DataVector>& interior_pressure,
+    const tnsr::I<DataVector, Dim, Frame::Inertial>& interior_magnetic_field,
+    const Scalar<DataVector>& interior_divergence_cleaning_field,
+    const fd::Reconstructor<Dim>& reconstructor) const {
+  detail::reflection_fd_ghost<Dim>(
+      mass_density, velocity, pressure, magnetic_field,
+      divergence_cleaning_field, direction, subcell_mesh, interior_mass_density,
+      interior_velocity, interior_pressure, interior_magnetic_field,
+      interior_divergence_cleaning_field, reconstructor.ghost_zone_size(),
+      false);
+}
+
 #define DIM(data) BOOST_PP_TUPLE_ELEM(0, data)
 #define USE_BG(data) BOOST_PP_TUPLE_ELEM(1, data)
 
@@ -308,5 +409,29 @@ GENERATE_INSTANTIATIONS(INSTANTIATION, (1, 2, 3), (true, false))
 
 #undef INSTANTIATION
 #undef USE_BG
+
+#define INSTANTIATE_FD(_, data)                                       \
+  template void detail::reflection_fd_ghost<DIM(data)>(               \
+      gsl::not_null<Scalar<DataVector>*> mass_density,                \
+      gsl::not_null<tnsr::I<DataVector, DIM(data), Frame::Inertial>*> \
+          velocity,                                                   \
+      gsl::not_null<Scalar<DataVector>*> pressure,                    \
+      gsl::not_null<tnsr::I<DataVector, DIM(data), Frame::Inertial>*> \
+          magnetic_field,                                             \
+      gsl::not_null<Scalar<DataVector>*> divergence_cleaning_field,   \
+      const Direction<DIM(data)>& direction,                          \
+      const Mesh<DIM(data)>& subcell_mesh,                            \
+      const Scalar<DataVector>& interior_mass_density,                \
+      const tnsr::I<DataVector, DIM(data), Frame::Inertial>&          \
+          interior_velocity,                                          \
+      const Scalar<DataVector>& interior_pressure,                    \
+      const tnsr::I<DataVector, DIM(data), Frame::Inertial>&          \
+          interior_magnetic_field,                                    \
+      const Scalar<DataVector>& interior_divergence_cleaning_field,   \
+      size_t ghost_zone_size, bool no_slip);
+
+GENERATE_INSTANTIATIONS(INSTANTIATE_FD, (1, 2, 3))
+
+#undef INSTANTIATE_FD
 #undef DIM
 }  // namespace NewtonianMhd::BoundaryConditions

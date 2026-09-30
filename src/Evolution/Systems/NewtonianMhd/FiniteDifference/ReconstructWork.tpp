@@ -93,19 +93,27 @@ void reconstruct_prims_work(
 
         DirectionMap<Dim, gsl::span<const double>> ghost_cell_vars{};
         for (const auto& direction : Direction<Dim>::all_directions()) {
-          const auto& neighbors_in_direction =
-              element.neighbors().at(direction);
-          ASSERT(neighbors_in_direction.size() == 1,
-                 "Currently only support one neighbor in each direction, but "
-                 "got "
-                     << neighbors_in_direction.size() << " in direction "
-                     << direction);
+          DirectionalId<Dim> id{};
+          if (element.neighbors().contains(direction)) {
+            const auto& neighbors_in_direction =
+                element.neighbors().at(direction);
+            ASSERT(neighbors_in_direction.size() == 1,
+                   "Currently only support one neighbor in each direction, but "
+                   "got "
+                       << neighbors_in_direction.size() << " in direction "
+                       << direction);
+            id = DirectionalId<Dim>{direction, *neighbors_in_direction.begin()};
+          } else {
+            ASSERT(element.external_boundaries().count(direction) == 1,
+                   "Element has neither neighbor nor external boundary to "
+                   "direction: "
+                       << direction);
+            id = DirectionalId<Dim>{direction,
+                                    ElementId<Dim>::external_boundary_id()};
+          }
 
           const DataVector& neighbor_data =
-              ghost_data
-                  .at(DirectionalId<Dim>{direction,
-                                         *neighbors_in_direction.begin()})
-                  .neighbor_ghost_data_for_reconstruction();
+              ghost_data.at(id).neighbor_ghost_data_for_reconstruction();
 
           ASSERT(neighbor_data.size() != 0,
                  "The neighber data is empty in direction "
@@ -193,7 +201,9 @@ void reconstruct_fd_neighbor_work(
 
   const DirectionalId<Dim> mortar_id{
       direction_to_reconstruct,
-      *element.neighbors().at(direction_to_reconstruct).begin()};
+      element.neighbors().contains(direction_to_reconstruct)
+          ? *element.neighbors().at(direction_to_reconstruct).begin()
+          : ElementId<Dim>::external_boundary_id()};
   Index<Dim> ghost_data_extents = subcell_mesh.extents();
   ghost_data_extents[direction_to_reconstruct.dimension()] = ghost_zone_size;
   Variables<prim_tags_for_reconstruction> neighbor_prims{

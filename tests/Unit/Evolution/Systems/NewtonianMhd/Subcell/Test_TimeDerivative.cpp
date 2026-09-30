@@ -108,6 +108,9 @@ template <bool UseBackgroundMagneticField>
 struct MetaVars {
   static constexpr size_t volume_dim = Dim;
   using system = NewtonianMhd::System<Dim, UseBackgroundMagneticField>;
+  struct SubcellOptions {
+    static constexpr bool subcell_enabled_at_external_boundary = false;
+  };
   struct factory_creation
       : tt::ConformsTo<Options::protocols::FactoryCreation> {
     using factory_classes = tmpl::map<tmpl::pair<

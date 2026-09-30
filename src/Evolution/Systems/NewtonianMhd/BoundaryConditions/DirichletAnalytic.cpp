@@ -14,9 +14,13 @@
 #include "DataStructures/TaggedTuple.hpp"
 #include "DataStructures/Tensor/Tensor.hpp"
 #include "Domain/BoundaryConditions/BoundaryCondition.hpp"
+#include "Domain/ElementMap.hpp"
+#include "Evolution/DgSubcell/GhostZoneLogicalCoordinates.hpp"
 #include "Evolution/Systems/NewtonianMhd/AllSolutions.hpp"
 #include "Evolution/Systems/NewtonianMhd/ConservativeFromPrimitive.hpp"
+#include "Evolution/Systems/NewtonianMhd/FiniteDifference/Reconstructor.hpp"
 #include "Evolution/Systems/NewtonianMhd/Fluxes.hpp"
+#include "NumericalAlgorithms/Spectral/Mesh.hpp"
 #include "PointwiseFunctions/AnalyticSolutions/AnalyticSolution.hpp"
 #include "PointwiseFunctions/Hydro/Tags.hpp"
 #include "Utilities/CallWithDynamicType.hpp"
@@ -207,6 +211,83 @@ template <size_t Dim, bool UseBackgroundMagneticField>
 // NOLINTNEXTLINE
 PUP::able::PUP_ID
     DirichletAnalytic<Dim, UseBackgroundMagneticField>::my_PUP_ID = 0;
+
+template <size_t Dim, bool UseBackgroundMagneticField>
+void DirichletAnalytic<Dim, UseBackgroundMagneticField>::fd_ghost(
+    const gsl::not_null<Scalar<DataVector>*> mass_density,
+    const gsl::not_null<tnsr::I<DataVector, Dim, Frame::Inertial>*> velocity,
+    const gsl::not_null<Scalar<DataVector>*> pressure,
+    const gsl::not_null<tnsr::I<DataVector, Dim, Frame::Inertial>*>
+        magnetic_field,
+    const gsl::not_null<Scalar<DataVector>*> divergence_cleaning_field,
+    const Direction<Dim>& direction, const Mesh<Dim>& subcell_mesh,
+    const double time,
+    const std::unordered_map<
+        std::string,
+        std::unique_ptr<::domain::FunctionsOfTime::FunctionOfTime>>&
+        functions_of_time,
+    const ElementMap<Dim, Frame::Grid>& logical_to_grid_map,
+    const domain::CoordinateMapBase<Frame::Grid, Frame::Inertial, Dim>&
+        grid_to_inertial_map,
+    const fd::Reconstructor<Dim>& reconstructor) const {
+  const auto ghost_logical_coords =
+      evolution::dg::subcell::fd::ghost_zone_logical_coordinates(
+          subcell_mesh, reconstructor.ghost_zone_size(), direction);
+  const auto coords = grid_to_inertial_map(
+      logical_to_grid_map(ghost_logical_coords), time, functions_of_time);
+
+  using boundary_tags =
+      tmpl::list<hydro::Tags::RestMassDensity<DataVector>,
+                 hydro::Tags::SpatialVelocity<DataVector, Dim>,
+                 hydro::Tags::Pressure<DataVector>,
+                 hydro::Tags::MagneticField<DataVector, Dim>,
+                 hydro::Tags::DivergenceCleaningField<DataVector>>;
+
+  auto boundary_values =
+      call_with_dynamic_type<tuples::tagged_tuple_from_typelist<boundary_tags>,
+                             NewtonianMhd::InitialData::initial_data_list<Dim>>(
+          analytic_prescription_.get(),
+          [&coords, &time](const auto* const initial_data) {
+            if constexpr (is_analytic_solution_v<
+                              std::decay_t<decltype(*initial_data)>>) {
+              return initial_data->variables(coords, time, boundary_tags{});
+            } else {
+              (void)time;
+              return initial_data->variables(coords, boundary_tags{});
+            }
+          });
+
+  *mass_density =
+      get<hydro::Tags::RestMassDensity<DataVector>>(boundary_values);
+  *velocity =
+      get<hydro::Tags::SpatialVelocity<DataVector, Dim>>(boundary_values);
+  *pressure = get<hydro::Tags::Pressure<DataVector>>(boundary_values);
+  *magnetic_field =
+      get<hydro::Tags::MagneticField<DataVector, Dim>>(boundary_values);
+  *divergence_cleaning_field =
+      get<hydro::Tags::DivergenceCleaningField<DataVector>>(boundary_values);
+
+  if constexpr (UseBackgroundMagneticField) {
+    // The prescription gives the total field, but the reconstructed variable
+    // is the evolved perturbation, so B0 is evaluated on the ghost zone and
+    // removed.
+    using background_tag =
+        tmpl::list<NewtonianMhd::Tags::BackgroundMagneticFieldVolume<Dim>>;
+    const auto background = call_with_dynamic_type<
+        tuples::tagged_tuple_from_typelist<background_tag>,
+        NewtonianMhd::InitialData::background_magnetic_field_initial_data_list<
+            Dim>>(analytic_prescription_.get(),
+                  [&coords](const auto* const initial_data) {
+                    return initial_data->variables(coords, background_tag{});
+                  });
+    for (size_t i = 0; i < Dim; ++i) {
+      magnetic_field->get(i) -=
+          get<NewtonianMhd::Tags::BackgroundMagneticFieldVolume<Dim>>(
+              background)
+              .get(i);
+    }
+  }
+}
 
 #define DIM(data) BOOST_PP_TUPLE_ELEM(0, data)
 #define USE_BG(data) BOOST_PP_TUPLE_ELEM(1, data)
