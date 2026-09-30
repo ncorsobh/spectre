@@ -3,6 +3,7 @@
 
 #include "Evolution/Systems/NewtonianMhd/BoundaryConditions/Reflection.hpp"
 
+#include <algorithm>
 #include <cstddef>
 #include <memory>
 #include <optional>
@@ -14,6 +15,7 @@
 #include "DataStructures/SliceVariables.hpp"
 #include "DataStructures/Tags/TempTensor.hpp"
 #include "DataStructures/Tensor/EagerMath/DotProduct.hpp"
+#include "DataStructures/Tensor/EagerMath/Magnitude.hpp"
 #include "DataStructures/Tensor/Tensor.hpp"
 #include "DataStructures/Variables.hpp"
 #include "Domain/BoundaryConditions/BoundaryCondition.hpp"
@@ -119,6 +121,30 @@ void reflection_dg_ghost(
     // B0 is smooth and continuous across the boundary, so the exterior value is
     // the interior one.
     *background_magnetic_field = interior_background_magnetic_field;
+
+    if (not no_slip) {
+      // Free slip leaves the tangential velocity arbitrary, so the perfect
+      // conductor condition B_n (n x v_t) = 0 can only hold if the total
+      // normal field vanishes. The reflection already removes B_1^i n_i, so
+      // what is left to check is B_0^i n_i.
+      const Scalar<DataVector> normal_dot_background = dot_product(
+          outward_directed_normal_covector, interior_background_magnetic_field);
+      const double background_magnitude =
+          max(get(magnitude(interior_background_magnetic_field)));
+      if (max(abs(get(normal_dot_background))) >
+          1.0e-12 * std::max(background_magnitude, 1.0)) {
+        ERROR(
+            "The Reflection boundary condition requires the background "
+            "magnetic field to be tangent to the boundary, but max|B_0^i n_i| "
+            "is "
+            << max(abs(get(normal_dot_background)))
+            << " against a background field of magnitude "
+            << background_magnitude
+            << ". A boundary threaded by normal magnetic flux needs the "
+               "tangential velocity to vanish as well; use "
+               "ConductorReflection there.");
+      }
+    }
   }
 
   ConservativeFromPrimitive::apply(

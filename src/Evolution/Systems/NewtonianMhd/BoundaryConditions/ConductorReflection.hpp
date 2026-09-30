@@ -42,9 +42,17 @@ namespace NewtonianMhd::BoundaryConditions {
  * \f}
  *
  * so that the interface velocity matches the velocity of the boundary itself.
- * This models a magnetized conductor, whose frozen-in flux drags the tangential
- * flow along with the surface; it is an effective, not a physical, viscosity -
- * the system carries no viscosity or resistivity.
+ *
+ * Reversing the tangential velocity as well is what makes this condition valid
+ * for a wall threaded by normal magnetic flux.  As set out in `Reflection`, a
+ * perfect conductor requires \f$B_n(n\times v_t) = 0\f$ at an impenetrable
+ * wall; where \f$B^in_i \neq 0\f$ that can only be met by \f$v_t = 0\f$.
+ * Use this condition whenever the background field has a normal component at
+ * the surface, and `Reflection` when it does not.
+ *
+ * The no-slip surface drags the tangential flow along with it; that is an
+ * effective, not a physical, viscosity - the system carries no viscosity or
+ * resistivity.
  */
 template <bool UseBackgroundMagneticField = false>
 class ConductorReflection final : public BoundaryCondition {

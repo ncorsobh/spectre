@@ -111,10 +111,26 @@ void reflection_fd_ghost(
  *
  * with \f$\rho\f$, \f$\epsilon\f$ and \f$P\f$ copied unchanged.  Reversing the
  * normal component of \f$B_1\f$ makes the interface value of \f$B_1^in_i\f$
- * vanish; for the conducting-sphere problem the background field satisfies
- * \f$B_0^in_i = 0\f$ at the surface by construction, so the *total* normal
- * field vanishes there as well.  The anti-symmetric \f$\psi\f$ is what the GLM
- * subsystem needs for \f$B^in_i = 0\f$ to be preserved by the cleaning waves.
+ * vanish, and the anti-symmetric \f$\psi\f$ is what the GLM subsystem needs
+ * for \f$B^in_i = 0\f$ to be preserved by the cleaning waves.
+ *
+ * \note This condition is only admissible where the *total* normal field
+ * vanishes.  A perfect conductor requires the tangential electric field to
+ * vanish in its rest frame, and in ideal MHD \f$E = -v\times B\f$ gives
+ *
+ * \f{align*}
+ *   E_t = -v_n\,(n\times B_t) + B_n\,(n\times v_t) ,
+ * \f}
+ *
+ * which at an impenetrable wall (\f$v_n = 0\f$) leaves \f$B_n(n\times v_t)\f$.
+ * Free slip keeps \f$v_t\f$ arbitrary, so it is consistent only when
+ * \f$B_n = 0\f$; a wall threaded by normal flux instead needs
+ * \f$v_t = 0\f$, which is what `ConductorReflection` imposes.
+ *
+ * The reflection drives \f$B_1^in_i\f$ to zero, so \f$B^in_i = B_0^in_i\f$
+ * at the interface.  With the background-field splitting enabled this class
+ * therefore checks that \f$B_0^in_i\f$ vanishes and errors out otherwise,
+ * rather than assuming a particular background.
  *
  * The background field \f$B_0\f$ is copied to the exterior unchanged: it is
  * smooth and is only used by the boundary correction to evaluate wave speeds.
