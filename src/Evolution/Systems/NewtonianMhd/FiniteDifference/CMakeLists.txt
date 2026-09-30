@@ -6,6 +6,7 @@ spectre_target_sources(
   PRIVATE
   AoWeno.cpp
   MonotonisedCentral.cpp
+  PositivityPreservingAdaptiveOrder.cpp
   Reconstructor.cpp
   RegisterDerivedWithCharm.cpp
   )
@@ -19,6 +20,7 @@ spectre_target_headers(
   Factory.hpp
   FiniteDifference.hpp
   MonotonisedCentral.hpp
+  PositivityPreservingAdaptiveOrder.hpp
   ReconstructWork.hpp
   ReconstructWork.tpp
   Reconstructor.hpp

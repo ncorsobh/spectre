@@ -5,4 +5,5 @@
 
 #include "Evolution/Systems/NewtonianMhd/FiniteDifference/AoWeno.hpp"
 #include "Evolution/Systems/NewtonianMhd/FiniteDifference/MonotonisedCentral.hpp"
+#include "Evolution/Systems/NewtonianMhd/FiniteDifference/PositivityPreservingAdaptiveOrder.hpp"
 #include "Evolution/Systems/NewtonianMhd/FiniteDifference/Reconstructor.hpp"

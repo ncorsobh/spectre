@@ -27,7 +27,8 @@
 #include "Utilities/Gsl.hpp"
 
 namespace NewtonianMhd::fd {
-template <typename PrimsTags, typename TagsList, size_t Dim, typename F>
+template <typename TagsToReconstruct, typename PrimsTags, typename TagsList,
+          size_t Dim, typename F>
 void reconstruct_prims_work(
     const gsl::not_null<std::array<Variables<TagsList>, Dim>*>
         vars_on_lower_face,
@@ -37,7 +38,8 @@ void reconstruct_prims_work(
     const EquationsOfState::EquationOfState<false, 2>& eos,
     const Element<Dim>& element,
     const DirectionalIdMap<Dim, evolution::dg::subcell::GhostData>& ghost_data,
-    const Mesh<Dim>& subcell_mesh, const size_t ghost_zone_size) {
+    const Mesh<Dim>& subcell_mesh, const size_t ghost_zone_size,
+    const bool compute_conservatives) {
   // Conservative vars tags
   using MassDensityCons = Tags::MassDensityCons;
   using EnergyDensity = Tags::EnergyDensity;
@@ -69,68 +71,80 @@ void reconstruct_prims_work(
   const size_t neighbor_num_pts =
       ghost_zone_size * subcell_mesh.extents().slice_away(0).product();
   size_t vars_in_neighbor_count = 0;
-  tmpl::for_each<prim_tags_for_reconstruction>(
-      [&element, &ghost_data, neighbor_num_pts, &reconstruct,
-       reconstructed_num_pts, volume_num_pts, &volume_prims,
-       &vars_in_neighbor_count, &vars_on_lower_face, &vars_on_upper_face,
-       &subcell_mesh](auto tag_v) {
-        using tag = tmpl::type_from<decltype(tag_v)>;
-        auto& volume_tensor = get<tag>(volume_prims);
+  tmpl::for_each<prim_tags_for_reconstruction>([&element, &ghost_data,
+                                                neighbor_num_pts, &reconstruct,
+                                                reconstructed_num_pts,
+                                                volume_num_pts, &volume_prims,
+                                                &vars_in_neighbor_count,
+                                                &vars_on_lower_face,
+                                                &vars_on_upper_face,
+                                                &subcell_mesh](auto tag_v) {
+    using tag = tmpl::type_from<decltype(tag_v)>;
+    auto& volume_tensor = get<tag>(volume_prims);
 
-        const size_t number_of_components = volume_tensor.size();
-        const gsl::span<const double> volume_vars = gsl::make_span(
-            volume_tensor[0].data(), number_of_components * volume_num_pts);
-        std::array<gsl::span<double>, Dim> upper_face_vars{};
-        std::array<gsl::span<double>, Dim> lower_face_vars{};
-        for (size_t i = 0; i < Dim; ++i) {
-          gsl::at(upper_face_vars, i) = gsl::make_span(
-              get<tag>(gsl::at(*vars_on_upper_face, i))[0].data(),
-              number_of_components * reconstructed_num_pts);
-          gsl::at(lower_face_vars, i) = gsl::make_span(
-              get<tag>(gsl::at(*vars_on_lower_face, i))[0].data(),
-              number_of_components * reconstructed_num_pts);
+    const size_t number_of_components = volume_tensor.size();
+    if constexpr (not tmpl::list_contains_v<TagsToReconstruct, tag>) {
+      // Still advance the offset: the neighbour data is packed with every
+      // reconstructed tag present, whichever subset this call handles.
+      vars_in_neighbor_count += number_of_components;
+      return;
+    } else {
+      const gsl::span<const double> volume_vars = gsl::make_span(
+          volume_tensor[0].data(), number_of_components * volume_num_pts);
+      std::array<gsl::span<double>, Dim> upper_face_vars{};
+      std::array<gsl::span<double>, Dim> lower_face_vars{};
+      for (size_t i = 0; i < Dim; ++i) {
+        gsl::at(upper_face_vars, i) =
+            gsl::make_span(get<tag>(gsl::at(*vars_on_upper_face, i))[0].data(),
+                           number_of_components * reconstructed_num_pts);
+        gsl::at(lower_face_vars, i) =
+            gsl::make_span(get<tag>(gsl::at(*vars_on_lower_face, i))[0].data(),
+                           number_of_components * reconstructed_num_pts);
+      }
+
+      DirectionMap<Dim, gsl::span<const double>> ghost_cell_vars{};
+      for (const auto& direction : Direction<Dim>::all_directions()) {
+        DirectionalId<Dim> id{};
+        if (element.neighbors().contains(direction)) {
+          const auto& neighbors_in_direction =
+              element.neighbors().at(direction);
+          ASSERT(neighbors_in_direction.size() == 1,
+                 "Currently only support one neighbor in each direction, but "
+                 "got "
+                     << neighbors_in_direction.size() << " in direction "
+                     << direction);
+          id = DirectionalId<Dim>{direction, *neighbors_in_direction.begin()};
+        } else {
+          ASSERT(element.external_boundaries().count(direction) == 1,
+                 "Element has neither neighbor nor external boundary to "
+                 "direction: "
+                     << direction);
+          id = DirectionalId<Dim>{direction,
+                                  ElementId<Dim>::external_boundary_id()};
         }
 
-        DirectionMap<Dim, gsl::span<const double>> ghost_cell_vars{};
-        for (const auto& direction : Direction<Dim>::all_directions()) {
-          DirectionalId<Dim> id{};
-          if (element.neighbors().contains(direction)) {
-            const auto& neighbors_in_direction =
-                element.neighbors().at(direction);
-            ASSERT(neighbors_in_direction.size() == 1,
-                   "Currently only support one neighbor in each direction, but "
-                   "got "
-                       << neighbors_in_direction.size() << " in direction "
-                       << direction);
-            id = DirectionalId<Dim>{direction, *neighbors_in_direction.begin()};
-          } else {
-            ASSERT(element.external_boundaries().count(direction) == 1,
-                   "Element has neither neighbor nor external boundary to "
-                   "direction: "
-                       << direction);
-            id = DirectionalId<Dim>{direction,
-                                    ElementId<Dim>::external_boundary_id()};
-          }
+        const DataVector& neighbor_data =
+            ghost_data.at(id).neighbor_ghost_data_for_reconstruction();
 
-          const DataVector& neighbor_data =
-              ghost_data.at(id).neighbor_ghost_data_for_reconstruction();
+        ASSERT(neighbor_data.size() != 0,
+               "The neighber data is empty in direction "
+                   << direction << " on element id " << element.id());
+        ghost_cell_vars[direction] = gsl::make_span(
+            &neighbor_data[vars_in_neighbor_count * neighbor_num_pts],
+            number_of_components * neighbor_num_pts);
+      }
 
-          ASSERT(neighbor_data.size() != 0,
-                 "The neighber data is empty in direction "
-                     << direction << " on element id " << element.id());
-          ghost_cell_vars[direction] = gsl::make_span(
-              &neighbor_data[vars_in_neighbor_count * neighbor_num_pts],
-              number_of_components * neighbor_num_pts);
-        }
+      reconstruct(make_not_null(&upper_face_vars),
+                  make_not_null(&lower_face_vars), volume_vars, ghost_cell_vars,
+                  subcell_mesh.extents(), number_of_components);
 
-        reconstruct(make_not_null(&upper_face_vars),
-                    make_not_null(&lower_face_vars), volume_vars,
-                    ghost_cell_vars, subcell_mesh.extents(),
-                    number_of_components);
+      vars_in_neighbor_count += number_of_components;
+    }
+  });
 
-        vars_in_neighbor_count += number_of_components;
-      });
-
+  if (not compute_conservatives) {
+    return;
+  }
   for (size_t i = 0; i < Dim; ++i) {
     auto& vars_upper_face = gsl::at(*vars_on_upper_face, i);
     auto& vars_lower_face = gsl::at(*vars_on_lower_face, i);
@@ -166,8 +180,8 @@ void reconstruct_prims_work(
   }
 }
 
-template <typename TagsList, typename PrimsTags, size_t Dim, typename F0,
-          typename F1>
+template <typename TagsToReconstruct, typename TagsList, typename PrimsTags,
+          size_t Dim, typename F0, typename F1>
 void reconstruct_fd_neighbor_work(
     const gsl::not_null<Variables<TagsList>*> vars_on_face,
     const F0& reconstruct_lower_neighbor, const F1& reconstruct_upper_neighbor,
@@ -177,7 +191,7 @@ void reconstruct_fd_neighbor_work(
     const DirectionalIdMap<Dim, evolution::dg::subcell::GhostData>& ghost_data,
     const Mesh<Dim>& subcell_mesh,
     const Direction<Dim>& direction_to_reconstruct,
-    const size_t ghost_zone_size) {
+    const size_t ghost_zone_size, const bool compute_conservatives) {
   // Conservative vars tags
   using MassDensityCons = Tags::MassDensityCons;
   using EnergyDensity = Tags::EnergyDensity;
@@ -226,30 +240,37 @@ void reconstruct_fd_neighbor_work(
        &reconstruct_lower_neighbor, &reconstruct_upper_neighbor, &subcell_mesh,
        &subcell_volume_prims, &vars_on_face](auto tag_v) {
         using tag = tmpl::type_from<decltype(tag_v)>;
-        const auto& tensor_volume = get<tag>(subcell_volume_prims);
-        const auto& tensor_neighbor = get<tag>(neighbor_prims);
-        auto& tensor_on_face = get<tag>(*vars_on_face);
-        if (direction_to_reconstruct.side() == Side::Upper) {
-          for (size_t tensor_index = 0; tensor_index < tensor_on_face.size();
-               ++tensor_index) {
-            reconstruct_upper_neighbor(
-                make_not_null(&tensor_on_face[tensor_index]),
-                tensor_volume[tensor_index], tensor_neighbor[tensor_index],
-                subcell_mesh.extents(), ghost_data_extents,
-                direction_to_reconstruct);
-          }
+        if constexpr (not tmpl::list_contains_v<TagsToReconstruct, tag>) {
+          return;
         } else {
-          for (size_t tensor_index = 0; tensor_index < tensor_on_face.size();
-               ++tensor_index) {
-            reconstruct_lower_neighbor(
-                make_not_null(&tensor_on_face[tensor_index]),
-                tensor_volume[tensor_index], tensor_neighbor[tensor_index],
-                subcell_mesh.extents(), ghost_data_extents,
-                direction_to_reconstruct);
+          const auto& tensor_volume = get<tag>(subcell_volume_prims);
+          const auto& tensor_neighbor = get<tag>(neighbor_prims);
+          auto& tensor_on_face = get<tag>(*vars_on_face);
+          if (direction_to_reconstruct.side() == Side::Upper) {
+            for (size_t tensor_index = 0; tensor_index < tensor_on_face.size();
+                 ++tensor_index) {
+              reconstruct_upper_neighbor(
+                  make_not_null(&tensor_on_face[tensor_index]),
+                  tensor_volume[tensor_index], tensor_neighbor[tensor_index],
+                  subcell_mesh.extents(), ghost_data_extents,
+                  direction_to_reconstruct);
+            }
+          } else {
+            for (size_t tensor_index = 0; tensor_index < tensor_on_face.size();
+                 ++tensor_index) {
+              reconstruct_lower_neighbor(
+                  make_not_null(&tensor_on_face[tensor_index]),
+                  tensor_volume[tensor_index], tensor_neighbor[tensor_index],
+                  subcell_mesh.extents(), ghost_data_extents,
+                  direction_to_reconstruct);
+            }
           }
         }
       });
 
+  if (not compute_conservatives) {
+    return;
+  }
   get<SpecificInternalEnergy>(*vars_on_face) =
       eos.specific_internal_energy_from_density_and_pressure(
           get<MassDensity>(*vars_on_face), get<Pressure>(*vars_on_face));

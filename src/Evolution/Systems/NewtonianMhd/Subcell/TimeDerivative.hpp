@@ -32,6 +32,7 @@
 #include "Evolution/DiscontinuousGalerkin/Actions/PackageDataImpl.hpp"
 #include "Evolution/DiscontinuousGalerkin/MortarTags.hpp"
 #include "Evolution/Systems/NewtonianMhd/FiniteDifference/BoundaryConditionGhostData.hpp"
+#include "Evolution/Systems/NewtonianMhd/FiniteDifference/Factory.hpp"
 #include "Evolution/Systems/NewtonianMhd/FiniteDifference/Reconstructor.hpp"
 #include "Evolution/Systems/NewtonianMhd/FiniteDifference/Tag.hpp"
 #include "Evolution/Systems/NewtonianMhd/Fluxes.hpp"

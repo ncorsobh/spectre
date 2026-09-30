@@ -44,7 +44,12 @@ namespace NewtonianMhd::fd {
  * The background field \f$B_0\f$ is not reconstructed: it is smooth by
  * construction and is evaluated directly wherever it is needed.
  */
-template <typename PrimsTags, typename TagsList, size_t Dim, typename F>
+/// `TagsToReconstruct` selects which of the reconstructed primitives this call
+/// handles, so that a scheme can treat some of them differently (for instance
+/// limiting only the variables that must stay positive). The neighbour data
+/// layout is unaffected: it always holds every reconstructed tag.
+template <typename TagsToReconstruct, typename PrimsTags, typename TagsList,
+          size_t Dim, typename F>
 void reconstruct_prims_work(
     gsl::not_null<std::array<Variables<TagsList>, Dim>*> vars_on_lower_face,
     gsl::not_null<std::array<Variables<TagsList>, Dim>*> vars_on_upper_face,
@@ -52,7 +57,8 @@ void reconstruct_prims_work(
     const EquationsOfState::EquationOfState<false, 2>& eos,
     const Element<Dim>& element,
     const DirectionalIdMap<Dim, evolution::dg::subcell::GhostData>& ghost_data,
-    const Mesh<Dim>& subcell_mesh, size_t ghost_zone_size);
+    const Mesh<Dim>& subcell_mesh, size_t ghost_zone_size,
+    bool compute_conservatives);
 
 /*!
  * \brief Reconstructs the mass density, velocity, pressure, perturbation
@@ -62,8 +68,8 @@ void reconstruct_prims_work(
  * This is used on DG elements to reconstruct their subcell neighbors' solution
  * on the shared faces.
  */
-template <typename TagsList, typename PrimsTags, size_t Dim, typename F0,
-          typename F1>
+template <typename TagsToReconstruct, typename TagsList, typename PrimsTags,
+          size_t Dim, typename F0, typename F1>
 void reconstruct_fd_neighbor_work(
     gsl::not_null<Variables<TagsList>*> vars_on_face,
     const F0& reconstruct_lower_neighbor, const F1& reconstruct_upper_neighbor,
@@ -72,5 +78,6 @@ void reconstruct_fd_neighbor_work(
     const Element<Dim>& element,
     const DirectionalIdMap<Dim, evolution::dg::subcell::GhostData>& ghost_data,
     const Mesh<Dim>& subcell_mesh,
-    const Direction<Dim>& direction_to_reconstruct, size_t ghost_zone_size);
+    const Direction<Dim>& direction_to_reconstruct, size_t ghost_zone_size,
+    bool compute_conservatives);
 }  // namespace NewtonianMhd::fd

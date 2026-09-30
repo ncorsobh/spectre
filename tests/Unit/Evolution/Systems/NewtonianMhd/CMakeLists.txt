@@ -9,6 +9,7 @@ set(LIBRARY_SOURCES
   FiniteDifference/Test_AoWeno.cpp
   FiniteDifference/Test_BoundaryConditionGhostData.cpp
   FiniteDifference/Test_MonotonisedCentral.cpp
+  FiniteDifference/Test_PositivityPreservingAdaptiveOrder.cpp
   FiniteDifference/Test_Tag.cpp
   Initialization/Test_BackgroundMagneticField.cpp
   Sources/Test_Sources.cpp

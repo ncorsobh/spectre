@@ -56,7 +56,7 @@ void MonotonisedCentralPrim<Dim>::reconstruct(
     const Element<Dim>& element,
     const DirectionalIdMap<Dim, evolution::dg::subcell::GhostData>& ghost_data,
     const Mesh<Dim>& subcell_mesh) const {
-  reconstruct_prims_work(
+  reconstruct_prims_work<prim_tags_for_reconstruction>(
       vars_on_lower_face, vars_on_upper_face,
       [](auto upper_face_vars_ptr, auto lower_face_vars_ptr,
          const auto& volume_vars, const auto& ghost_cell_vars,
@@ -65,7 +65,8 @@ void MonotonisedCentralPrim<Dim>::reconstruct(
             upper_face_vars_ptr, lower_face_vars_ptr, volume_vars,
             ghost_cell_vars, subcell_extents, number_of_variables);
       },
-      volume_prims, eos, element, ghost_data, subcell_mesh, ghost_zone_size());
+      volume_prims, eos, element, ghost_data, subcell_mesh, ghost_zone_size(),
+      true);
 }
 
 template <size_t Dim>
@@ -78,7 +79,7 @@ void MonotonisedCentralPrim<Dim>::reconstruct_fd_neighbor(
     const DirectionalIdMap<Dim, evolution::dg::subcell::GhostData>& ghost_data,
     const Mesh<Dim>& subcell_mesh,
     const Direction<Dim> direction_to_reconstruct) const {
-  reconstruct_fd_neighbor_work(
+  reconstruct_fd_neighbor_work<prim_tags_for_reconstruction>(
       vars_on_face,
       [](const auto tensor_component_on_face_ptr,
          const auto& tensor_component_volume,
@@ -107,7 +108,7 @@ void MonotonisedCentralPrim<Dim>::reconstruct_fd_neighbor(
             local_direction_to_reconstruct);
       },
       subcell_volume_prims, eos, element, ghost_data, subcell_mesh,
-      direction_to_reconstruct, ghost_zone_size());
+      direction_to_reconstruct, ghost_zone_size(), true);
 }
 
 #define DIM(data) BOOST_PP_TUPLE_ELEM(0, data)

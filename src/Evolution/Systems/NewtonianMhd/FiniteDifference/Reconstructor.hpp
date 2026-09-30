@@ -15,6 +15,8 @@ template <size_t Dim>
 class AoWeno53Prim;
 template <size_t Dim>
 class MonotonisedCentralPrim;
+template <size_t Dim>
+class PositivityPreservingAdaptiveOrderPrim;
 /// \endcond
 
 /*!
@@ -45,7 +47,8 @@ class Reconstructor : public PUP::able {
   /// \endcond
 
   using creatable_classes =
-      tmpl::list<AoWeno53Prim<Dim>, MonotonisedCentralPrim<Dim>>;
+      tmpl::list<AoWeno53Prim<Dim>, MonotonisedCentralPrim<Dim>,
+                 PositivityPreservingAdaptiveOrderPrim<Dim>>;
 
   virtual std::unique_ptr<Reconstructor<Dim>> get_clone() const = 0;
 
