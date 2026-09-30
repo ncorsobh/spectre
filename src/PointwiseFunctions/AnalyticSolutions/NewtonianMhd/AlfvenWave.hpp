@@ -12,6 +12,7 @@
 #include "DataStructures/DataVector.hpp"
 #include "DataStructures/TaggedTuple.hpp"
 #include "DataStructures/Tensor/TypeAliases.hpp"
+#include "Evolution/Systems/NewtonianMhd/TagsDeclarations.hpp"
 #include "Options/Context.hpp"
 #include "Options/String.hpp"
 #include "PointwiseFunctions/AnalyticSolutions/AnalyticSolution.hpp"
@@ -55,6 +56,12 @@ namespace NewtonianMhd::Solutions {
  *
  * The wavevector is given in units of \f$2\pi\f$, so integer entries give a
  * solution periodic on the unit cube.
+ *
+ * The uniform \f$B_\parallel\hat{k}\f$ term is curl-free and
+ * divergence-free, which is exactly what the background-field splitting
+ * requires, so this solution also supplies it as
+ * `NewtonianMhd::Tags::BackgroundMagneticFieldVolume`. The evolved
+ * perturbation is then the circularly polarized transverse part alone.
  */
 class AlfvenWave : public evolution::initial_data::InitialData,
                    public MarkAsAnalyticSolution {
@@ -173,6 +180,14 @@ class AlfvenWave : public evolution::initial_data::InitialData,
   variables(
       const tnsr::I<DataVector, 3, Frame::Inertial>& x, double t,
       tmpl::list<hydro::Tags::DivergenceCleaningField<DataVector>> /*meta*/);
+
+  /// The uniform \f$B_\parallel\hat{k}\f$ part of the field, for an
+  /// evolution that splits off a static background.
+  tuples::TaggedTuple<NewtonianMhd::Tags::BackgroundMagneticFieldVolume<>>
+  variables(
+      const tnsr::I<DataVector, 3, Frame::Inertial>& x, double t,
+      tmpl::list<NewtonianMhd::Tags::BackgroundMagneticFieldVolume<>> /*meta*/)
+      const;
   /// @}
 
  private:

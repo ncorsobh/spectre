@@ -10,6 +10,7 @@
 
 #include "DataStructures/DataVector.hpp"
 #include "DataStructures/Tensor/Tensor.hpp"
+#include "Evolution/Systems/NewtonianMhd/Tags.hpp"
 #include "Options/ParseError.hpp"
 #include "Utilities/ConstantExpressions.hpp"
 #include "Utilities/Gsl.hpp"
@@ -186,6 +187,23 @@ AlfvenWave::variables(const tnsr::I<DataVector, 3, Frame::Inertial>& x,
           (sin_phase * gsl::at(second_transverse_direction_, i))));
   }
   return {std::move(magnetic_field)};
+}
+
+tuples::TaggedTuple<NewtonianMhd::Tags::BackgroundMagneticFieldVolume<>>
+AlfvenWave::variables(
+    const tnsr::I<DataVector, 3, Frame::Inertial>& x, const double /*t*/,
+    tmpl::list<NewtonianMhd::Tags::BackgroundMagneticFieldVolume<>> /*meta*/)
+    const {
+  std::array<double, 3> propagation_direction = wavevector_;
+  normalize(make_not_null(&propagation_direction));
+
+  auto background =
+      make_with_value<tnsr::I<DataVector, 3, Frame::Inertial>>(x, 0.0);
+  for (size_t i = 0; i < 3; ++i) {
+    background.get(i) =
+        parallel_magnetic_field_ * gsl::at(propagation_direction, i);
+  }
+  return {std::move(background)};
 }
 
 tuples::TaggedTuple<hydro::Tags::DivergenceCleaningField<DataVector>>

@@ -13,6 +13,7 @@
 #include "DataStructures/Tensor/Tensor.hpp"
 #include "Evolution/Systems/NewtonianMhd/ConservativeFromPrimitive.hpp"
 #include "Evolution/Systems/NewtonianMhd/Fluxes.hpp"
+#include "Evolution/Systems/NewtonianMhd/Tags.hpp"
 #include "Framework/TestCreation.hpp"
 #include "Framework/TestHelpers.hpp"
 #include "PointwiseFunctions/AnalyticSolutions/NewtonianMhd/AlfvenWave.hpp"
@@ -218,6 +219,60 @@ void test_translates_at_the_alfven_speed() {
           approx(get<Velocity>(initial).get(i)[0]));
   }
 }
+
+// The background field must be the static, curl-free and divergence-free part
+// of the solution: uniform, aligned with the propagation direction, and equal
+// to the full field minus the transverse perturbation.
+void test_background_field_splits_off_the_parallel_part() {
+  const auto solution = make_solution();
+  using BackgroundField = NewtonianMhd::Tags::BackgroundMagneticFieldVolume<>;
+
+  const std::array<std::array<double, 3>, 4> sample_points{
+      {{{0.0, 0.0, 0.0}},
+       {{0.3, -0.7, 0.2}},
+       {{1.1, 0.4, -0.9}},
+       {{-0.6, 0.15, 0.8}}}};
+  const auto reference = solution.variables(point(sample_points[0]), 0.0,
+                                            tmpl::list<BackgroundField>{});
+  for (const double time : {0.0, 0.37, 1.4}) {
+    for (const auto& coords : sample_points) {
+      const auto background = solution.variables(point(coords), time,
+                                                 tmpl::list<BackgroundField>{});
+      double background_squared = 0.0;
+      double parallel_projection = 0.0;
+      for (size_t i = 0; i < 3; ++i) {
+        // Static in space and time.
+        CHECK(get<BackgroundField>(background).get(i)[0] ==
+              approx(get<BackgroundField>(reference).get(i)[0]));
+        background_squared +=
+            square(get<BackgroundField>(background).get(i)[0]);
+        parallel_projection +=
+            get<BackgroundField>(background).get(i)[0] * gsl::at(wavevector, i);
+      }
+      // Aligned with the propagation direction and of magnitude B_parallel.
+      CHECK(background_squared == approx(square(parallel_magnetic_field)));
+      double wavevector_norm = 0.0;
+      for (size_t i = 0; i < 3; ++i) {
+        wavevector_norm += square(gsl::at(wavevector, i));
+      }
+      CHECK(parallel_projection ==
+            approx(parallel_magnetic_field * sqrt(wavevector_norm)));
+
+      // What is left after removing it is purely transverse, so the evolved
+      // perturbation carries no component along the propagation direction.
+      const auto total =
+          solution.variables(point(coords), time, tmpl::list<MagneticField>{});
+      double perturbation_projection = 0.0;
+      for (size_t i = 0; i < 3; ++i) {
+        perturbation_projection +=
+            (get<MagneticField>(total).get(i)[0] -
+             get<BackgroundField>(background).get(i)[0]) *
+            gsl::at(wavevector, i);
+      }
+      CHECK(perturbation_projection == approx(0.0));
+    }
+  }
+}
 }  // namespace
 
 SPECTRE_TEST_CASE("Unit.NewtonianMhd.Solutions.AlfvenWave",
@@ -225,6 +280,7 @@ SPECTRE_TEST_CASE("Unit.NewtonianMhd.Solutions.AlfvenWave",
   test_satisfies_evolution_equations();
   test_magnitudes_are_uniform();
   test_translates_at_the_alfven_speed();
+  test_background_field_splits_off_the_parallel_part();
 
   const auto created =
       TestHelpers::test_factory_creation<evolution::initial_data::InitialData,

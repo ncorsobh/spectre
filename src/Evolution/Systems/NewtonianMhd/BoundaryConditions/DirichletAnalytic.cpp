@@ -274,8 +274,14 @@ void DirichletAnalytic<UseBackgroundMagneticField>::fd_ghost(
         tuples::tagged_tuple_from_typelist<background_tag>,
         NewtonianMhd::InitialData::background_magnetic_field_initial_data_list>(
         analytic_prescription_.get(),
-        [&coords](const auto* const initial_data) {
-          return initial_data->variables(coords, background_tag{});
+        [&coords, &time](const auto* const initial_data) {
+          if constexpr (is_analytic_solution_v<
+                            std::decay_t<decltype(*initial_data)>>) {
+            return initial_data->variables(coords, time, background_tag{});
+          } else {
+            (void)time;
+            return initial_data->variables(coords, background_tag{});
+          }
         });
     for (size_t i = 0; i < 3; ++i) {
       magnetic_field->get(i) -=
