@@ -14,6 +14,7 @@
 #include "Evolution/DgSubcell/Tags/Inactive.hpp"
 #include "Evolution/DgSubcell/Tags/Mesh.hpp"
 #include "Evolution/DgSubcell/Tags/SubcellOptions.hpp"
+#include "Evolution/Systems/NewtonianMhd/Subcell/TciOptions.hpp"
 #include "Evolution/Systems/NewtonianMhd/Tags.hpp"
 #include "PointwiseFunctions/Hydro/EquationsOfState/EquationOfState.hpp"
 #include "PointwiseFunctions/Hydro/Tags.hpp"
@@ -73,9 +74,6 @@ class TciOnFdGrid {
   using DivergenceCleaningField =
       hydro::Tags::DivergenceCleaningField<DataVector>;
 
-  static constexpr double min_density_allowed = 1.0e-18;
-  static constexpr double min_pressure_allowed = 1.0e-18;
-
  public:
   using return_tags = tmpl::list<::Tags::Variables<
       tmpl::list<MassDensity, Velocity, SpecificInternalEnergy, Pressure,
@@ -87,7 +85,8 @@ class TciOnFdGrid {
       hydro::Tags::EquationOfState<false, 2>, domain::Tags::Mesh<Dim>,
       evolution::dg::subcell::Tags::Mesh<Dim>,
       evolution::dg::subcell::Tags::DataForRdmpTci,
-      evolution::dg::subcell::Tags::SubcellOptions<Dim>>;
+      evolution::dg::subcell::Tags::SubcellOptions<Dim>,
+      NewtonianMhd::subcell::Tags::TciOptions>;
 
   static std::tuple<bool, evolution::dg::subcell::RdmpTciData> apply(
       gsl::not_null<Variables<
@@ -101,6 +100,7 @@ class TciOnFdGrid {
       const Mesh<Dim>& dg_mesh, const Mesh<Dim>& subcell_mesh,
       const evolution::dg::subcell::RdmpTciData& past_rdmp_tci_data,
       const evolution::dg::subcell::SubcellOptions& subcell_options,
-      double persson_exponentconst, bool need_rdmp_data_only);
+      const TciOptions& tci_options, double persson_exponent,
+      bool need_rdmp_data_only);
 };
 }  // namespace NewtonianMhd::subcell

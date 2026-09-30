@@ -62,8 +62,8 @@ namespace NewtonianMhd::subcell {
  */
 template <size_t Dim>
 struct BackgroundMagneticFieldVars : tt::ConformsTo<db::protocols::Mutator> {
-  using background_field = Tags::BackgroundMagneticField<Dim>;
-  using volume_tag = Tags::BackgroundMagneticFieldVolume<Dim>;
+  using background_field = NewtonianMhd::Tags::BackgroundMagneticField<Dim>;
+  using volume_tag = NewtonianMhd::Tags::BackgroundMagneticFieldVolume<Dim>;
   using subcell_faces_background_field =
       ::evolution::dg::subcell::Tags::OnSubcellFaces<background_field, Dim>;
   using face_vars = typename subcell_faces_background_field::type::value_type;
@@ -141,8 +141,9 @@ struct BackgroundMagneticFieldVars : tt::ConformsTo<db::protocols::Mutator> {
       const tnsr::I<DataVector, Dim, Frame::Inertial>& coords,
       const double time,
       const evolution::initial_data::InitialData& initial_data) {
-    using tags = tmpl::list<Tags::BackgroundMagneticFieldVolume<Dim>>;
-    return get<Tags::BackgroundMagneticFieldVolume<Dim>>(
+    using tags =
+        tmpl::list<NewtonianMhd::Tags::BackgroundMagneticFieldVolume<Dim>>;
+    return get<NewtonianMhd::Tags::BackgroundMagneticFieldVolume<Dim>>(
         call_with_dynamic_type<
             tuples::tagged_tuple_from_typelist<tags>,
             NewtonianMhd::InitialData::

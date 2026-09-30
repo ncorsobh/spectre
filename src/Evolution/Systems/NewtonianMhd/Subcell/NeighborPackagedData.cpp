@@ -152,10 +152,13 @@ NeighborPackagedData<UseBackgroundMagneticField>::apply(
           ++face_extents[direction.dimension()];
           data_on_slice(
               make_not_null(
-                  &get<Tags::BackgroundMagneticField<Dim>>(vars_on_face)),
-              gsl::at(db::get<evolution::dg::subcell::Tags::OnSubcellFaces<
-                          Tags::BackgroundMagneticField<Dim>, Dim>>(box),
-                      direction.dimension()),
+                  &get<NewtonianMhd::Tags::BackgroundMagneticField<Dim>>(
+                      vars_on_face)),
+              gsl::at(
+                  db::get<evolution::dg::subcell::Tags::OnSubcellFaces<
+                      NewtonianMhd::Tags::BackgroundMagneticField<Dim>, Dim>>(
+                      box),
+                  direction.dimension()),
               face_extents, direction.dimension(),
               direction.side() == Side::Lower
                   ? 0
@@ -164,7 +167,7 @@ NeighborPackagedData<UseBackgroundMagneticField>::apply(
 
         NewtonianMhd::subcell::compute_fluxes<Dim, UseBackgroundMagneticField>(
             make_not_null(&vars_on_face),
-            db::get<Tags::DivergenceCleaningSpeed>(box));
+            db::get<NewtonianMhd::Tags::DivergenceCleaningSpeed>(box));
 
         tnsr::i<DataVector, Dim, Frame::Inertial> normal_covector =
             get<evolution::dg::Tags::NormalCovector<Dim>>(

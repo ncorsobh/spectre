@@ -13,6 +13,7 @@
 #include "Evolution/DgSubcell/Tags/DataForRdmpTci.hpp"
 #include "Evolution/DgSubcell/Tags/Mesh.hpp"
 #include "Evolution/DgSubcell/Tags/SubcellOptions.hpp"
+#include "Evolution/Systems/NewtonianMhd/Subcell/TciOptions.hpp"
 #include "Evolution/Systems/NewtonianMhd/Tags.hpp"
 #include "PointwiseFunctions/Hydro/EquationsOfState/EquationOfState.hpp"
 #include "PointwiseFunctions/Hydro/Tags.hpp"
@@ -41,12 +42,19 @@ namespace NewtonianMhd::subcell {
  * Computes the primitive variables on the DG grid, mutating them in the
  * DataBox. Then,
  * - apply RDMP TCI to the mass and energy density
- * - if the minimum density or pressure are below \f$10^{-18}\f$ (the arbitrary
- *   threshold used to signal "negative" density and pressure), marks the
- *   element as troubled and returns
+ * - if the minimum density or pressure fall below
+ *   `TciOptions::MinimumValueOfDensity` or
+ *   `TciOptions::MinimumValueOfPressure`, marks the element as troubled
+ * - if \f$|B|^2 > 2(1 - \epsilon_B)e\f$ anywhere, marks the element as
+ *   troubled: the internal energy recovered from the conserved variables is
+ *   about to go negative there
  * - runs the Persson TCI on the mass and energy density. The reason for
  *   applying the Persson TCI to both the mass and energy density is to flag
  *   cells at contact discontinuities.
+ * - runs the Persson TCI on \f$|B|\f$, unless the largest \f$|B|\f$ in the
+ *   element is below `TciOptions::MagneticFieldCutoff`. Sharp magnetic
+ *   structure such as a current sheet can occur where the fluid variables are
+ *   smooth, so without this check those cells would stay on DG.
  */
 template <size_t Dim>
 class TciOnDgGrid {
@@ -67,9 +75,6 @@ class TciOnDgGrid {
   using DivergenceCleaningField =
       hydro::Tags::DivergenceCleaningField<DataVector>;
 
-  static constexpr double min_density_allowed = 1.0e-18;
-  static constexpr double min_pressure_allowed = 1.0e-18;
-
  public:
   using return_tags = tmpl::list<::Tags::Variables<
       tmpl::list<MassDensity, Velocity, SpecificInternalEnergy, Pressure,
@@ -81,7 +86,8 @@ class TciOnDgGrid {
       hydro::Tags::EquationOfState<false, 2>, domain::Tags::Mesh<Dim>,
       evolution::dg::subcell::Tags::Mesh<Dim>,
       evolution::dg::subcell::Tags::DataForRdmpTci,
-      evolution::dg::subcell::Tags::SubcellOptions<Dim>>;
+      evolution::dg::subcell::Tags::SubcellOptions<Dim>,
+      NewtonianMhd::subcell::Tags::TciOptions>;
 
   static std::tuple<bool, evolution::dg::subcell::RdmpTciData> apply(
       gsl::not_null<Variables<
@@ -95,6 +101,7 @@ class TciOnDgGrid {
       const Mesh<Dim>& dg_mesh, const Mesh<Dim>& subcell_mesh,
       const evolution::dg::subcell::RdmpTciData& past_rdmp_tci_data,
       const evolution::dg::subcell::SubcellOptions& subcell_options,
-      double persson_exponent, bool element_stays_on_dg);
+      const TciOptions& tci_options, double persson_exponent,
+      bool element_stays_on_dg);
 };
 }  // namespace NewtonianMhd::subcell

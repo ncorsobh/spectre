@@ -70,6 +70,11 @@ SpatialDiscretization:
     # Smooth by construction, so this stays on DG: the L2 errors then
     # measure the spectral discretization error and nothing else.
     OnlyDgBlocksAndGroups: [Brick]
+    TciOptions:
+      MinimumValueOfDensity: 1.0e-18
+      MinimumValueOfPressure: 1.0e-18
+      SafetyFactorForB: 1.0e-12
+      MagneticFieldCutoff: 1.0e-6
     Subcell:
       TroubledCellIndicator:
         PerssonTci:

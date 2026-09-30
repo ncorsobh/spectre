@@ -75,6 +75,11 @@ SpatialDiscretization:
       - None:
           BlocksToFilter: All
     OnlyDgBlocksAndGroups: None
+    TciOptions:
+      MinimumValueOfDensity: 1.0e-18
+      MinimumValueOfPressure: 1.0e-18
+      SafetyFactorForB: 1.0e-12
+      MagneticFieldCutoff: 1.0e-6
     Subcell:
       TroubledCellIndicator:
         PerssonTci:

@@ -177,14 +177,17 @@ struct TimeDerivative {
             // reconstructed.
             const auto& background_magnetic_field_at_faces =
                 db::get<evolution::dg::subcell::Tags::OnSubcellFaces<
-                    Tags::BackgroundMagneticField<Dim>, Dim>>(*box);
-            get<Tags::BackgroundMagneticField<Dim>>(vars_upper_face) =
+                    NewtonianMhd::Tags::BackgroundMagneticField<Dim>, Dim>>(
+                    *box);
+            get<NewtonianMhd::Tags::BackgroundMagneticField<Dim>>(
+                vars_upper_face) =
                 gsl::at(background_magnetic_field_at_faces, i);
-            get<Tags::BackgroundMagneticField<Dim>>(vars_lower_face) =
+            get<NewtonianMhd::Tags::BackgroundMagneticField<Dim>>(
+                vars_lower_face) =
                 gsl::at(background_magnetic_field_at_faces, i);
           }
           const double divergence_cleaning_speed =
-              db::get<Tags::DivergenceCleaningSpeed>(*box);
+              db::get<NewtonianMhd::Tags::DivergenceCleaningSpeed>(*box);
           NewtonianMhd::subcell::compute_fluxes<Dim,
                                                 use_background_magnetic_field>(
               make_not_null(&vars_upper_face), divergence_cleaning_speed);
@@ -247,18 +250,21 @@ struct TimeDerivative {
     using dt_variables_tag = db::add_tag_prefix<::Tags::dt, evolved_vars_tag>;
     using source_argument_tags = tmpl::append<
         tmpl::list<
-            Tags::MassDensityCons, Tags::MomentumDensity<Dim>,
-            Tags::EnergyDensity, Tags::MagneticFieldCons<Dim>,
-            Tags::DivergenceCleaningFieldCons,
+            NewtonianMhd::Tags::MassDensityCons,
+            NewtonianMhd::Tags::MomentumDensity<Dim>,
+            NewtonianMhd::Tags::EnergyDensity,
+            NewtonianMhd::Tags::MagneticFieldCons<Dim>,
+            NewtonianMhd::Tags::DivergenceCleaningFieldCons,
             hydro::Tags::SpatialVelocity<DataVector, Dim>,
-            hydro::Tags::Pressure<DataVector>, Tags::DivergenceCleaningSpeed,
-            Tags::ConstraintDampingParameter,
+            hydro::Tags::Pressure<DataVector>,
+            NewtonianMhd::Tags::DivergenceCleaningSpeed,
+            NewtonianMhd::Tags::ConstraintDampingParameter,
             hydro::Tags::EquationOfState<false, 2>,
             evolution::dg::subcell::Tags::Coordinates<Dim, Frame::Inertial>,
             ::Tags::Time,
             NewtonianMhd::Tags::SourceTerm<Dim, use_background_magnetic_field>>,
         background_magnetic_field_tag_list<
-            Tags::BackgroundMagneticFieldVolume<Dim>,
+            NewtonianMhd::Tags::BackgroundMagneticFieldVolume<Dim>,
             use_background_magnetic_field>>;
     db::mutate_apply<tmpl::list<dt_variables_tag>, source_argument_tags>(
         [&num_pts, &boundary_corrections, &subcell_mesh, &one_over_delta_xi,

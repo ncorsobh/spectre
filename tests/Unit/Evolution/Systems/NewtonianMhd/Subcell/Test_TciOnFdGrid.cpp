@@ -8,6 +8,7 @@
 
 #include "DataStructures/DataBox/DataBox.hpp"
 #include "DataStructures/DataVector.hpp"
+#include "DataStructures/Tensor/EagerMath/DotProduct.hpp"
 #include "DataStructures/Tensor/Tensor.hpp"
 #include "DataStructures/Variables.hpp"
 #include "DataStructures/VariablesTag.hpp"
@@ -16,6 +17,7 @@
 #include "Evolution/DgSubcell/Reconstruction.hpp"
 #include "Evolution/Systems/NewtonianMhd/ConservativeFromPrimitive.hpp"
 #include "Evolution/Systems/NewtonianMhd/Subcell/TciOnFdGrid.hpp"
+#include "Evolution/Systems/NewtonianMhd/Subcell/TciOptions.hpp"
 #include "NumericalAlgorithms/Spectral/Basis.hpp"
 #include "NumericalAlgorithms/Spectral/Mesh.hpp"
 #include "NumericalAlgorithms/Spectral/Quadrature.hpp"
@@ -30,7 +32,9 @@ enum class TestThis {
   PerssonDensity,
   PerssonEnergyDensity,
   RdmpMassDensity,
-  RdmpEnergyDensity
+  RdmpEnergyDensity,
+  PerssonMagneticField,
+  MagneticEnergyTooLarge
 };
 
 template <size_t Dim>
@@ -66,8 +70,10 @@ void test(const TestThis test_this) {
   using PrimVars = Variables<prim_tags>;
 
   const double persson_exponent = 4.0;
+  const double adiabatic_index = 5.0 / 3.0;
+  const double uniform_energy_density = 2.0;
   std::unique_ptr<EquationsOfState::EquationOfState<false, 2>> eos =
-      std::make_unique<EquationsOfState::IdealFluid<false>>(5.0 / 3.0);
+      std::make_unique<EquationsOfState::IdealFluid<false>>(adiabatic_index);
   ConsVars subcell_cons{subcell_mesh.number_of_grid_points()};
   PrimVars subcell_prim{subcell_mesh.number_of_grid_points(), 1.0e-7};
 
@@ -98,20 +104,44 @@ void test(const TestThis test_this) {
   } else if (test_this == TestThis::PerssonDensity) {
     get(get<MassDensity>(subcell_prim))[dg_mesh.number_of_grid_points() / 2] =
         1.0e-6;
+  } else if (test_this == TestThis::PerssonMagneticField) {
+    // A current sheet: |B| is sharp but the gas pressure compensates so that
+    // the total energy density stays uniform. The mass and energy density
+    // checks therefore cannot see it, leaving only the |B| Persson check.
+    get(get<MassDensity>(subcell_prim)) = 1.0;
+    get<0>(get<MagneticField>(subcell_prim)) = 1.0;
+    get<0>(get<MagneticField>(
+        subcell_prim))[subcell_mesh.number_of_grid_points() / 2] = 1.5;
+    get(get<Pressure>(subcell_prim)) =
+        (adiabatic_index - 1.0) *
+        (uniform_energy_density -
+         0.5 * get(dot_product(get<MagneticField>(subcell_prim),
+                               get<MagneticField>(subcell_prim))));
+  } else if (test_this == TestThis::MagneticEnergyTooLarge) {
+    // Uniform, so no Persson or RDMP check fires, and small enough that the
+    // recovered pressure stays positive: only the |B|^2 bound catches it.
+    get<0>(get<MagneticField>(subcell_prim)) = 1.0e-2;
   }
 
   get<SpecificInternalEnergy>(subcell_prim) =
       eos->specific_internal_energy_from_density_and_pressure(
           get<MassDensity>(subcell_prim), get<Pressure>(subcell_prim));
 
+  // The bound |B|^2 <= 2(1 - eps_B) e degenerates into the positive-pressure
+  // check as eps_B -> 0, so the case testing it uses a loose safety factor.
+  const NewtonianMhd::subcell::TciOptions tci_options{
+      1.0e-18, 1.0e-18,
+      test_this == TestThis::MagneticEnergyTooLarge ? 0.5 : 1.0e-12, 1.0e-4};
+
   auto box = db::create<db::AddSimpleTags<
       ::Tags::Variables<cons_tags>, ::Tags::Variables<prim_tags>,
       ::domain::Tags::Mesh<Dim>, ::evolution::dg::subcell::Tags::Mesh<Dim>,
       hydro::Tags::EquationOfState<false, 2>,
       evolution::dg::subcell::Tags::SubcellOptions<Dim>,
+      NewtonianMhd::subcell::Tags::TciOptions,
       evolution::dg::subcell::Tags::DataForRdmpTci>>(
       subcell_cons, subcell_prim, dg_mesh, subcell_mesh, std::move(eos),
-      subcell_options, evolution::dg::subcell::RdmpTciData{});
+      subcell_options, tci_options, evolution::dg::subcell::RdmpTciData{});
   db::mutate_apply<NewtonianMhd::ConservativeFromPrimitive<Dim>>(
       make_not_null(&box));
 
@@ -181,7 +211,8 @@ SPECTRE_TEST_CASE("Unit.Evolution.Systems.NewtonianMhd.Subcell.TciOnFdGrid",
        {TestThis::AllGood, TestThis::SmallDensitySubcell,
         TestThis::SmallPressureSubcell, TestThis::PerssonDensity,
         TestThis::PerssonEnergyDensity, TestThis::RdmpMassDensity,
-        TestThis::RdmpEnergyDensity}) {
+        TestThis::RdmpEnergyDensity, TestThis::PerssonMagneticField,
+        TestThis::MagneticEnergyTooLarge}) {
     test<1>(test_this);
     test<2>(test_this);
     test<3>(test_this);

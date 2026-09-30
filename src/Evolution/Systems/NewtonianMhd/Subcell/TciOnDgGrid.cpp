@@ -7,6 +7,7 @@
 #include <cstddef>
 
 #include "DataStructures/DataVector.hpp"
+#include "DataStructures/Tensor/EagerMath/DotProduct.hpp"
 #include "DataStructures/Tensor/Tensor.hpp"
 #include "DataStructures/Variables.hpp"
 #include "Evolution/DgSubcell/PerssonTci.hpp"
@@ -33,7 +34,7 @@ std::tuple<bool, evolution::dg::subcell::RdmpTciData> TciOnDgGrid<Dim>::apply(
     const Mesh<Dim>& dg_mesh, const Mesh<Dim>& subcell_mesh,
     const evolution::dg::subcell::RdmpTciData& past_rdmp_tci_data,
     const evolution::dg::subcell::SubcellOptions& subcell_options,
-    const double persson_exponent,
+    const TciOptions& tci_options, const double persson_exponent,
     [[maybe_unused]] const bool element_stays_on_dg) {
   const Variables<tmpl::list<MassDensityCons, MomentumDensity, EnergyDensity,
                              MagneticFieldCons, DivergenceCleaningFieldCons>>
@@ -67,21 +68,45 @@ std::tuple<bool, evolution::dg::subcell::RdmpTciData> TciOnDgGrid<Dim>::apply(
       momentum_density, energy_density, get<MagneticFieldCons>(dg_vars),
       get<DivergenceCleaningFieldCons>(dg_vars), eos);
 
-  const bool cell_is_troubled =
+  // The internal energy recovered on the subcells is
+  // (e - |B|^2/2)/rho - v^2/2, so a cell whose magnetic energy approaches the
+  // total energy is about to produce a negative internal energy.
+  const Scalar<DataVector> magnetic_field_squared = dot_product(
+      get<MagneticFieldCons>(dg_vars), get<MagneticFieldCons>(dg_vars));
+  const bool magnetic_energy_too_large =
+      max(get(magnetic_field_squared) -
+          2.0 * (1.0 - tci_options.safety_factor_for_magnetic_field) *
+              get(energy_density)) > 0.0;
+
+  bool cell_is_troubled =
       evolution::dg::subcell::rdmp_tci(rdmp_tci_data.max_variables_values,
                                        rdmp_tci_data.min_variables_values,
                                        past_rdmp_tci_data.max_variables_values,
                                        past_rdmp_tci_data.min_variables_values,
                                        subcell_options.rdmp_delta0(),
                                        subcell_options.rdmp_epsilon()) or
-      min(get(mass_density)) < min_density_allowed or
-      min(get(get<Pressure>(*dg_prim_vars))) < min_pressure_allowed or
+      min(get(mass_density)) < tci_options.minimum_density or
+      min(get(get<Pressure>(*dg_prim_vars))) < tci_options.minimum_pressure or
+      magnetic_energy_too_large or
       evolution::dg::subcell::persson_tci(
           mass_density, dg_mesh, persson_exponent,
           subcell_options.persson_num_highest_modes()) or
       evolution::dg::subcell::persson_tci(
           energy_density, dg_mesh, persson_exponent,
           subcell_options.persson_num_highest_modes());
+
+  // Sharp magnetic structure can occur where the fluid variables are smooth,
+  // so |B| gets its own Persson check. The cutoff keeps regions with no
+  // appreciable field, where |B| is noise-dominated, from tripping it.
+  if (not cell_is_troubled and tci_options.magnetic_field_cutoff.has_value()) {
+    const Scalar<DataVector> magnetic_field_magnitude{
+        sqrt(get(magnetic_field_squared))};
+    cell_is_troubled = max(get(magnetic_field_magnitude)) >
+                           tci_options.magnetic_field_cutoff.value() and
+                       evolution::dg::subcell::persson_tci(
+                           magnetic_field_magnitude, dg_mesh, persson_exponent,
+                           subcell_options.persson_num_highest_modes());
+  }
   return {cell_is_troubled, std::move(rdmp_tci_data)};
 }
 

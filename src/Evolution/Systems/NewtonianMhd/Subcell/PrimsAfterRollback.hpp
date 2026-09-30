@@ -58,10 +58,12 @@ struct PrimsAfterRollback {
                  MagneticField, DivergenceCleaningField>>>;
   using argument_tags =
       tmpl::list<evolution::dg::subcell::Tags::DidRollback,
-                 evolution::dg::subcell::Tags::Mesh<Dim>, Tags::MassDensityCons,
-                 Tags::MomentumDensity<Dim>, Tags::EnergyDensity,
-                 Tags::MagneticFieldCons<Dim>,
-                 Tags::DivergenceCleaningFieldCons,
+                 evolution::dg::subcell::Tags::Mesh<Dim>,
+                 NewtonianMhd::Tags::MassDensityCons,
+                 NewtonianMhd::Tags::MomentumDensity<Dim>,
+                 NewtonianMhd::Tags::EnergyDensity,
+                 NewtonianMhd::Tags::MagneticFieldCons<Dim>,
+                 NewtonianMhd::Tags::DivergenceCleaningFieldCons,
                  hydro::Tags::EquationOfState<false, 2>>;
 
   static void apply(

@@ -62,6 +62,7 @@
 #include "Evolution/Systems/NewtonianMhd/Subcell/SetInitialRdmpData.hpp"
 #include "Evolution/Systems/NewtonianMhd/Subcell/TciOnDgGrid.hpp"
 #include "Evolution/Systems/NewtonianMhd/Subcell/TciOnFdGrid.hpp"
+#include "Evolution/Systems/NewtonianMhd/Subcell/TciOptions.hpp"
 #include "Evolution/Systems/NewtonianMhd/Subcell/TimeDerivative.hpp"
 #include "Evolution/Systems/NewtonianMhd/System.hpp"
 #include "Evolution/Systems/NewtonianMhd/Tags.hpp"
@@ -482,7 +483,8 @@ struct NewtonianMhdMetavars {
   using const_global_cache_tags = tmpl::push_back<
       tmpl::conditional_t<
           use_dg_subcell,
-          tmpl::list<NewtonianMhd::fd::Tags::Reconstructor<volume_dim>>,
+          tmpl::list<NewtonianMhd::fd::Tags::Reconstructor<volume_dim>,
+                     NewtonianMhd::subcell::Tags::TciOptions>,
           tmpl::list<>>,
       initial_data_tag, equation_of_state_tag,
       NewtonianMhd::Tags::SourceTerm<volume_dim, UseBackgroundMagneticField>,
