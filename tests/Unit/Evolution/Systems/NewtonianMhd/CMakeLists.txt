@@ -12,6 +12,7 @@ set(LIBRARY_SOURCES
   FiniteDifference/Test_PositivityPreservingAdaptiveOrder.cpp
   FiniteDifference/Test_Tag.cpp
   Initialization/Test_BackgroundMagneticField.cpp
+  Sources/Test_DampingZone.cpp
   Sources/Test_Sources.cpp
   Subcell/Test_ComputeFluxes.cpp
   Subcell/Test_NeighborPackagedData.cpp

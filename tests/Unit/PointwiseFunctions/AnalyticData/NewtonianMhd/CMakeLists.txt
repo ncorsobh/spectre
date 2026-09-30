@@ -5,6 +5,7 @@ set(LIBRARY "Test_NewtonianMhdAnalyticData")
 
 set(LIBRARY_SOURCES
   Test_BrioWu.cpp
+  Test_ConductorFlow.cpp
   Test_OrszagTangVortex.cpp
   )
 

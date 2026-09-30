@@ -1,0 +1,162 @@
+# Distributed under the MIT License.
+# See LICENSE.txt for details.
+
+Executable: EvolveNewtonianMhdBgField
+Testing:
+  Check: parse;execute
+  Timeout: 30
+
+---
+
+Parallelization:
+  ElementDistribution: NumGridPoints
+  UseSubcellGridPointsForDistribution: False
+
+ResourceInfo:
+  AvoidGlobalProc0: false
+
+Evolution:
+  InitialTime: 0.0
+  InitialTimeStep: &initial_time_step 0.0005
+  InitialSlabSize: *initial_time_step
+  MinimumTimeStep: 1e-9
+  LocalTimeStepping: Off
+  TimeStepper:
+    Rk3HesthavenSsp
+  LtsStepChoosers:
+  VariableOrderAlgorithm:
+    GoalOrder: 3
+
+PhaseChangeAndTriggers:
+
+EquationOfState:
+  IdealFluid:
+    AdiabaticIndex: 1.6666666666666667
+    MinTemperature: 0.0
+
+InitialData: &InitialData
+  ConductorFlow:
+    AdiabaticIndex: 1.6666666666666667
+    BackgroundDensity: 1.0
+    BackgroundPressure: 1.0
+    AsymptoticVelocity: 0.1
+    MagneticFieldStrength: 1.0
+    ConductorInternalField: 0.5
+    MomentTiltAngle: 0.0
+    MomentAzimuthal: 0.0
+    ConductorRadius: 1.0
+    Magnetized: true
+
+DomainCreator:
+  Sphere:
+    InnerRadius: 1.0
+    OuterRadius: 10.0
+    Interior:
+      ExciseWithBoundaryCondition:
+        ConductorReflection:
+    InitialRefinement: 0
+    InitialGridPoints: 4
+    UseEquiangularMap: true
+    EquatorialCompression: None
+    RadialPartitioning: [3.0]
+    RadialDistribution: [Linear, Logarithmic]
+    WhichWedges: All
+    TimeDependentMaps: None
+    OuterBoundaryCondition:
+      DirichletAnalytic:
+        AnalyticPrescription:
+          *InitialData
+
+SpatialDiscretization:
+  BoundaryCorrection:
+    Hll:
+  DiscontinuousGalerkin:
+    Formulation: StrongInertial
+    Quadrature: GaussLobatto
+    Filtering:
+      - None:
+          BlocksToFilter: All
+    OnlyDgBlocksAndGroups: None
+    TciOptions:
+      MinimumValueOfDensity: 1.0e-18
+      MinimumValueOfPressure: 1.0e-18
+      SafetyFactorForB: 1.0e-12
+      MagneticFieldCutoff: 1.0e-6
+    Subcell:
+      TroubledCellIndicator:
+        PerssonTci:
+          Exponent: 4.0
+          NumHighestModes: 1
+        RdmpTci:
+          Delta0: 1.0e-7
+          Epsilon: 1.0e-3
+        FdToDgTci:
+          NumberOfStepsBetweenTciCalls: 1
+          MinTciCallsAfterRollback: 1
+          MinimumClearTcis: 1
+        AlwaysUseSubcells: false
+        EnableExtensionDirections: false
+        UseHalo: false
+      SubcellToDgReconstructionMethod: DimByDim
+      FiniteDifferenceDerivativeOrder: 2
+      FdInterpolationOrder: 1
+  SubcellSolver:
+    Reconstructor:
+      MonotonisedCentralPrim:
+
+VariableFixing:
+  FixConservatives:
+    Enable: true
+    CutoffDensity: 1.0e-12
+    MinimumValueOfDensity: 1.0e-12
+    SafetyFactorForB: 1.0e-12
+    SafetyFactorForS: 1.0e-12
+
+EvolutionSystem:
+  DivergenceCleaningSpeed: 1.5
+  ConstraintDampingParameter: 0.1
+  SourceTerm:
+    DampingZone:
+      SpongeInnerRadius: 7.0
+      SpongeOuterRadius: 10.0
+      DampingTimescale: 10.0
+      AsymptoticVelocity: 0.1
+      BackgroundDensity: 1.0
+      BackgroundPressure: 1.0
+
+EventsAndTriggersAtCheckpoints:
+
+EventsAndTriggersAtSlabs:
+  - Trigger:
+      Slabs:
+        Specified:
+          Values: [5]
+    Events:
+      - Completion
+  - Trigger:
+      Slabs:
+        EvenlySpaced:
+          Interval: 5
+          Offset: 0
+    Events:
+      - ObserveFields:
+          SubfileName: VolumeData
+          VariablesToObserve:
+            - RestMassDensity
+            - SpatialVelocity
+            - MagneticField
+            - Pressure
+            - BackgroundMagneticFieldVolume
+          InterpolateToMesh: None
+          ProjectToMesh: None
+          BlocksToObserve: All
+          CoordinatesFloatingPointType: Float
+          FloatingPointTypes: [Float]
+
+EventsAndTriggersAtSteps:
+
+EventsAndDenseTriggers:
+
+Observers:
+  VolumeFileName: "NewtonianMhdConductorFlowBgFieldVolume"
+  ReductionFileName: "NewtonianMhdConductorFlowBgFieldReductions"
