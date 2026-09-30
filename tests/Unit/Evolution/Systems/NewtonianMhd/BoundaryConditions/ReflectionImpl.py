@@ -68,14 +68,20 @@ def energy_density_flux(
     velocity,
     pressure,
     magnetic_field,
+    divergence_cleaning_field,
     background_magnetic_field,
 ):
     total_field = background_magnetic_field + magnetic_field
     return (
-        energy_density_value
-        + pressure
-        + magnetic_pressure(magnetic_field, background_magnetic_field)
-    ) * velocity - total_field * np.dot(velocity, magnetic_field)
+        (
+            energy_density_value
+            + pressure
+            + magnetic_pressure(magnetic_field, background_magnetic_field)
+        )
+        * velocity
+        - total_field * np.dot(velocity, magnetic_field)
+        - background_magnetic_field * divergence_cleaning_field
+    )
 
 
 def magnetic_field_flux(

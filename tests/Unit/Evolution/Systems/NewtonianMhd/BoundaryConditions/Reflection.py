@@ -55,6 +55,7 @@ def _ghost(
             velocity,
             int_pressure,
             magnetic_field,
+            divergence_cleaning_field,
             int_background_magnetic_field,
         ),
         "flux_magnetic_field": impl.magnetic_field_flux(

@@ -375,15 +375,10 @@ void test_uniform_state(const double divergence_cleaning_field) {
 // those of the mass and momentum densities, are unchanged. The evolved energy
 // density differs from the total one by B0.B1, so its time derivative differs
 // by B0.dt(B1).
-void test_background_field_splitting() {
-  const auto set_alfven_wave = [](const auto& coords, const auto vars) {
-    const NewtonianMhd::Solutions::AlfvenWave soln{
-        {{1.0, 1.0, 1.0}}, 1.0, 1.0, 1.0, 0.1, adiabatic_index};
-    vars->assign_subset(soln.variables(coords, 0.0, prim_tags_list{}));
-  };
-
-  const auto unsplit = compute_time_derivative<false>(4, set_alfven_wave);
-  const auto split = compute_time_derivative<true>(4, set_alfven_wave);
+template <typename SetPrims>
+void test_background_field_splitting(const SetPrims& set_prims) {
+  const auto unsplit = compute_time_derivative<false>(4, set_prims);
+  const auto split = compute_time_derivative<true>(4, set_prims);
 
   // The two formulations group the same sums differently, so they agree only to
   // the cancellation error between the background and the perturbation.
@@ -435,5 +430,21 @@ SPECTRE_TEST_CASE("Unit.Evolution.Systems.NewtonianMhd.Subcell.TimeDerivative",
   test_uniform_state<false>(0.7);
   test_uniform_state<true>(0.0);
   test_uniform_state<true>(0.7);
-  test_background_field_splitting();
+
+  test_background_field_splitting([](const auto& coords, const auto vars) {
+    const NewtonianMhd::Solutions::AlfvenWave soln{
+        {{1.0, 1.0, 1.0}}, 1.0, 1.0, 1.0, 0.1, adiabatic_index};
+    vars->assign_subset(soln.variables(coords, 0.0, prim_tags_list{}));
+  });
+
+  // The GLM cleaning field enters the split energy flux through -B0.psi, a
+  // term that only shows up where psi has a gradient: both the Alfven wave
+  // above and the uniform state carry a psi whose gradient vanishes.
+  test_background_field_splitting([](const auto& coords, const auto vars) {
+    const NewtonianMhd::Solutions::AlfvenWave soln{
+        {{1.0, 1.0, 1.0}}, 1.0, 1.0, 1.0, 0.1, adiabatic_index};
+    vars->assign_subset(soln.variables(coords, 0.0, prim_tags_list{}));
+    get(get<hydro::Tags::DivergenceCleaningField<DataVector>>(*vars)) =
+        0.3 * get<0>(coords) - 0.2 * get<1>(coords) + 0.45 * get<2>(coords);
+  });
 }

@@ -63,7 +63,10 @@ void fluxes_impl(
   }
 
   // Energy flux:
-  //   F^j(e) = (e + p_tot) v^j - B_total^j (v . B1)
+  //   F^j(e) = (e + p_tot) v^j - B_total^j (v . B1) - B0^j psi
+  // The last term is the GLM contribution: e differs from the total energy by
+  // B0.B1, so F(e) picks up -B0_i F^j(B1^i), whose delta^{ij} psi part is the
+  // only piece not already accounted for by the B0 terms above.
   for (size_t j = 0; j < Dim; ++j) {
     energy_density_flux->get(j) =
         (get(energy_density) + get(pressure) + get(*magnetic_pressure)) *
@@ -71,7 +74,8 @@ void fluxes_impl(
         magnetic_field.get(j) * get(v_dot_b1);
     if constexpr (UseBackgroundMagneticField) {
       energy_density_flux->get(j) -=
-          background_magnetic_field.get(j) * get(v_dot_b1);
+          background_magnetic_field.get(j) *
+          (get(v_dot_b1) + get(divergence_cleaning_field));
     }
   }
 
