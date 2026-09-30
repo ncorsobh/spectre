@@ -25,16 +25,15 @@
 #include "PointwiseFunctions/Hydro/Tags.hpp"
 
 namespace {
-template <size_t Dim>
 void test_subcells(
     const gsl::not_null<std::mt19937*> gen,
     const gsl::not_null<std::uniform_real_distribution<>*> dist) {
   using MassDensity = hydro::Tags::RestMassDensity<DataVector>;
-  using Velocity = hydro::Tags::SpatialVelocity<DataVector, Dim>;
+  using Velocity = hydro::Tags::SpatialVelocity<DataVector, 3>;
   using SpecificInternalEnergy =
       hydro::Tags::SpecificInternalEnergy<DataVector>;
   using Pressure = hydro::Tags::Pressure<DataVector>;
-  using MagneticField = hydro::Tags::MagneticField<DataVector, Dim>;
+  using MagneticField = hydro::Tags::MagneticField<DataVector, 3>;
   using DivergenceCleaningField =
       hydro::Tags::DivergenceCleaningField<DataVector>;
   using prim_tags =
@@ -46,15 +45,15 @@ void test_subcells(
                  DivergenceCleaningField>;
   using ReconsPrimVars = Variables<prims_to_reconstruct_tags>;
 
-  const Mesh<Dim> subcell_mesh{9, Spectral::Basis::FiniteDifference,
-                               Spectral::Quadrature::CellCentered};
+  const Mesh<3> subcell_mesh{9, Spectral::Basis::FiniteDifference,
+                             Spectral::Quadrature::CellCentered};
   // NOLINTNEXTLINE(modernize-use-auto)
   const PrimVars prims = make_with_random_values<PrimVars>(
       gen, dist, subcell_mesh.number_of_grid_points());
 
   auto box = db::create<db::AddSimpleTags<::Tags::Variables<prim_tags>>>(prims);
   DataVector prims_to_reconstruct_rdmp =
-      db::mutate_apply<NewtonianMhd::subcell::PrimitiveGhostVariables<Dim>>(
+      db::mutate_apply<NewtonianMhd::subcell::PrimitiveGhostVariables>(
           make_not_null(&box), 2_st);
   const ReconsPrimVars prims_to_reconstruct{
       prims_to_reconstruct_rdmp.data(), prims_to_reconstruct_rdmp.size() - 2};
@@ -67,15 +66,14 @@ void test_subcells(
       });
 }
 
-template <size_t Dim>
 void test_dg(const gsl::not_null<std::mt19937*> gen,
              const gsl::not_null<std::uniform_real_distribution<>*> dist) {
   using MassDensity = hydro::Tags::RestMassDensity<DataVector>;
-  using Velocity = hydro::Tags::SpatialVelocity<DataVector, Dim>;
+  using Velocity = hydro::Tags::SpatialVelocity<DataVector, 3>;
   using SpecificInternalEnergy =
       hydro::Tags::SpecificInternalEnergy<DataVector>;
   using Pressure = hydro::Tags::Pressure<DataVector>;
-  using MagneticField = hydro::Tags::MagneticField<DataVector, Dim>;
+  using MagneticField = hydro::Tags::MagneticField<DataVector, 3>;
   using DivergenceCleaningField =
       hydro::Tags::DivergenceCleaningField<DataVector>;
   using prim_tags =
@@ -87,20 +85,20 @@ void test_dg(const gsl::not_null<std::mt19937*> gen,
                  DivergenceCleaningField>;
   using ReconsPrimVars = Variables<prims_to_reconstruct_tags>;
 
-  const Mesh<Dim> dg_mesh{5, Spectral::Basis::Legendre,
-                          Spectral::Quadrature::GaussLobatto};
-  const Mesh<Dim> subcell_mesh = evolution::dg::subcell::fd::mesh(dg_mesh);
+  const Mesh<3> dg_mesh{5, Spectral::Basis::Legendre,
+                        Spectral::Quadrature::GaussLobatto};
+  const Mesh<3> subcell_mesh = evolution::dg::subcell::fd::mesh(dg_mesh);
 
   // NOLINTNEXTLINE(modernize-use-auto)
   const PrimVars prims = make_with_random_values<PrimVars>(
       gen, dist, dg_mesh.number_of_grid_points());
 
   auto box = db::create<
-      db::AddSimpleTags<::Tags::Variables<prim_tags>, domain::Tags::Mesh<Dim>,
-                        evolution::dg::subcell::Tags::Mesh<Dim>>>(
-      prims, dg_mesh, subcell_mesh);
+      db::AddSimpleTags<::Tags::Variables<prim_tags>, domain::Tags::Mesh<3>,
+                        evolution::dg::subcell::Tags::Mesh<3>>>(prims, dg_mesh,
+                                                                subcell_mesh);
   DataVector prims_to_reconstruct_rdmp =
-      db::mutate_apply<NewtonianMhd::subcell::PrimitiveGhostVariables<Dim>>(
+      db::mutate_apply<NewtonianMhd::subcell::PrimitiveGhostVariables>(
           make_not_null(&box), 2_st);
   const ReconsPrimVars prims_to_reconstruct{
       prims_to_reconstruct_rdmp.data(), prims_to_reconstruct_rdmp.size() - 2};
@@ -120,11 +118,7 @@ SPECTRE_TEST_CASE(
     "[Unit][Evolution]") {
   MAKE_GENERATOR(gen);
   std::uniform_real_distribution<> dist(0.0, 1.0);
-  test_subcells<1>(make_not_null(&gen), make_not_null(&dist));
-  test_subcells<2>(make_not_null(&gen), make_not_null(&dist));
-  test_subcells<3>(make_not_null(&gen), make_not_null(&dist));
+  test_subcells(make_not_null(&gen), make_not_null(&dist));
 
-  test_dg<1>(make_not_null(&gen), make_not_null(&dist));
-  test_dg<2>(make_not_null(&gen), make_not_null(&dist));
-  test_dg<3>(make_not_null(&gen), make_not_null(&dist));
+  test_dg(make_not_null(&gen), make_not_null(&dist));
 }

@@ -17,7 +17,6 @@
 
 namespace {
 
-template <size_t Dim>
 void test_round_trip(const gsl::not_null<std::mt19937*> generator) {
   const size_t num_points = 5;
   const EquationsOfState::IdealFluid<false> equation_of_state{5.0 / 3.0};
@@ -31,20 +30,20 @@ void test_round_trip(const gsl::not_null<std::mt19937*> generator) {
       make_with_random_values<Scalar<DataVector>>(
           generator, make_not_null(&positive_distribution),
           DataVector(num_points));
-  const auto velocity = make_with_random_values<tnsr::I<DataVector, Dim>>(
+  const auto velocity = make_with_random_values<tnsr::I<DataVector, 3>>(
       generator, make_not_null(&distribution), DataVector(num_points));
-  const auto magnetic_field = make_with_random_values<tnsr::I<DataVector, Dim>>(
+  const auto magnetic_field = make_with_random_values<tnsr::I<DataVector, 3>>(
       generator, make_not_null(&distribution), DataVector(num_points));
   const auto divergence_cleaning_field =
       make_with_random_values<Scalar<DataVector>>(
           generator, make_not_null(&distribution), DataVector(num_points));
 
   Scalar<DataVector> mass_density_cons(num_points);
-  tnsr::I<DataVector, Dim> momentum_density(num_points);
+  tnsr::I<DataVector, 3> momentum_density(num_points);
   Scalar<DataVector> energy_density(num_points);
-  tnsr::I<DataVector, Dim> magnetic_field_cons(num_points);
+  tnsr::I<DataVector, 3> magnetic_field_cons(num_points);
   Scalar<DataVector> divergence_cleaning_field_cons(num_points);
-  NewtonianMhd::ConservativeFromPrimitive<Dim>::apply(
+  NewtonianMhd::ConservativeFromPrimitive::apply(
       make_not_null(&mass_density_cons), make_not_null(&momentum_density),
       make_not_null(&energy_density), make_not_null(&magnetic_field_cons),
       make_not_null(&divergence_cleaning_field_cons), mass_density, velocity,
@@ -56,12 +55,12 @@ void test_round_trip(const gsl::not_null<std::mt19937*> generator) {
                         divergence_cleaning_field);
 
   Scalar<DataVector> recovered_mass_density(num_points);
-  tnsr::I<DataVector, Dim> recovered_velocity(num_points);
+  tnsr::I<DataVector, 3> recovered_velocity(num_points);
   Scalar<DataVector> recovered_specific_internal_energy(num_points);
   Scalar<DataVector> recovered_pressure(num_points);
-  tnsr::I<DataVector, Dim> recovered_magnetic_field(num_points);
+  tnsr::I<DataVector, 3> recovered_magnetic_field(num_points);
   Scalar<DataVector> recovered_divergence_cleaning_field(num_points);
-  NewtonianMhd::PrimitiveFromConservative<Dim>::apply(
+  NewtonianMhd::PrimitiveFromConservative::apply(
       make_not_null(&recovered_mass_density),
       make_not_null(&recovered_velocity),
       make_not_null(&recovered_specific_internal_energy),
@@ -102,7 +101,7 @@ void test_energy_density() {
   Scalar<DataVector> energy_density(one.size());
   tnsr::I<DataVector, 3> magnetic_field_cons(one.size());
   Scalar<DataVector> divergence_cleaning_field_cons(one.size());
-  NewtonianMhd::ConservativeFromPrimitive<3>::apply(
+  NewtonianMhd::ConservativeFromPrimitive::apply(
       make_not_null(&mass_density_cons), make_not_null(&momentum_density),
       make_not_null(&energy_density), make_not_null(&magnetic_field_cons),
       make_not_null(&divergence_cleaning_field_cons), mass_density, velocity,
@@ -119,8 +118,6 @@ void test_energy_density() {
 SPECTRE_TEST_CASE("Unit.NewtonianMhd.ConservativeFromPrimitive",
                   "[Unit][Evolution]") {
   MAKE_GENERATOR(generator);
-  test_round_trip<1>(make_not_null(&generator));
-  test_round_trip<2>(make_not_null(&generator));
-  test_round_trip<3>(make_not_null(&generator));
+  test_round_trip(make_not_null(&generator));
   test_energy_density();
 }

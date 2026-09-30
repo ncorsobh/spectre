@@ -45,15 +45,14 @@ namespace NewtonianMhd::subcell {
  * grid from the reconstructed conserved variables, not via a reconstruction
  * operation applied to the primitives.
  */
-template <size_t Dim>
 struct ResizeAndComputePrims {
  private:
   using MassDensity = hydro::Tags::RestMassDensity<DataVector>;
-  using Velocity = hydro::Tags::SpatialVelocity<DataVector, Dim>;
+  using Velocity = hydro::Tags::SpatialVelocity<DataVector, 3>;
   using SpecificInternalEnergy =
       hydro::Tags::SpecificInternalEnergy<DataVector>;
   using Pressure = hydro::Tags::Pressure<DataVector>;
-  using MagneticField = hydro::Tags::MagneticField<DataVector, Dim>;
+  using MagneticField = hydro::Tags::MagneticField<DataVector, 3>;
   using DivergenceCleaningField =
       hydro::Tags::DivergenceCleaningField<DataVector>;
 
@@ -63,12 +62,11 @@ struct ResizeAndComputePrims {
                  MagneticField, DivergenceCleaningField>>>;
   using argument_tags =
       tmpl::list<evolution::dg::subcell::Tags::ActiveGrid,
-                 domain::Tags::Mesh<Dim>,
-                 evolution::dg::subcell::Tags::Mesh<Dim>,
+                 domain::Tags::Mesh<3>, evolution::dg::subcell::Tags::Mesh<3>,
                  NewtonianMhd::Tags::MassDensityCons,
-                 NewtonianMhd::Tags::MomentumDensity<Dim>,
+                 NewtonianMhd::Tags::MomentumDensity<>,
                  NewtonianMhd::Tags::EnergyDensity,
-                 NewtonianMhd::Tags::MagneticFieldCons<Dim>,
+                 NewtonianMhd::Tags::MagneticFieldCons<>,
                  NewtonianMhd::Tags::DivergenceCleaningFieldCons,
                  hydro::Tags::EquationOfState<false, 2>>;
 
@@ -77,12 +75,11 @@ struct ResizeAndComputePrims {
           tmpl::list<MassDensity, Velocity, SpecificInternalEnergy, Pressure,
                      MagneticField, DivergenceCleaningField>>*>
           prim_vars,
-      evolution::dg::subcell::ActiveGrid active_grid, const Mesh<Dim>& dg_mesh,
-      const Mesh<Dim>& subcell_mesh,
-      const Scalar<DataVector>& mass_density_cons,
-      const tnsr::I<DataVector, Dim>& momentum_density,
+      evolution::dg::subcell::ActiveGrid active_grid, const Mesh<3>& dg_mesh,
+      const Mesh<3>& subcell_mesh, const Scalar<DataVector>& mass_density_cons,
+      const tnsr::I<DataVector, 3>& momentum_density,
       const Scalar<DataVector>& energy_density,
-      const tnsr::I<DataVector, Dim>& magnetic_field_cons,
+      const tnsr::I<DataVector, 3>& magnetic_field_cons,
       const Scalar<DataVector>& divergence_cleaning_field_cons,
       const EquationsOfState::EquationOfState<false, 2>& equation_of_state);
 };

@@ -45,14 +45,13 @@ namespace NewtonianMhd::Initialization {
  * `NewtonianMhd::subcell::BackgroundMagneticFieldVars` instead, which also
  * handles the finite-difference grids.
  */
-template <size_t Dim>
 struct BackgroundMagneticField {
-  using return_tags = tmpl::list<Tags::BackgroundMagneticFieldVolume<Dim>>;
+  using return_tags = tmpl::list<Tags::BackgroundMagneticFieldVolume<>>;
   using argument_tags =
-      tmpl::list<domain::Tags::Coordinates<Dim, Frame::Inertial>,
+      tmpl::list<domain::Tags::Coordinates<3, Frame::Inertial>,
                  evolution::initial_data::Tags::InitialData>;
 
-  using simple_tags = tmpl::list<Tags::BackgroundMagneticFieldVolume<Dim>>;
+  using simple_tags = tmpl::list<Tags::BackgroundMagneticFieldVolume<>>;
   using compute_tags = tmpl::list<>;
   using simple_tags_from_options = tmpl::list<>;
   using const_global_cache_tags =
@@ -60,16 +59,15 @@ struct BackgroundMagneticField {
   using mutable_global_cache_tags = tmpl::list<>;
 
   static void apply(
-      const gsl::not_null<tnsr::I<DataVector, Dim, Frame::Inertial>*>
+      const gsl::not_null<tnsr::I<DataVector, 3, Frame::Inertial>*>
           background_magnetic_field,
-      const tnsr::I<DataVector, Dim, Frame::Inertial>& coords,
+      const tnsr::I<DataVector, 3, Frame::Inertial>& coords,
       const evolution::initial_data::InitialData& initial_data) {
-    using tags = tmpl::list<Tags::BackgroundMagneticFieldVolume<Dim>>;
-    *background_magnetic_field = get<Tags::BackgroundMagneticFieldVolume<Dim>>(
-        call_with_dynamic_type<
-            tuples::tagged_tuple_from_typelist<tags>,
-            NewtonianMhd::InitialData::
-                background_magnetic_field_initial_data_list<Dim>>(
+    using tags = tmpl::list<Tags::BackgroundMagneticFieldVolume<>>;
+    *background_magnetic_field = get<Tags::BackgroundMagneticFieldVolume<>>(
+        call_with_dynamic_type<tuples::tagged_tuple_from_typelist<tags>,
+                               NewtonianMhd::InitialData::
+                                   background_magnetic_field_initial_data_list>(
             &initial_data, [&coords](const auto* const data) {
               if constexpr (is_analytic_solution_v<
                                 std::decay_t<decltype(*data)>>) {
@@ -87,21 +85,19 @@ struct BackgroundMagneticField {
  *
  * Must run after the background field has been set.
  */
-template <size_t Dim>
 struct SubtractBackgroundMagneticField {
   using return_tags =
-      tmpl::list<typename System<Dim, true>::primitive_variables_tag>;
-  using argument_tags = tmpl::list<Tags::BackgroundMagneticFieldVolume<Dim>>;
+      tmpl::list<typename System<true>::primitive_variables_tag>;
+  using argument_tags = tmpl::list<Tags::BackgroundMagneticFieldVolume<>>;
 
   static void apply(
-      const gsl::not_null<
-          typename System<Dim, true>::primitive_variables_tag::type*>
+      const gsl::not_null<typename System<true>::primitive_variables_tag::type*>
           primitive_variables,
-      const tnsr::I<DataVector, Dim, Frame::Inertial>&
+      const tnsr::I<DataVector, 3, Frame::Inertial>&
           background_magnetic_field) {
     auto& magnetic_field =
-        get<hydro::Tags::MagneticField<DataVector, Dim>>(*primitive_variables);
-    for (size_t i = 0; i < Dim; ++i) {
+        get<hydro::Tags::MagneticField<DataVector, 3>>(*primitive_variables);
+    for (size_t i = 0; i < 3; ++i) {
       magnetic_field.get(i) -= background_magnetic_field.get(i);
     }
   }

@@ -29,19 +29,19 @@ struct NoBackgroundMagneticField {};
 /// The type used to pass \f$B_0\f$ into the shared implementations: the field
 /// itself when the splitting is enabled, and `NoBackgroundMagneticField`
 /// otherwise.
-template <size_t Dim, bool UseBackgroundMagneticField = false>
+template <bool UseBackgroundMagneticField = false>
 using BackgroundMagneticFieldArgument =
     tmpl::conditional_t<UseBackgroundMagneticField,
-                        const tnsr::I<DataVector, Dim, Frame::Inertial>&,
+                        const tnsr::I<DataVector, 3, Frame::Inertial>&,
                         NoBackgroundMagneticField>;
 
 /// The type used to return the ghost \f$B_0\f$ from a boundary condition:
 /// a pointer to the field when the splitting is enabled, nothing otherwise.
-template <size_t Dim, bool UseBackgroundMagneticField = false>
-using BackgroundMagneticFieldOutput = tmpl::conditional_t<
-    UseBackgroundMagneticField,
-    gsl::not_null<tnsr::I<DataVector, Dim, Frame::Inertial>*>,
-    NoBackgroundMagneticField>;
+template <bool UseBackgroundMagneticField = false>
+using BackgroundMagneticFieldOutput =
+    tmpl::conditional_t<UseBackgroundMagneticField,
+                        gsl::not_null<tnsr::I<DataVector, 3, Frame::Inertial>*>,
+                        NoBackgroundMagneticField>;
 
 /// The tag list holding \f$B_0\f$, empty when the splitting is disabled.
 template <typename Tag, bool UseBackgroundMagneticField>

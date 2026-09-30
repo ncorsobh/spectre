@@ -54,7 +54,6 @@ namespace NewtonianMhd {
  * unphysical state; the troubled-cell indicator should be catching such cells
  * first.
  */
-template <size_t Dim>
 class FixConservatives {
  public:
   /// \brief Minimum value of the mass density.
@@ -114,24 +113,23 @@ class FixConservatives {
   void pup(PUP::er& p);
 
   using return_tags = tmpl::list<NewtonianMhd::Tags::MassDensityCons,
-                                 NewtonianMhd::Tags::MomentumDensity<Dim>,
+                                 NewtonianMhd::Tags::MomentumDensity<>,
                                  NewtonianMhd::Tags::EnergyDensity,
-                                 NewtonianMhd::Tags::MagneticFieldCons<Dim>>;
+                                 NewtonianMhd::Tags::MagneticFieldCons<>>;
   using argument_tags = tmpl::list<>;
 
   /// Returns `true` if any variables were fixed.
-  bool operator()(gsl::not_null<Scalar<DataVector>*> mass_density_cons,
-                  gsl::not_null<tnsr::I<DataVector, Dim, Frame::Inertial>*>
-                      momentum_density,
-                  gsl::not_null<Scalar<DataVector>*> energy_density,
-                  gsl::not_null<tnsr::I<DataVector, Dim, Frame::Inertial>*>
-                      magnetic_field_cons) const;
+  bool operator()(
+      gsl::not_null<Scalar<DataVector>*> mass_density_cons,
+      gsl::not_null<tnsr::I<DataVector, 3, Frame::Inertial>*> momentum_density,
+      gsl::not_null<Scalar<DataVector>*> energy_density,
+      gsl::not_null<tnsr::I<DataVector, 3, Frame::Inertial>*>
+          magnetic_field_cons) const;
 
  private:
-  template <size_t LocalDim>
   // NOLINTNEXTLINE(readability-redundant-declaration)
-  friend bool operator==(const FixConservatives<LocalDim>& lhs,
-                         const FixConservatives<LocalDim>& rhs);
+  friend bool operator==(const FixConservatives& lhs,
+                         const FixConservatives& rhs);
 
   double minimum_density_{std::numeric_limits<double>::signaling_NaN()};
   double cutoff_density_{std::numeric_limits<double>::signaling_NaN()};
@@ -142,7 +140,5 @@ class FixConservatives {
   bool enable_{true};
 };
 
-template <size_t Dim>
-bool operator!=(const FixConservatives<Dim>& lhs,
-                const FixConservatives<Dim>& rhs);
+bool operator!=(const FixConservatives& lhs, const FixConservatives& rhs);
 }  // namespace NewtonianMhd

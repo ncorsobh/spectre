@@ -38,34 +38,33 @@ namespace NewtonianMhd {
  * Pressure is then obtained from the equation of state, \f$P =
  * P(\rho,\epsilon)\f$. No root-finding is required in the Newtonian limit.
  */
-template <size_t Dim>
 struct PrimitiveFromConservative {
   using return_tags =
       tmpl::list<hydro::Tags::RestMassDensity<DataVector>,
-                 hydro::Tags::SpatialVelocity<DataVector, Dim>,
+                 hydro::Tags::SpatialVelocity<DataVector, 3>,
                  hydro::Tags::SpecificInternalEnergy<DataVector>,
                  hydro::Tags::Pressure<DataVector>,
-                 hydro::Tags::MagneticField<DataVector, Dim>,
+                 hydro::Tags::MagneticField<DataVector, 3>,
                  hydro::Tags::DivergenceCleaningField<DataVector>>;
 
   using argument_tags =
-      tmpl::list<Tags::MassDensityCons, Tags::MomentumDensity<Dim>,
-                 Tags::EnergyDensity, Tags::MagneticFieldCons<Dim>,
+      tmpl::list<Tags::MassDensityCons, Tags::MomentumDensity<>,
+                 Tags::EnergyDensity, Tags::MagneticFieldCons<>,
                  Tags::DivergenceCleaningFieldCons,
                  hydro::Tags::EquationOfState<false, 2>>;
 
   template <size_t ThermodynamicDim>
   static void apply(
       gsl::not_null<Scalar<DataVector>*> mass_density,
-      gsl::not_null<tnsr::I<DataVector, Dim>*> velocity,
+      gsl::not_null<tnsr::I<DataVector, 3>*> velocity,
       gsl::not_null<Scalar<DataVector>*> specific_internal_energy,
       gsl::not_null<Scalar<DataVector>*> pressure,
-      gsl::not_null<tnsr::I<DataVector, Dim>*> magnetic_field,
+      gsl::not_null<tnsr::I<DataVector, 3>*> magnetic_field,
       gsl::not_null<Scalar<DataVector>*> divergence_cleaning_field,
       const Scalar<DataVector>& mass_density_cons,
-      const tnsr::I<DataVector, Dim>& momentum_density,
+      const tnsr::I<DataVector, 3>& momentum_density,
       const Scalar<DataVector>& energy_density,
-      const tnsr::I<DataVector, Dim>& magnetic_field_cons,
+      const tnsr::I<DataVector, 3>& magnetic_field_cons,
       const Scalar<DataVector>& divergence_cleaning_field_cons,
       const EquationsOfState::EquationOfState<false, ThermodynamicDim>&
           equation_of_state);

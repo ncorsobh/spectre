@@ -15,8 +15,7 @@
 
 namespace NewtonianMhd {
 
-template <size_t Dim>
-FixConservatives<Dim>::FixConservatives(
+FixConservatives::FixConservatives(
     const double minimum_density, const double cutoff_density,
     const double safety_factor_for_magnetic_field,
     const double safety_factor_for_momentum_density, const bool enable,
@@ -47,8 +46,7 @@ FixConservatives<Dim>::FixConservatives(
   }
 }
 
-template <size_t Dim>
-void FixConservatives<Dim>::pup(PUP::er& p) {
+void FixConservatives::pup(PUP::er& p) {
   p | minimum_density_;
   p | cutoff_density_;
   p | one_minus_safety_factor_for_magnetic_field_;
@@ -56,13 +54,12 @@ void FixConservatives<Dim>::pup(PUP::er& p) {
   p | enable_;
 }
 
-template <size_t Dim>
-bool FixConservatives<Dim>::operator()(
+bool FixConservatives::operator()(
     const gsl::not_null<Scalar<DataVector>*> mass_density_cons,
-    const gsl::not_null<tnsr::I<DataVector, Dim, Frame::Inertial>*>
+    const gsl::not_null<tnsr::I<DataVector, 3, Frame::Inertial>*>
         momentum_density,
     const gsl::not_null<Scalar<DataVector>*> energy_density,
-    const gsl::not_null<tnsr::I<DataVector, Dim, Frame::Inertial>*>
+    const gsl::not_null<tnsr::I<DataVector, 3, Frame::Inertial>*>
         magnetic_field_cons) const {
   if (not enable_) {
     return false;
@@ -79,7 +76,7 @@ bool FixConservatives<Dim>::operator()(
     }
 
     double magnetic_field_squared = 0.0;
-    for (size_t i = 0; i < Dim; ++i) {
+    for (size_t i = 0; i < 3; ++i) {
       magnetic_field_squared += square(magnetic_field_cons->get(i)[point]);
     }
     const double magnetic_field_bound =
@@ -88,7 +85,7 @@ bool FixConservatives<Dim>::operator()(
       // Rescaling rather than clipping keeps the direction of B.
       const double rescale =
           sqrt(std::max(magnetic_field_bound, 0.0) / magnetic_field_squared);
-      for (size_t i = 0; i < Dim; ++i) {
+      for (size_t i = 0; i < 3; ++i) {
         magnetic_field_cons->get(i)[point] *= rescale;
       }
       magnetic_field_squared = std::max(magnetic_field_bound, 0.0);
@@ -96,7 +93,7 @@ bool FixConservatives<Dim>::operator()(
     }
 
     double momentum_density_squared = 0.0;
-    for (size_t i = 0; i < Dim; ++i) {
+    for (size_t i = 0; i < 3; ++i) {
       momentum_density_squared += square(momentum_density->get(i)[point]);
     }
     // |S|^2 <= 2 (1 - eps_S) rho (e - |B|^2/2) is equivalent to a
@@ -107,7 +104,7 @@ bool FixConservatives<Dim>::operator()(
     if (momentum_density_squared > momentum_density_bound) {
       const double rescale = sqrt(std::max(momentum_density_bound, 0.0) /
                                   momentum_density_squared);
-      for (size_t i = 0; i < Dim; ++i) {
+      for (size_t i = 0; i < 3; ++i) {
         momentum_density->get(i)[point] *= rescale;
       }
       needed_fixing = true;
@@ -116,9 +113,7 @@ bool FixConservatives<Dim>::operator()(
   return needed_fixing;
 }
 
-template <size_t Dim>
-bool operator==(const FixConservatives<Dim>& lhs,
-                const FixConservatives<Dim>& rhs) {
+bool operator==(const FixConservatives& lhs, const FixConservatives& rhs) {
   return lhs.minimum_density_ == rhs.minimum_density_ and
          lhs.cutoff_density_ == rhs.cutoff_density_ and
          lhs.one_minus_safety_factor_for_magnetic_field_ ==
@@ -128,26 +123,14 @@ bool operator==(const FixConservatives<Dim>& lhs,
          lhs.enable_ == rhs.enable_;
 }
 
-template <size_t Dim>
-bool operator!=(const FixConservatives<Dim>& lhs,
-                const FixConservatives<Dim>& rhs) {
+bool operator!=(const FixConservatives& lhs, const FixConservatives& rhs) {
   return not(lhs == rhs);
 }
 
 }  // namespace NewtonianMhd
 
-#define DIM(data) BOOST_PP_TUPLE_ELEM(0, data)
+#define INSTANTIATION(_, data)
 
-#define INSTANTIATION(_, data)                               \
-  template class NewtonianMhd::FixConservatives<DIM(data)>;  \
-  template bool NewtonianMhd::operator==(                    \
-      const NewtonianMhd::FixConservatives<DIM(data)>& lhs,  \
-      const NewtonianMhd::FixConservatives<DIM(data)>& rhs); \
-  template bool NewtonianMhd::operator!=(                    \
-      const NewtonianMhd::FixConservatives<DIM(data)>& lhs,  \
-      const NewtonianMhd::FixConservatives<DIM(data)>& rhs);
-
-GENERATE_INSTANTIATIONS(INSTANTIATION, (1, 2, 3))
+INSTANTIATION(~, ~)
 
 #undef INSTANTIATION
-#undef DIM

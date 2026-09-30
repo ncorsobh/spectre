@@ -34,41 +34,40 @@
 #include "Utilities/TMPL.hpp"
 
 namespace NewtonianMhd::BoundaryConditions {
-template <size_t Dim, bool UseBackgroundMagneticField>
-DemandOutgoingCharSpeeds<Dim, UseBackgroundMagneticField>::
-    DemandOutgoingCharSpeeds(CkMigrateMessage* const msg)
-    : BoundaryCondition<Dim>(msg) {}
+template <bool UseBackgroundMagneticField>
+DemandOutgoingCharSpeeds<UseBackgroundMagneticField>::DemandOutgoingCharSpeeds(
+    CkMigrateMessage* const msg)
+    : BoundaryCondition(msg) {}
 
-template <size_t Dim, bool UseBackgroundMagneticField>
+template <bool UseBackgroundMagneticField>
 std::unique_ptr<domain::BoundaryConditions::BoundaryCondition>
-DemandOutgoingCharSpeeds<Dim, UseBackgroundMagneticField>::get_clone() const {
+DemandOutgoingCharSpeeds<UseBackgroundMagneticField>::get_clone() const {
   return std::make_unique<DemandOutgoingCharSpeeds>(*this);
 }
 
-template <size_t Dim, bool UseBackgroundMagneticField>
-void DemandOutgoingCharSpeeds<Dim, UseBackgroundMagneticField>::pup(
-    PUP::er& p) {
-  BoundaryCondition<Dim>::pup(p);
+template <bool UseBackgroundMagneticField>
+void DemandOutgoingCharSpeeds<UseBackgroundMagneticField>::pup(PUP::er& p) {
+  BoundaryCondition::pup(p);
 }
 
-template <size_t Dim, bool UseBackgroundMagneticField>
+template <bool UseBackgroundMagneticField>
 // NOLINTNEXTLINE
 PUP::able::PUP_ID
-    DemandOutgoingCharSpeeds<Dim, UseBackgroundMagneticField>::my_PUP_ID = 0;
+    DemandOutgoingCharSpeeds<UseBackgroundMagneticField>::my_PUP_ID = 0;
 
-template <size_t Dim, bool UseBackgroundMagneticField>
+template <bool UseBackgroundMagneticField>
 template <size_t ThermodynamicDim>
 std::optional<std::string>
-DemandOutgoingCharSpeeds<Dim, UseBackgroundMagneticField>::
+DemandOutgoingCharSpeeds<UseBackgroundMagneticField>::
     dg_demand_outgoing_char_speeds(
-        const std::optional<tnsr::I<DataVector, Dim, Frame::Inertial>>&
+        const std::optional<tnsr::I<DataVector, 3, Frame::Inertial>>&
             face_mesh_velocity,
-        const tnsr::i<DataVector, Dim, Frame::Inertial>&
+        const tnsr::i<DataVector, 3, Frame::Inertial>&
             outward_directed_normal_covector,
 
-        const tnsr::I<DataVector, Dim, Frame::Inertial>& magnetic_field,
+        const tnsr::I<DataVector, 3, Frame::Inertial>& magnetic_field,
         const Scalar<DataVector>& mass_density,
-        const tnsr::I<DataVector, Dim, Frame::Inertial>& velocity,
+        const tnsr::I<DataVector, 3, Frame::Inertial>& velocity,
         const Scalar<DataVector>& specific_internal_energy,
         const EquationsOfState::EquationOfState<false, ThermodynamicDim>&
             equation_of_state) {
@@ -86,21 +85,21 @@ DemandOutgoingCharSpeeds<Dim, UseBackgroundMagneticField>::
   }
 }
 
-template <size_t Dim, bool UseBackgroundMagneticField>
+template <bool UseBackgroundMagneticField>
 template <size_t ThermodynamicDim>
 std::optional<std::string>
-DemandOutgoingCharSpeeds<Dim, UseBackgroundMagneticField>::
+DemandOutgoingCharSpeeds<UseBackgroundMagneticField>::
     dg_demand_outgoing_char_speeds(
-        const std::optional<tnsr::I<DataVector, Dim, Frame::Inertial>>&
+        const std::optional<tnsr::I<DataVector, 3, Frame::Inertial>>&
             face_mesh_velocity,
-        const tnsr::i<DataVector, Dim, Frame::Inertial>&
+        const tnsr::i<DataVector, 3, Frame::Inertial>&
             outward_directed_normal_covector,
 
-        const tnsr::I<DataVector, Dim, Frame::Inertial>& magnetic_field,
+        const tnsr::I<DataVector, 3, Frame::Inertial>& magnetic_field,
         const Scalar<DataVector>& mass_density,
-        const tnsr::I<DataVector, Dim, Frame::Inertial>& velocity,
+        const tnsr::I<DataVector, 3, Frame::Inertial>& velocity,
         const Scalar<DataVector>& specific_internal_energy,
-        const BackgroundMagneticFieldArgument<Dim, UseBackgroundMagneticField>
+        const BackgroundMagneticFieldArgument<UseBackgroundMagneticField>
             background_magnetic_field,
         const EquationsOfState::EquationOfState<false, ThermodynamicDim>&
             equation_of_state) {
@@ -114,7 +113,7 @@ DemandOutgoingCharSpeeds<Dim, UseBackgroundMagneticField>::
   sound_speed_squared(make_not_null(&sound_speed_sq), mass_density,
                       specific_internal_energy, equation_of_state);
   auto& fast_speed = get<::Tags::TempScalar<1>>(buffer);
-  fast_magnetosonic_speed<Dim, UseBackgroundMagneticField>(
+  fast_magnetosonic_speed<UseBackgroundMagneticField>(
       make_not_null(&fast_speed), mass_density, sound_speed_sq, magnetic_field,
       background_magnetic_field);
 
@@ -142,33 +141,31 @@ DemandOutgoingCharSpeeds<Dim, UseBackgroundMagneticField>::
   return std::nullopt;
 }
 
-template <size_t Dim, bool UseBackgroundMagneticField>
-void DemandOutgoingCharSpeeds<Dim, UseBackgroundMagneticField>::
+template <bool UseBackgroundMagneticField>
+void DemandOutgoingCharSpeeds<UseBackgroundMagneticField>::
     fd_demand_outgoing_char_speeds(
         const gsl::not_null<Scalar<DataVector>*> mass_density,
-        const gsl::not_null<tnsr::I<DataVector, Dim, Frame::Inertial>*>
-            velocity,
+        const gsl::not_null<tnsr::I<DataVector, 3, Frame::Inertial>*> velocity,
         const gsl::not_null<Scalar<DataVector>*> pressure,
-        const gsl::not_null<tnsr::I<DataVector, Dim, Frame::Inertial>*>
+        const gsl::not_null<tnsr::I<DataVector, 3, Frame::Inertial>*>
             magnetic_field,
         const gsl::not_null<Scalar<DataVector>*> divergence_cleaning_field,
-        const Direction<Dim>& direction,
-        const std::optional<tnsr::I<DataVector, Dim, Frame::Inertial>>&
+        const Direction<3>& direction,
+        const std::optional<tnsr::I<DataVector, 3, Frame::Inertial>>&
             face_mesh_velocity,
-        const tnsr::i<DataVector, Dim, Frame::Inertial>&
+        const tnsr::i<DataVector, 3, Frame::Inertial>&
             outward_directed_normal_covector,
-        const Mesh<Dim>& subcell_mesh,
-        const BackgroundMagneticFieldArgument<Dim, UseBackgroundMagneticField>
+        const Mesh<3>& subcell_mesh,
+        const BackgroundMagneticFieldArgument<UseBackgroundMagneticField>
             interior_background_magnetic_field,
         const Scalar<DataVector>& interior_mass_density,
-        const tnsr::I<DataVector, Dim, Frame::Inertial>& interior_velocity,
+        const tnsr::I<DataVector, 3, Frame::Inertial>& interior_velocity,
         const Scalar<DataVector>& interior_specific_internal_energy,
         const Scalar<DataVector>& interior_pressure,
-        const tnsr::I<DataVector, Dim, Frame::Inertial>&
-            interior_magnetic_field,
+        const tnsr::I<DataVector, 3, Frame::Inertial>& interior_magnetic_field,
         const Scalar<DataVector>& interior_divergence_cleaning_field,
         const EquationsOfState::EquationOfState<false, 2>& equation_of_state,
-        const fd::Reconstructor<Dim>& reconstructor) {
+        const fd::Reconstructor& reconstructor) {
   const size_t dim_direction = direction.dimension();
   const auto subcell_extents = subcell_mesh.extents();
   const size_t num_face_pts =
@@ -195,14 +192,14 @@ void DemandOutgoingCharSpeeds<Dim, UseBackgroundMagneticField>::
                         equation_of_state);
     auto& fast_speed = get<::Tags::TempScalar<1>>(buffer);
     if constexpr (UseBackgroundMagneticField) {
-      fast_magnetosonic_speed<Dim, true>(
+      fast_magnetosonic_speed<true>(
           make_not_null(&fast_speed), boundary_mass_density, sound_speed_sq,
           boundary_magnetic_field,
           get_boundary_val(interior_background_magnetic_field));
     } else {
-      fast_magnetosonic_speed<Dim, false>(make_not_null(&fast_speed),
-                                          boundary_mass_density, sound_speed_sq,
-                                          boundary_magnetic_field);
+      fast_magnetosonic_speed<false>(make_not_null(&fast_speed),
+                                     boundary_mass_density, sound_speed_sq,
+                                     boundary_magnetic_field);
     }
 
     auto& normal_dot_velocity = get<::Tags::TempScalar<2>>(buffer);
@@ -229,9 +226,9 @@ void DemandOutgoingCharSpeeds<Dim, UseBackgroundMagneticField>::
   }
 
   using MassDensity = hydro::Tags::RestMassDensity<DataVector>;
-  using Velocity = hydro::Tags::SpatialVelocity<DataVector, Dim>;
+  using Velocity = hydro::Tags::SpatialVelocity<DataVector, 3>;
   using Pressure = hydro::Tags::Pressure<DataVector>;
-  using MagneticField = hydro::Tags::MagneticField<DataVector, Dim>;
+  using MagneticField = hydro::Tags::MagneticField<DataVector, 3>;
   using DivergenceCleaningField =
       hydro::Tags::DivergenceCleaningField<DataVector>;
   using prim_tags = tmpl::list<MassDensity, Velocity, Pressure, MagneticField,
@@ -246,7 +243,7 @@ void DemandOutgoingCharSpeeds<Dim, UseBackgroundMagneticField>::
       get_boundary_val(interior_divergence_cleaning_field);
 
   const size_t ghost_zone_size = reconstructor.ghost_zone_size();
-  Index<Dim> ghost_data_extents = subcell_extents;
+  Index<3> ghost_data_extents = subcell_extents;
   ghost_data_extents[dim_direction] = ghost_zone_size;
   Variables<prim_tags> ghost_prim_vars{ghost_data_extents.product(), 0.0};
   for (size_t i_ghost = 0; i_ghost < ghost_zone_size; ++i_ghost) {
@@ -261,31 +258,29 @@ void DemandOutgoingCharSpeeds<Dim, UseBackgroundMagneticField>::
   *divergence_cleaning_field = get<DivergenceCleaningField>(ghost_prim_vars);
 }
 
-template <size_t Dim, bool UseBackgroundMagneticField>
-void DemandOutgoingCharSpeeds<Dim, UseBackgroundMagneticField>::
+template <bool UseBackgroundMagneticField>
+void DemandOutgoingCharSpeeds<UseBackgroundMagneticField>::
     fd_demand_outgoing_char_speeds(
         const gsl::not_null<Scalar<DataVector>*> mass_density,
-        const gsl::not_null<tnsr::I<DataVector, Dim, Frame::Inertial>*>
-            velocity,
+        const gsl::not_null<tnsr::I<DataVector, 3, Frame::Inertial>*> velocity,
         const gsl::not_null<Scalar<DataVector>*> pressure,
-        const gsl::not_null<tnsr::I<DataVector, Dim, Frame::Inertial>*>
+        const gsl::not_null<tnsr::I<DataVector, 3, Frame::Inertial>*>
             magnetic_field,
         const gsl::not_null<Scalar<DataVector>*> divergence_cleaning_field,
-        const Direction<Dim>& direction,
-        const std::optional<tnsr::I<DataVector, Dim, Frame::Inertial>>&
+        const Direction<3>& direction,
+        const std::optional<tnsr::I<DataVector, 3, Frame::Inertial>>&
             face_mesh_velocity,
-        const tnsr::i<DataVector, Dim, Frame::Inertial>&
+        const tnsr::i<DataVector, 3, Frame::Inertial>&
             outward_directed_normal_covector,
-        const Mesh<Dim>& subcell_mesh,
+        const Mesh<3>& subcell_mesh,
         const Scalar<DataVector>& interior_mass_density,
-        const tnsr::I<DataVector, Dim, Frame::Inertial>& interior_velocity,
+        const tnsr::I<DataVector, 3, Frame::Inertial>& interior_velocity,
         const Scalar<DataVector>& interior_specific_internal_energy,
         const Scalar<DataVector>& interior_pressure,
-        const tnsr::I<DataVector, Dim, Frame::Inertial>&
-            interior_magnetic_field,
+        const tnsr::I<DataVector, 3, Frame::Inertial>& interior_magnetic_field,
         const Scalar<DataVector>& interior_divergence_cleaning_field,
         const EquationsOfState::EquationOfState<false, 2>& equation_of_state,
-        const fd::Reconstructor<Dim>& reconstructor) {
+        const fd::Reconstructor& reconstructor) {
   // Selected by an empty background entry in `fd_interior_temporary_tags`, so
   // that B0 is never requested when the splitting is disabled.
   if constexpr (UseBackgroundMagneticField) {
@@ -304,55 +299,48 @@ void DemandOutgoingCharSpeeds<Dim, UseBackgroundMagneticField>::
   }
 }
 
-#define DIM(data) BOOST_PP_TUPLE_ELEM(0, data)
-#define USE_BG(data) BOOST_PP_TUPLE_ELEM(1, data)
+#define USE_BG(data) BOOST_PP_TUPLE_ELEM(0, data)
 
 #define INSTANTIATION(_, data) \
-  template class DemandOutgoingCharSpeeds<DIM(data), USE_BG(data)>;
+  template class DemandOutgoingCharSpeeds<USE_BG(data)>;
 
-GENERATE_INSTANTIATIONS(INSTANTIATION, (1, 2, 3), (true, false))
+GENERATE_INSTANTIATIONS(INSTANTIATION, (true, false))
 
 #undef INSTANTIATION
 
-#define THERMODIM(data) BOOST_PP_TUPLE_ELEM(2, data)
+#define THERMODIM(data) BOOST_PP_TUPLE_ELEM(1, data)
 
-#define INSTANTIATION(_, data)                                               \
-  template std::optional<std::string>                                        \
-  DemandOutgoingCharSpeeds<DIM(data), USE_BG(data)>::                        \
-      dg_demand_outgoing_char_speeds<THERMODIM(data)>(                       \
-          const std::optional<tnsr::I<DataVector, DIM(data),                 \
-                                      Frame::Inertial>>& face_mesh_velocity, \
-          const tnsr::i<DataVector, DIM(data), Frame::Inertial>&             \
-              outward_directed_normal_covector,                              \
-          const tnsr::I<DataVector, DIM(data), Frame::Inertial>&             \
-              magnetic_field,                                                \
-          const Scalar<DataVector>& mass_density,                            \
-          const tnsr::I<DataVector, DIM(data), Frame::Inertial>& velocity,   \
-          const Scalar<DataVector>& specific_internal_energy,                \
-          NewtonianMhd::BackgroundMagneticFieldArgument<DIM(data),           \
-                                                        USE_BG(data)>        \
-              background_magnetic_field,                                     \
-          const EquationsOfState::EquationOfState<false, THERMODIM(data)>&   \
-              equation_of_state);                                            \
-  template std::optional<std::string>                                        \
-  DemandOutgoingCharSpeeds<DIM(data), USE_BG(data)>::                        \
-      dg_demand_outgoing_char_speeds<THERMODIM(data)>(                       \
-          const std::optional<tnsr::I<DataVector, DIM(data),                 \
-                                      Frame::Inertial>>& face_mesh_velocity, \
-          const tnsr::i<DataVector, DIM(data), Frame::Inertial>&             \
-              outward_directed_normal_covector,                              \
-          const tnsr::I<DataVector, DIM(data), Frame::Inertial>&             \
-              magnetic_field,                                                \
-          const Scalar<DataVector>& mass_density,                            \
-          const tnsr::I<DataVector, DIM(data), Frame::Inertial>& velocity,   \
-          const Scalar<DataVector>& specific_internal_energy,                \
-          const EquationsOfState::EquationOfState<false, THERMODIM(data)>&   \
+#define INSTANTIATION(_, data)                                                 \
+  template std::optional<std::string> DemandOutgoingCharSpeeds<USE_BG(data)>:: \
+      dg_demand_outgoing_char_speeds<THERMODIM(data)>(                         \
+          const std::optional<tnsr::I<DataVector, 3, Frame::Inertial>>&        \
+              face_mesh_velocity,                                              \
+          const tnsr::i<DataVector, 3, Frame::Inertial>&                       \
+              outward_directed_normal_covector,                                \
+          const tnsr::I<DataVector, 3, Frame::Inertial>& magnetic_field,       \
+          const Scalar<DataVector>& mass_density,                              \
+          const tnsr::I<DataVector, 3, Frame::Inertial>& velocity,             \
+          const Scalar<DataVector>& specific_internal_energy,                  \
+          NewtonianMhd::BackgroundMagneticFieldArgument<USE_BG(data)>          \
+              background_magnetic_field,                                       \
+          const EquationsOfState::EquationOfState<false, THERMODIM(data)>&     \
+              equation_of_state);                                              \
+  template std::optional<std::string> DemandOutgoingCharSpeeds<USE_BG(data)>:: \
+      dg_demand_outgoing_char_speeds<THERMODIM(data)>(                         \
+          const std::optional<tnsr::I<DataVector, 3, Frame::Inertial>>&        \
+              face_mesh_velocity,                                              \
+          const tnsr::i<DataVector, 3, Frame::Inertial>&                       \
+              outward_directed_normal_covector,                                \
+          const tnsr::I<DataVector, 3, Frame::Inertial>& magnetic_field,       \
+          const Scalar<DataVector>& mass_density,                              \
+          const tnsr::I<DataVector, 3, Frame::Inertial>& velocity,             \
+          const Scalar<DataVector>& specific_internal_energy,                  \
+          const EquationsOfState::EquationOfState<false, THERMODIM(data)>&     \
               equation_of_state);
 
-GENERATE_INSTANTIATIONS(INSTANTIATION, (1, 2, 3), (true, false), (1, 2))
+GENERATE_INSTANTIATIONS(INSTANTIATION, (true, false), (1, 2))
 
 #undef INSTANTIATION
 #undef THERMODIM
 #undef USE_BG
-#undef DIM
 }  // namespace NewtonianMhd::BoundaryConditions

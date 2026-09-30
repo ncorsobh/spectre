@@ -17,20 +17,19 @@
 #include "NumericalAlgorithms/Spectral/Quadrature.hpp"
 
 namespace {
-template <size_t Dim>
 void test() {
   using MassDensityCons = NewtonianMhd::Tags::MassDensityCons;
   using EnergyDensity = NewtonianMhd::Tags::EnergyDensity;
-  using MomentumDensity = NewtonianMhd::Tags::MomentumDensity<Dim>;
-  using MagneticFieldCons = NewtonianMhd::Tags::MagneticFieldCons<Dim>;
+  using MomentumDensity = NewtonianMhd::Tags::MomentumDensity<>;
+  using MagneticFieldCons = NewtonianMhd::Tags::MagneticFieldCons<>;
   using DivergenceCleaningFieldCons =
       NewtonianMhd::Tags::DivergenceCleaningFieldCons;
   using ConsVars =
       Variables<tmpl::list<MassDensityCons, MomentumDensity, EnergyDensity,
                            MagneticFieldCons, DivergenceCleaningFieldCons>>;
-  const Mesh<Dim> dg_mesh{5, Spectral::Basis::Legendre,
-                          Spectral::Quadrature::GaussLobatto};
-  const Mesh<Dim> subcell_mesh = evolution::dg::subcell::fd::mesh(dg_mesh);
+  const Mesh<3> dg_mesh{5, Spectral::Basis::Legendre,
+                        Spectral::Quadrature::GaussLobatto};
+  const Mesh<3> subcell_mesh = evolution::dg::subcell::fd::mesh(dg_mesh);
   ConsVars dg_vars{dg_mesh.number_of_grid_points(), 1.0};
 
   // While the code is supposed to be used on the subcells, that doesn't
@@ -46,7 +45,7 @@ void test() {
   const auto subcell_energy_density = evolution::dg::subcell::fd::project(
       get(dg_energy_density), dg_mesh, subcell_mesh.extents());
   evolution::dg::subcell::RdmpTciData rdmp_data{};
-  NewtonianMhd::subcell::SetInitialRdmpData<Dim>::apply(
+  NewtonianMhd::subcell::SetInitialRdmpData::apply(
       make_not_null(&rdmp_data), dg_vars,
       evolution::dg::subcell::ActiveGrid::Dg, dg_mesh, subcell_mesh);
   const evolution::dg::subcell::RdmpTciData expected_dg_rdmp_data{
@@ -56,7 +55,7 @@ void test() {
        min(min(get(dg_energy_density)), min(subcell_energy_density))}};
   CHECK(rdmp_data == expected_dg_rdmp_data);
 
-  NewtonianMhd::subcell::SetInitialRdmpData<Dim>::apply(
+  NewtonianMhd::subcell::SetInitialRdmpData::apply(
       make_not_null(&rdmp_data), dg_vars,
       evolution::dg::subcell::ActiveGrid::Subcell, dg_mesh, subcell_mesh);
   const evolution::dg::subcell::RdmpTciData expected_subcell_rdmp_data{
@@ -69,7 +68,5 @@ void test() {
 SPECTRE_TEST_CASE(
     "Unit.Evolution.Systems.NewtonianMhd.Subcell.SetInitialRdmpData",
     "[Unit][Evolution]") {
-  test<1>();
-  test<2>();
-  test<3>();
+  test();
 }

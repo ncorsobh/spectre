@@ -54,37 +54,35 @@
 
 namespace NewtonianMhd::subcell {
 template <bool UseBackgroundMagneticField>
-template <size_t Dim>
-DirectionalIdMap<Dim, DataVector>
+DirectionalIdMap<3, DataVector>
 NeighborPackagedData<UseBackgroundMagneticField>::apply(
     const db::Access& box,
-    const std::vector<DirectionalId<Dim>>& mortars_to_reconstruct_to) {
-  using system = NewtonianMhd::System<Dim, UseBackgroundMagneticField>;
+    const std::vector<DirectionalId<3>>& mortars_to_reconstruct_to) {
+  using system = NewtonianMhd::System<UseBackgroundMagneticField>;
   using evolved_vars_tag = typename system::variables_tag;
   using evolved_vars_tags = typename evolved_vars_tag::tags_list;
   using prim_tags = typename system::primitive_variables_tag::tags_list;
   using fluxes_tags = db::wrap_tags_in<::Tags::Flux, evolved_vars_tags,
-                                       tmpl::size_t<Dim>, Frame::Inertial>;
+                                       tmpl::size_t<3>, Frame::Inertial>;
 
-  ASSERT(not db::get<domain::Tags::MeshVelocity<Dim>>(box).has_value(),
+  ASSERT(not db::get<domain::Tags::MeshVelocity<3>>(box).has_value(),
          "Haven't yet added support for moving mesh to DG-subcell. This "
          "should be easy to generalize, but we will want to consider "
          "storing the mesh velocity on the faces instead of "
          "re-slicing/projecting.");
 
-  DirectionalIdMap<Dim, DataVector> neighbor_package_data{};
+  DirectionalIdMap<3, DataVector> neighbor_package_data{};
   if (mortars_to_reconstruct_to.empty()) {
     return neighbor_package_data;
   }
 
   const auto& ghost_subcell_data =
-      db::get<evolution::dg::subcell::Tags::GhostDataForReconstruction<Dim>>(
-          box);
-  const Mesh<Dim>& subcell_mesh =
-      db::get<evolution::dg::subcell::Tags::Mesh<Dim>>(box);
-  const Mesh<Dim>& dg_mesh = db::get<domain::Tags::Mesh<Dim>>(box);
+      db::get<evolution::dg::subcell::Tags::GhostDataForReconstruction<3>>(box);
+  const Mesh<3>& subcell_mesh =
+      db::get<evolution::dg::subcell::Tags::Mesh<3>>(box);
+  const Mesh<3>& dg_mesh = db::get<domain::Tags::Mesh<3>>(box);
   const auto& subcell_options =
-      db::get<evolution::dg::subcell::Tags::SubcellOptions<Dim>>(box);
+      db::get<evolution::dg::subcell::Tags::SubcellOptions<3>>(box);
 
   // Note: we need to compare if projecting the entire mesh or only ghost
   // zones needed is faster. This probably depends on the number of neighbors
@@ -93,12 +91,12 @@ NeighborPackagedData<UseBackgroundMagneticField>::apply(
       db::get<typename system::primitive_variables_tag>(box), dg_mesh,
       subcell_mesh.extents());
 
-  const auto& recons = db::get<NewtonianMhd::fd::Tags::Reconstructor<Dim>>(box);
+  const auto& recons = db::get<NewtonianMhd::fd::Tags::Reconstructor>(box);
   const auto& boundary_correction =
       db::get<evolution::Tags::BoundaryCorrection>(box);
   using derived_boundary_corrections =
       NewtonianMhd::BoundaryCorrections::standard_boundary_corrections<
-          Dim, UseBackgroundMagneticField>;
+          UseBackgroundMagneticField>;
   tmpl::for_each<derived_boundary_corrections>([&box, &boundary_correction,
                                                 &dg_mesh,
                                                 &mortars_to_reconstruct_to,
@@ -115,7 +113,7 @@ NeighborPackagedData<UseBackgroundMagneticField>::apply(
           tmpl::append<evolved_vars_tags, prim_tags, fluxes_tags,
                        dg_package_data_temporary_tags>;
 
-      const auto& element = db::get<domain::Tags::Element<Dim>>(box);
+      const auto& element = db::get<domain::Tags::Element<3>>(box);
       const auto& eos = get<hydro::Tags::EquationOfState<false, 2>>(box);
 
       using dg_package_field_tags =
@@ -123,9 +121,9 @@ NeighborPackagedData<UseBackgroundMagneticField>::apply(
       Variables<dg_package_data_argument_tags> vars_on_face;
       Variables<dg_package_field_tags> packaged_data;
       for (const auto& mortar_id : mortars_to_reconstruct_to) {
-        const Direction<Dim>& direction = mortar_id.direction();
+        const Direction<3>& direction = mortar_id.direction();
 
-        Index<Dim> extents = subcell_mesh.extents();
+        Index<3> extents = subcell_mesh.extents();
         // Switch to face-centered instead of cell-centered points on the FD.
         // There are num_cell_centered+1 face-centered points.
         ++extents[direction.dimension()];
@@ -135,8 +133,8 @@ NeighborPackagedData<UseBackgroundMagneticField>::apply(
             subcell_mesh.extents().slice_away(direction.dimension()).product();
         vars_on_face.initialize(num_face_pts);
 
-        call_with_dynamic_type<void, typename NewtonianMhd::fd::Reconstructor<
-                                         Dim>::creatable_classes>(
+        call_with_dynamic_type<
+            void, typename NewtonianMhd::fd::Reconstructor::creatable_classes>(
             &recons,
             [&element, &eos, &mortar_id, &ghost_subcell_data, &subcell_mesh,
              &vars_on_face, &volume_prims](const auto& reconstructor) {
@@ -148,16 +146,14 @@ NeighborPackagedData<UseBackgroundMagneticField>::apply(
         // The background field is smooth and is not reconstructed, so its
         // face-centred values are sliced from the stored ones.
         if constexpr (UseBackgroundMagneticField) {
-          Index<Dim> face_extents = subcell_mesh.extents();
+          Index<3> face_extents = subcell_mesh.extents();
           ++face_extents[direction.dimension()];
           data_on_slice(
-              make_not_null(
-                  &get<NewtonianMhd::Tags::BackgroundMagneticField<Dim>>(
-                      vars_on_face)),
+              make_not_null(&get<NewtonianMhd::Tags::BackgroundMagneticField<>>(
+                  vars_on_face)),
               gsl::at(
                   db::get<evolution::dg::subcell::Tags::OnSubcellFaces<
-                      NewtonianMhd::Tags::BackgroundMagneticField<Dim>, Dim>>(
-                      box),
+                      NewtonianMhd::Tags::BackgroundMagneticField<>, 3>>(box),
                   direction.dimension()),
               face_extents, direction.dimension(),
               direction.side() == Side::Lower
@@ -165,21 +161,21 @@ NeighborPackagedData<UseBackgroundMagneticField>::apply(
                   : face_extents[direction.dimension()] - 1);
         }
 
-        NewtonianMhd::subcell::compute_fluxes<Dim, UseBackgroundMagneticField>(
+        NewtonianMhd::subcell::compute_fluxes<UseBackgroundMagneticField>(
             make_not_null(&vars_on_face),
             db::get<NewtonianMhd::Tags::DivergenceCleaningSpeed>(box));
 
-        tnsr::i<DataVector, Dim, Frame::Inertial> normal_covector =
-            get<evolution::dg::Tags::NormalCovector<Dim>>(
-                *db::get<evolution::dg::Tags::NormalCovectorAndMagnitude<Dim>>(
+        tnsr::i<DataVector, 3, Frame::Inertial> normal_covector =
+            get<evolution::dg::Tags::NormalCovector<3>>(
+                *db::get<evolution::dg::Tags::NormalCovectorAndMagnitude<3>>(
                      box)
                      .at(mortar_id.direction()));
         for (auto& t : normal_covector) {
           t *= -1.0;
         }
-        if constexpr (Dim > 1) {
+        if constexpr (3 > 1) {
           const auto dg_normal_covector = normal_covector;
-          for (size_t i = 0; i < Dim; ++i) {
+          for (size_t i = 0; i < 3; ++i) {
             normal_covector.get(i) = evolution::dg::subcell::fd::project(
                 dg_normal_covector.get(i),
                 dg_mesh.slice_away(mortar_id.direction().dimension()),
@@ -200,7 +196,7 @@ NeighborPackagedData<UseBackgroundMagneticField>::apply(
             typename DerivedCorrection::dg_package_data_volume_tags{},
             dg_package_data_projected_tags{});
 
-        if constexpr (Dim == 1) {
+        if constexpr (3 == 1) {
           (void)dg_mesh;
           (void)subcell_options;
           // Make a view so we can use iterators with std::copy
@@ -235,28 +231,25 @@ NeighborPackagedData<UseBackgroundMagneticField>::apply(
   return neighbor_package_data;
 }
 
-#define DIM(data) BOOST_PP_TUPLE_ELEM(0, data)
+#define USE_BG(data) BOOST_PP_TUPLE_ELEM(0, data)
 
-#define USE_BG(data) BOOST_PP_TUPLE_ELEM(1, data)
+#define INSTANTIATION(r, data)               \
+  template DirectionalIdMap<3, DataVector>   \
+  NeighborPackagedData<USE_BG(data)>::apply( \
+      const db::Access& box,                 \
+      const std::vector<DirectionalId<3>>& mortars_to_reconstruct_to);
 
-#define INSTANTIATION(r, data)                          \
-  template DirectionalIdMap<DIM(data), DataVector>      \
-  NeighborPackagedData<USE_BG(data)>::apply<DIM(data)>( \
-      const db::Access& box,                            \
-      const std::vector<DirectionalId<DIM(data)>>& mortars_to_reconstruct_to);
-
-GENERATE_INSTANTIATIONS(INSTANTIATION, (1, 2, 3), (true, false))
+GENERATE_INSTANTIATIONS(INSTANTIATION, (true, false))
 
 #undef INSTANTIATION
 }  // namespace NewtonianMhd::subcell
 
 #define INSTANTIATION(r, data)                                                \
   template void evolution::dg::subcell::neighbor_reconstructed_face_solution< \
-      DIM(data), NewtonianMhd::subcell::NeighborPackagedData<USE_BG(data)>>(  \
+      3, NewtonianMhd::subcell::NeighborPackagedData<USE_BG(data)>>(          \
       gsl::not_null<db::Access*> box);
 
-GENERATE_INSTANTIATIONS(INSTANTIATION, (1, 2, 3), (true, false))
+GENERATE_INSTANTIATIONS(INSTANTIATION, (true, false))
 
 #undef INSTANTIATION
 #undef USE_BG
-#undef DIM

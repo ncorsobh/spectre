@@ -9,8 +9,6 @@
 
 namespace NewtonianMhd::fd {
 void register_derived_with_charm() {
-  register_classes_with_charm(typename Reconstructor<1>::creatable_classes{});
-  register_classes_with_charm(typename Reconstructor<2>::creatable_classes{});
-  register_classes_with_charm(typename Reconstructor<3>::creatable_classes{});
+  register_classes_with_charm(typename Reconstructor::creatable_classes{});
 }
 }  // namespace NewtonianMhd::fd

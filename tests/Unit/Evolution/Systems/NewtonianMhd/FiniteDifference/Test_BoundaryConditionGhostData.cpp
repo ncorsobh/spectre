@@ -75,7 +75,6 @@
 #include "Utilities/TMPL.hpp"
 
 namespace {
-constexpr size_t Dim = 3;
 constexpr double adiabatic_index = 5.0 / 3.0;
 
 // The interior state is uniform, so the expected ghost values are the same
@@ -83,51 +82,51 @@ constexpr double adiabatic_index = 5.0 / 3.0;
 // directly rather than against a second implementation.
 constexpr double interior_density = 1.3;
 constexpr double interior_pressure = 0.8;
-constexpr std::array<double, Dim> interior_velocity{{0.2, -0.3, 0.4}};
+constexpr std::array<double, 3> interior_velocity{{0.2, -0.3, 0.4}};
 // Fast speed of the state above is ~1.24, so this is comfortably supersonic.
 constexpr double supersonic_speed = 5.0;
-constexpr std::array<double, Dim> interior_magnetic_field{{0.5, 0.25, -0.6}};
+constexpr std::array<double, 3> interior_magnetic_field{{0.5, 0.25, -0.6}};
 constexpr double interior_divergence_cleaning_field = 0.35;
 
 struct EvolutionMetaVars {
   struct factory_creation
       : tt::ConformsTo<Options::protocols::FactoryCreation> {
     using factory_classes = tmpl::map<
-        tmpl::pair<NewtonianMhd::BoundaryConditions::BoundaryCondition<Dim>,
+        tmpl::pair<NewtonianMhd::BoundaryConditions::BoundaryCondition,
                    NewtonianMhd::BoundaryConditions::
-                       standard_boundary_conditions<Dim, false>>,
+                       standard_boundary_conditions<false>>,
         tmpl::pair<evolution::initial_data::InitialData,
                    tmpl::list<NewtonianMhd::Solutions::AlfvenWave>>>;
   };
 };
 
 using prim_tags = tmpl::list<hydro::Tags::RestMassDensity<DataVector>,
-                             hydro::Tags::SpatialVelocity<DataVector, Dim>,
+                             hydro::Tags::SpatialVelocity<DataVector, 3>,
                              hydro::Tags::SpecificInternalEnergy<DataVector>,
                              hydro::Tags::Pressure<DataVector>,
-                             hydro::Tags::MagneticField<DataVector, Dim>,
+                             hydro::Tags::MagneticField<DataVector, 3>,
                              hydro::Tags::DivergenceCleaningField<DataVector>>;
 
 using recons_tags =
     tmpl::list<hydro::Tags::RestMassDensity<DataVector>,
-               hydro::Tags::SpatialVelocity<DataVector, Dim>,
+               hydro::Tags::SpatialVelocity<DataVector, 3>,
                hydro::Tags::Pressure<DataVector>,
-               hydro::Tags::MagneticField<DataVector, Dim>,
+               hydro::Tags::MagneticField<DataVector, 3>,
                hydro::Tags::DivergenceCleaningField<DataVector>>;
 
-using ReconstructorForTest = NewtonianMhd::fd::MonotonisedCentralPrim<Dim>;
+using ReconstructorForTest = NewtonianMhd::fd::MonotonisedCentralPrim;
 
 using MassDensityTag = hydro::Tags::RestMassDensity<DataVector>;
-using VelocityTag = hydro::Tags::SpatialVelocity<DataVector, Dim>;
+using VelocityTag = hydro::Tags::SpatialVelocity<DataVector, 3>;
 using PressureTag = hydro::Tags::Pressure<DataVector>;
-using MagneticFieldTag = hydro::Tags::MagneticField<DataVector, Dim>;
+using MagneticFieldTag = hydro::Tags::MagneticField<DataVector, 3>;
 using DivergenceCleaningFieldTag =
     hydro::Tags::DivergenceCleaningField<DataVector>;
 
 template <typename BoundaryConditionType>
 void test(const BoundaryConditionType& boundary_condition,
-          const Direction<Dim>& direction,
-          const std::array<double, Dim>& velocity = interior_velocity) {
+          const Direction<3>& direction,
+          const std::array<double, 3>& velocity = interior_velocity) {
   CAPTURE(direction);
   const size_t num_dg_pts = 3;
 
@@ -137,33 +136,32 @@ void test(const BoundaryConditionType& boundary_condition,
   std::array<
       std::array<std::unique_ptr<domain::BoundaryConditions::BoundaryCondition>,
                  2>,
-      Dim>
+      3>
       face_conditions{};
-  for (size_t d = 0; d < Dim; ++d) {
+  for (size_t d = 0; d < 3; ++d) {
     for (size_t side = 0; side < 2; ++side) {
       gsl::at(gsl::at(face_conditions, d), side) =
           (d == direction.dimension() and
            side == (direction.side() == Side::Upper ? 1 : 0))
               ? boundary_condition.get_clone()
-              : NewtonianMhd::BoundaryConditions::Reflection<Dim, false>{}
+              : NewtonianMhd::BoundaryConditions::Reflection<false>{}
                     .get_clone();
     }
   }
   const auto brick = domain::creators::Brick(
-      std::array<double, Dim>{{-1.0, -1.0, -1.0}},
-      std::array<double, Dim>{{1.0, 1.0, 1.0}},
-      std::array<size_t, Dim>{{0, 0, 0}},
-      std::array<size_t, Dim>{{num_dg_pts, num_dg_pts, num_dg_pts}},
+      std::array<double, 3>{{-1.0, -1.0, -1.0}},
+      std::array<double, 3>{{1.0, 1.0, 1.0}}, std::array<size_t, 3>{{0, 0, 0}},
+      std::array<size_t, 3>{{num_dg_pts, num_dg_pts, num_dg_pts}},
       std::move(face_conditions));
   auto domain = brick.create_domain();
   auto boundary_conditions = brick.external_boundary_conditions();
   const auto element = domain::create_initial_element(
-      ElementId<Dim>{0, {SegmentId{0, 0}, SegmentId{0, 0}, SegmentId{0, 0}}},
-      domain.blocks(), std::vector<std::array<size_t, Dim>>{{{0, 0, 0}}});
+      ElementId<3>{0, {SegmentId{0, 0}, SegmentId{0, 0}, SegmentId{0, 0}}},
+      domain.blocks(), std::vector<std::array<size_t, 3>>{{{0, 0, 0}}});
 
-  const Mesh<Dim> dg_mesh{num_dg_pts, Spectral::Basis::Legendre,
-                          Spectral::Quadrature::GaussLobatto};
-  const Mesh<Dim> subcell_mesh = evolution::dg::subcell::fd::mesh(dg_mesh);
+  const Mesh<3> dg_mesh{num_dg_pts, Spectral::Basis::Legendre,
+                        Spectral::Quadrature::GaussLobatto};
+  const Mesh<3> subcell_mesh = evolution::dg::subcell::fd::mesh(dg_mesh);
 
   std::unique_ptr<EquationsOfState::EquationOfState<false, 2>> eos =
       std::make_unique<EquationsOfState::IdealFluid<false>>(adiabatic_index);
@@ -174,10 +172,10 @@ void test(const BoundaryConditionType& boundary_condition,
   get(get<hydro::Tags::Pressure<DataVector>>(volume_prims)) = interior_pressure;
   get(get<hydro::Tags::DivergenceCleaningField<DataVector>>(volume_prims)) =
       interior_divergence_cleaning_field;
-  for (size_t i = 0; i < Dim; ++i) {
-    get<hydro::Tags::SpatialVelocity<DataVector, Dim>>(volume_prims).get(i) =
+  for (size_t i = 0; i < 3; ++i) {
+    get<hydro::Tags::SpatialVelocity<DataVector, 3>>(volume_prims).get(i) =
         gsl::at(velocity, i);
-    get<hydro::Tags::MagneticField<DataVector, Dim>>(volume_prims).get(i) =
+    get<hydro::Tags::MagneticField<DataVector, 3>>(volume_prims).get(i) =
         gsl::at(interior_magnetic_field, i);
   }
   get<hydro::Tags::SpecificInternalEnergy<DataVector>>(volume_prims) =
@@ -189,88 +187,86 @@ void test(const BoundaryConditionType& boundary_condition,
   std::unordered_map<std::string,
                      std::unique_ptr<domain::FunctionsOfTime::FunctionOfTime>>
       functions_of_time{};
-  const ElementMap<Dim, Frame::Grid> logical_to_grid_map(
-      ElementId<Dim>{0},
+  const ElementMap<3, Frame::Grid> logical_to_grid_map(
+      ElementId<3>{0},
       domain::make_coordinate_map_base<Frame::BlockLogical, Frame::Grid>(
-          domain::CoordinateMaps::Identity<Dim>{}));
+          domain::CoordinateMaps::Identity<3>{}));
   const auto grid_to_inertial_map =
       domain::make_coordinate_map_base<Frame::Grid, Frame::Inertial>(
-          domain::CoordinateMaps::Identity<Dim>{});
+          domain::CoordinateMaps::Identity<3>{});
 
-  const std::optional<tnsr::I<DataVector, Dim>> volume_mesh_velocity{};
-  typename evolution::dg::Tags::NormalCovectorAndMagnitude<Dim>::type
+  const std::optional<tnsr::I<DataVector, 3>> volume_mesh_velocity{};
+  typename evolution::dg::Tags::NormalCovectorAndMagnitude<3>::type
       normal_vectors{};
-  for (const auto& dir : Direction<Dim>::all_directions()) {
+  for (const auto& dir : Direction<3>::all_directions()) {
     const auto coordinate_map =
         domain::make_coordinate_map<Frame::ElementLogical, Frame::Inertial>(
-            domain::CoordinateMaps::Identity<Dim>{});
+            domain::CoordinateMaps::Identity<3>{});
     const auto moving_mesh_map =
         domain::make_coordinate_map<Frame::Grid, Frame::Inertial>(
-            domain::CoordinateMaps::Identity<Dim>{});
-    const Mesh<Dim - 1> face_mesh = subcell_mesh.slice_away(dir.dimension());
+            domain::CoordinateMaps::Identity<3>{});
+    const Mesh<3 - 1> face_mesh = subcell_mesh.slice_away(dir.dimension());
     const auto face_logical_coords =
         interface_logical_coordinates(face_mesh, dir);
-    std::unordered_map<Direction<Dim>,
-                       tnsr::i<DataVector, Dim, Frame::Inertial>>
+    std::unordered_map<Direction<3>, tnsr::i<DataVector, 3, Frame::Inertial>>
         unnormalized_normal_covectors{};
-    tnsr::i<DataVector, Dim, Frame::Inertial> unnormalized_covector{
+    tnsr::i<DataVector, 3, Frame::Inertial> unnormalized_covector{
         face_mesh.number_of_grid_points()};
-    for (size_t i = 0; i < Dim; ++i) {
+    for (size_t i = 0; i < 3; ++i) {
       unnormalized_covector.get(i) =
           dir.sign() * coordinate_map.inv_jacobian(face_logical_coords)
                            .get(dir.dimension(), i);
     }
     unnormalized_normal_covectors[dir] = unnormalized_covector;
     Variables<tmpl::list<
-        evolution::dg::Actions::detail::NormalVector<Dim>,
+        evolution::dg::Actions::detail::NormalVector<3>,
         evolution::dg::Actions::detail::OneOverNormalVectorMagnitude>>
         fields_on_face{face_mesh.number_of_grid_points()};
     normal_vectors[dir] = std::nullopt;
     evolution::dg::Actions::detail::
         unit_normal_vector_and_covector_and_magnitude<
-            NewtonianMhd::System<Dim, false>>(
+            NewtonianMhd::System<false>>(
             make_not_null(&normal_vectors), make_not_null(&fields_on_face), dir,
             unnormalized_normal_covectors, moving_mesh_map);
   }
 
-  typename evolution::dg::subcell::Tags::GhostDataForReconstruction<Dim>::type
+  typename evolution::dg::subcell::Tags::GhostDataForReconstruction<3>::type
       ghost_data{};
 
   auto box = db::create<db::AddSimpleTags<
       Parallel::Tags::MetavariablesImpl<EvolutionMetaVars>,
-      domain::Tags::Domain<Dim>, domain::Tags::ExternalBoundaryConditions<Dim>,
-      evolution::dg::subcell::Tags::Mesh<Dim>,
-      evolution::dg::subcell::Tags::Coordinates<Dim, Frame::ElementLogical>,
-      evolution::dg::subcell::Tags::GhostDataForReconstruction<Dim>,
-      NewtonianMhd::fd::Tags::Reconstructor<Dim>,
-      domain::Tags::MeshVelocity<Dim>,
-      evolution::dg::Tags::NormalCovectorAndMagnitude<Dim>, ::Tags::Time,
+      domain::Tags::Domain<3>, domain::Tags::ExternalBoundaryConditions<3>,
+      evolution::dg::subcell::Tags::Mesh<3>,
+      evolution::dg::subcell::Tags::Coordinates<3, Frame::ElementLogical>,
+      evolution::dg::subcell::Tags::GhostDataForReconstruction<3>,
+      NewtonianMhd::fd::Tags::Reconstructor, domain::Tags::MeshVelocity<3>,
+      evolution::dg::Tags::NormalCovectorAndMagnitude<3>, ::Tags::Time,
       domain::Tags::FunctionsOfTimeInitialize,
-      domain::Tags::ElementMap<Dim, Frame::Grid>,
-      domain::CoordinateMaps::Tags::CoordinateMap<Dim, Frame::Grid,
+      domain::Tags::ElementMap<3, Frame::Grid>,
+      domain::CoordinateMaps::Tags::CoordinateMap<3, Frame::Grid,
                                                   Frame::Inertial>,
       hydro::Tags::EquationOfState<false, 2>, ::Tags::Variables<prim_tags>>>(
       EvolutionMetaVars{}, std::move(domain), std::move(boundary_conditions),
       subcell_mesh, logical_coordinates(subcell_mesh), ghost_data,
-      std::unique_ptr<NewtonianMhd::fd::Reconstructor<Dim>>{
+      std::unique_ptr<NewtonianMhd::fd::Reconstructor>{
           std::make_unique<ReconstructorForTest>()},
       volume_mesh_velocity, normal_vectors, time,
       clone_unique_ptrs(functions_of_time),
-      ElementMap<Dim, Frame::Grid>{
-          ElementId<Dim>{0},
+      ElementMap<3, Frame::Grid>{
+          ElementId<3>{0},
           domain::make_coordinate_map_base<Frame::BlockLogical, Frame::Grid>(
-              domain::CoordinateMaps::Identity<Dim>{})},
+              domain::CoordinateMaps::Identity<3>{})},
       domain::make_coordinate_map_base<Frame::Grid, Frame::Inertial>(
-          domain::CoordinateMaps::Identity<Dim>{}),
+          domain::CoordinateMaps::Identity<3>{}),
       std::move(eos), volume_prims);
 
-  NewtonianMhd::fd::BoundaryConditionGhostData<Dim>::apply(
+  NewtonianMhd::fd::BoundaryConditionGhostData::apply(
       make_not_null(&box), element, ReconstructorForTest{});
 
-  const DirectionalId<Dim> mortar_id{direction,
-                                     ElementId<Dim>::external_boundary_id()};
+  const DirectionalId<3> mortar_id{direction,
+                                   ElementId<3>::external_boundary_id()};
   const DataVector& fd_ghost_data =
-      get<evolution::dg::subcell::Tags::GhostDataForReconstruction<Dim>>(box)
+      get<evolution::dg::subcell::Tags::GhostDataForReconstruction<3>>(box)
           .at(mortar_id)
           .neighbor_ghost_data_for_reconstruction();
 
@@ -282,18 +278,17 @@ void test(const BoundaryConditionType& boundary_condition,
 
   const bool is_reflection =
       typeid(BoundaryConditionType) ==
-          typeid(NewtonianMhd::BoundaryConditions::Reflection<Dim, false>) or
+          typeid(NewtonianMhd::BoundaryConditions::Reflection<false>) or
       typeid(BoundaryConditionType) ==
-          typeid(NewtonianMhd::BoundaryConditions::ConductorReflection<Dim,
-                                                                       false>);
+          typeid(NewtonianMhd::BoundaryConditions::ConductorReflection<false>);
   const bool no_slip =
       typeid(BoundaryConditionType) ==
-      typeid(NewtonianMhd::BoundaryConditions::ConductorReflection<Dim, false>);
+      typeid(NewtonianMhd::BoundaryConditions::ConductorReflection<false>);
 
   if (is_reflection or
       typeid(BoundaryConditionType) ==
           typeid(NewtonianMhd::BoundaryConditions::DemandOutgoingCharSpeeds<
-                 Dim, false>)) {
+                 false>)) {
     // Density and pressure are copied by every one of these conditions.
     CHECK_ITERABLE_APPROX(get(get<MassDensityTag>(ghost_vars)),
                           interior_density * ones);
@@ -302,7 +297,7 @@ void test(const BoundaryConditionType& boundary_condition,
     CHECK_ITERABLE_APPROX(get(get<DivergenceCleaningFieldTag>(ghost_vars)),
                           (is_reflection ? -1.0 : 1.0) *
                               interior_divergence_cleaning_field * ones);
-    for (size_t i = 0; i < Dim; ++i) {
+    for (size_t i = 0; i < 3; ++i) {
       CAPTURE(i);
       const double velocity_sign =
           is_reflection and (no_slip or i == direction.dimension()) ? -1.0
@@ -345,20 +340,19 @@ void test(const BoundaryConditionType& boundary_condition,
 SPECTRE_TEST_CASE(
     "Unit.Evolution.Systems.NewtonianMhd.Fd.BoundaryConditionGhostData",
     "[Unit][Evolution]") {
-  for (const auto& direction : Direction<Dim>::all_directions()) {
-    test(NewtonianMhd::BoundaryConditions::Reflection<Dim, false>{}, direction);
-    test(NewtonianMhd::BoundaryConditions::ConductorReflection<Dim, false>{},
+  for (const auto& direction : Direction<3>::all_directions()) {
+    test(NewtonianMhd::BoundaryConditions::Reflection<false>{}, direction);
+    test(NewtonianMhd::BoundaryConditions::ConductorReflection<false>{},
          direction);
     // The condition errors unless every characteristic leaves the domain, so
     // this one gets a supersonic outflow along the boundary normal.
-    std::array<double, Dim> outflow_velocity{{0.0, 0.0, 0.0}};
+    std::array<double, 3> outflow_velocity{{0.0, 0.0, 0.0}};
     gsl::at(outflow_velocity, direction.dimension()) =
         direction.sign() * supersonic_speed;
-    test(NewtonianMhd::BoundaryConditions::DemandOutgoingCharSpeeds<Dim,
-                                                                    false>{},
+    test(NewtonianMhd::BoundaryConditions::DemandOutgoingCharSpeeds<false>{},
          direction, outflow_velocity);
     test(
-        NewtonianMhd::BoundaryConditions::DirichletAnalytic<Dim, false>{
+        NewtonianMhd::BoundaryConditions::DirichletAnalytic<false>{
             std::make_unique<NewtonianMhd::Solutions::AlfvenWave>(
                 std::array<double, 3>{{1.0, 1.0, 1.0}}, 1.0, 1.0, 1.0, 0.1,
                 adiabatic_index)},

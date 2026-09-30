@@ -30,21 +30,21 @@ namespace detail {
 /// `TimeDerivativeTerms::apply`. The temporary `magnetic_pressure` holds
 /// \f$p_{\rm mag} = |B_1|^2/2 + B_0\cdot B_1\f$ on output, dropping the
 /// \f$B_0\f$ term when the splitting is disabled.
-template <size_t Dim, bool UseBackgroundMagneticField = false>
+template <bool UseBackgroundMagneticField = false>
 void fluxes_impl(
-    gsl::not_null<tnsr::I<DataVector, Dim>*> mass_density_cons_flux,
-    gsl::not_null<tnsr::IJ<DataVector, Dim>*> momentum_density_flux,
-    gsl::not_null<tnsr::I<DataVector, Dim>*> energy_density_flux,
-    gsl::not_null<tnsr::IJ<DataVector, Dim>*> magnetic_field_flux,
-    gsl::not_null<tnsr::I<DataVector, Dim>*> divergence_cleaning_field_flux,
+    gsl::not_null<tnsr::I<DataVector, 3>*> mass_density_cons_flux,
+    gsl::not_null<tnsr::IJ<DataVector, 3>*> momentum_density_flux,
+    gsl::not_null<tnsr::I<DataVector, 3>*> energy_density_flux,
+    gsl::not_null<tnsr::IJ<DataVector, 3>*> magnetic_field_flux,
+    gsl::not_null<tnsr::I<DataVector, 3>*> divergence_cleaning_field_flux,
     gsl::not_null<Scalar<DataVector>*> magnetic_pressure,
-    const tnsr::I<DataVector, Dim>& momentum_density,
+    const tnsr::I<DataVector, 3>& momentum_density,
     const Scalar<DataVector>& energy_density,
-    const tnsr::I<DataVector, Dim>& magnetic_field,
+    const tnsr::I<DataVector, 3>& magnetic_field,
     const Scalar<DataVector>& divergence_cleaning_field,
-    const tnsr::I<DataVector, Dim>& velocity,
-    const Scalar<DataVector>& pressure, double divergence_cleaning_speed,
-    BackgroundMagneticFieldArgument<Dim, UseBackgroundMagneticField>
+    const tnsr::I<DataVector, 3>& velocity, const Scalar<DataVector>& pressure,
+    double divergence_cleaning_speed,
+    BackgroundMagneticFieldArgument<UseBackgroundMagneticField>
         background_magnetic_field);
 }  // namespace detail
 
@@ -79,42 +79,40 @@ void fluxes_impl(
  * distinction is invisible there, but the induction flux is antisymmetric and
  * transposing it flips the sign of the induction term.
  */
-template <size_t Dim, bool UseBackgroundMagneticField = false>
+template <bool UseBackgroundMagneticField = false>
 struct ComputeFluxes {
   using return_tags = tmpl::list<
-      ::Tags::Flux<Tags::MassDensityCons, tmpl::size_t<Dim>, Frame::Inertial>,
-      ::Tags::Flux<Tags::MomentumDensity<Dim>, tmpl::size_t<Dim>,
-                   Frame::Inertial>,
-      ::Tags::Flux<Tags::EnergyDensity, tmpl::size_t<Dim>, Frame::Inertial>,
-      ::Tags::Flux<Tags::MagneticFieldCons<Dim>, tmpl::size_t<Dim>,
-                   Frame::Inertial>,
-      ::Tags::Flux<Tags::DivergenceCleaningFieldCons, tmpl::size_t<Dim>,
+      ::Tags::Flux<Tags::MassDensityCons, tmpl::size_t<3>, Frame::Inertial>,
+      ::Tags::Flux<Tags::MomentumDensity<>, tmpl::size_t<3>, Frame::Inertial>,
+      ::Tags::Flux<Tags::EnergyDensity, tmpl::size_t<3>, Frame::Inertial>,
+      ::Tags::Flux<Tags::MagneticFieldCons<>, tmpl::size_t<3>, Frame::Inertial>,
+      ::Tags::Flux<Tags::DivergenceCleaningFieldCons, tmpl::size_t<3>,
                    Frame::Inertial>>;
 
   // The background field is last so that omitting it simply shortens the
   // argument list.
   using argument_tags = tmpl::append<
-      tmpl::list<
-          Tags::MomentumDensity<Dim>, Tags::EnergyDensity,
-          Tags::MagneticFieldCons<Dim>, Tags::DivergenceCleaningFieldCons,
-          hydro::Tags::SpatialVelocity<DataVector, Dim>,
-          hydro::Tags::Pressure<DataVector>, Tags::DivergenceCleaningSpeed>,
-      background_magnetic_field_tag_list<Tags::BackgroundMagneticField<Dim>,
+      tmpl::list<Tags::MomentumDensity<>, Tags::EnergyDensity,
+                 Tags::MagneticFieldCons<>, Tags::DivergenceCleaningFieldCons,
+                 hydro::Tags::SpatialVelocity<DataVector, 3>,
+                 hydro::Tags::Pressure<DataVector>,
+                 Tags::DivergenceCleaningSpeed>,
+      background_magnetic_field_tag_list<Tags::BackgroundMagneticField<>,
                                          UseBackgroundMagneticField>>;
 
   static void apply(
-      gsl::not_null<tnsr::I<DataVector, Dim>*> mass_density_cons_flux,
-      gsl::not_null<tnsr::IJ<DataVector, Dim>*> momentum_density_flux,
-      gsl::not_null<tnsr::I<DataVector, Dim>*> energy_density_flux,
-      gsl::not_null<tnsr::IJ<DataVector, Dim>*> magnetic_field_flux,
-      gsl::not_null<tnsr::I<DataVector, Dim>*> divergence_cleaning_field_flux,
-      const tnsr::I<DataVector, Dim>& momentum_density,
+      gsl::not_null<tnsr::I<DataVector, 3>*> mass_density_cons_flux,
+      gsl::not_null<tnsr::IJ<DataVector, 3>*> momentum_density_flux,
+      gsl::not_null<tnsr::I<DataVector, 3>*> energy_density_flux,
+      gsl::not_null<tnsr::IJ<DataVector, 3>*> magnetic_field_flux,
+      gsl::not_null<tnsr::I<DataVector, 3>*> divergence_cleaning_field_flux,
+      const tnsr::I<DataVector, 3>& momentum_density,
       const Scalar<DataVector>& energy_density,
-      const tnsr::I<DataVector, Dim>& magnetic_field,
+      const tnsr::I<DataVector, 3>& magnetic_field,
       const Scalar<DataVector>& divergence_cleaning_field,
-      const tnsr::I<DataVector, Dim>& velocity,
+      const tnsr::I<DataVector, 3>& velocity,
       const Scalar<DataVector>& pressure, double divergence_cleaning_speed,
-      BackgroundMagneticFieldArgument<Dim, UseBackgroundMagneticField>
+      BackgroundMagneticFieldArgument<UseBackgroundMagneticField>
           background_magnetic_field = {});
 };
 

@@ -25,7 +25,7 @@
 /// uses the hyperbolic (GLM) scheme.
 namespace NewtonianMhd {
 
-template <size_t Dim, bool UseBackgroundMagneticField = false>
+template <bool UseBackgroundMagneticField = false>
 struct System {
   /// Whether the static background field \f$B_0\f$ is split off from the
   /// evolved \f$B_1\f$.
@@ -37,35 +37,35 @@ struct System {
 
   static constexpr bool is_in_flux_conservative_form = true;
   static constexpr bool has_primitive_and_conservative_vars = true;
-  static constexpr size_t volume_dim = Dim;
+  static constexpr size_t volume_dim = 3;
 
-  using boundary_conditions_base = BoundaryConditions::BoundaryCondition<Dim>;
+  using boundary_conditions_base = BoundaryConditions::BoundaryCondition;
 
   using variables_tag = ::Tags::Variables<tmpl::list<
-      Tags::MassDensityCons, Tags::MomentumDensity<Dim>, Tags::EnergyDensity,
-      Tags::MagneticFieldCons<Dim>, Tags::DivergenceCleaningFieldCons>>;
+      Tags::MassDensityCons, Tags::MomentumDensity<>, Tags::EnergyDensity,
+      Tags::MagneticFieldCons<>, Tags::DivergenceCleaningFieldCons>>;
   using flux_variables =
-      tmpl::list<Tags::MassDensityCons, Tags::MomentumDensity<Dim>,
-                 Tags::EnergyDensity, Tags::MagneticFieldCons<Dim>,
+      tmpl::list<Tags::MassDensityCons, Tags::MomentumDensity<>,
+                 Tags::EnergyDensity, Tags::MagneticFieldCons<>,
                  Tags::DivergenceCleaningFieldCons>;
   using non_conservative_variables = tmpl::list<>;
   using gradient_variables = tmpl::list<>;
   using primitive_variables_tag = ::Tags::Variables<
       tmpl::list<hydro::Tags::RestMassDensity<DataVector>,
-                 hydro::Tags::SpatialVelocity<DataVector, Dim>,
+                 hydro::Tags::SpatialVelocity<DataVector, 3>,
                  hydro::Tags::SpecificInternalEnergy<DataVector>,
                  hydro::Tags::Pressure<DataVector>,
-                 hydro::Tags::MagneticField<DataVector, Dim>,
+                 hydro::Tags::MagneticField<DataVector, 3>,
                  hydro::Tags::DivergenceCleaningField<DataVector>>>;
 
   using compute_volume_time_derivative_terms =
-      TimeDerivativeTerms<Dim, UseBackgroundMagneticField>;
+      TimeDerivativeTerms<UseBackgroundMagneticField>;
 
-  using conservative_from_primitive = ConservativeFromPrimitive<Dim>;
-  using primitive_from_conservative = PrimitiveFromConservative<Dim>;
+  using conservative_from_primitive = ConservativeFromPrimitive;
+  using primitive_from_conservative = PrimitiveFromConservative;
 
   using compute_largest_characteristic_speed =
-      Tags::ComputeLargestCharacteristicSpeed<Dim>;
+      Tags::ComputeLargestCharacteristicSpeed;
 };
 
 }  // namespace NewtonianMhd

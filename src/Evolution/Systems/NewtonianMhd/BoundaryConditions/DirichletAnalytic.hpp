@@ -53,8 +53,8 @@ namespace NewtonianMhd::BoundaryConditions {
  * this boundary condition agnostic to whether the executable splits off a
  * background field at all.
  */
-template <size_t Dim, bool UseBackgroundMagneticField = false>
-class DirichletAnalytic final : public BoundaryCondition<Dim> {
+template <bool UseBackgroundMagneticField = false>
+class DirichletAnalytic final : public BoundaryCondition {
  public:
   /// \brief What analytic solution/data to prescribe.
   struct AnalyticPrescription {
@@ -93,8 +93,8 @@ class DirichletAnalytic final : public BoundaryCondition<Dim> {
 
   using dg_interior_evolved_variables_tags = tmpl::list<>;
   using dg_interior_temporary_tags = tmpl::append<
-      tmpl::list<domain::Tags::Coordinates<Dim, Frame::Inertial>>,
-      background_magnetic_field_tag_list<Tags::BackgroundMagneticField<Dim>,
+      tmpl::list<domain::Tags::Coordinates<3, Frame::Inertial>>,
+      background_magnetic_field_tag_list<Tags::BackgroundMagneticField<>,
                                          UseBackgroundMagneticField>>;
   using dg_interior_primitive_variables_tags = tmpl::list<>;
   using dg_gridless_tags =
@@ -102,26 +102,26 @@ class DirichletAnalytic final : public BoundaryCondition<Dim> {
 
   using fd_interior_evolved_variables_tags = tmpl::list<>;
   using fd_interior_temporary_tags =
-      tmpl::list<evolution::dg::subcell::Tags::Mesh<Dim>>;
+      tmpl::list<evolution::dg::subcell::Tags::Mesh<3>>;
   using fd_interior_primitive_variables_tags = tmpl::list<>;
   using fd_gridless_tags =
       tmpl::list<::Tags::Time, ::domain::Tags::FunctionsOfTime,
-                 domain::Tags::ElementMap<Dim, Frame::Grid>,
-                 domain::CoordinateMaps::Tags::CoordinateMap<Dim, Frame::Grid,
+                 domain::Tags::ElementMap<3, Frame::Grid>,
+                 domain::CoordinateMaps::Tags::CoordinateMap<3, Frame::Grid,
                                                              Frame::Inertial>,
-                 fd::Tags::Reconstructor<Dim>>;
+                 fd::Tags::Reconstructor>;
 
   void fd_ghost(
       gsl::not_null<Scalar<DataVector>*> mass_density,
-      gsl::not_null<tnsr::I<DataVector, Dim, Frame::Inertial>*> velocity,
+      gsl::not_null<tnsr::I<DataVector, 3, Frame::Inertial>*> velocity,
       gsl::not_null<Scalar<DataVector>*> pressure,
-      gsl::not_null<tnsr::I<DataVector, Dim, Frame::Inertial>*> magnetic_field,
+      gsl::not_null<tnsr::I<DataVector, 3, Frame::Inertial>*> magnetic_field,
       gsl::not_null<Scalar<DataVector>*> divergence_cleaning_field,
 
-      const Direction<Dim>& direction,
+      const Direction<3>& direction,
 
       // fd_interior_temporary_tags
-      const Mesh<Dim>& subcell_mesh,
+      const Mesh<3>& subcell_mesh,
 
       // fd_gridless_tags
       double time,
@@ -129,10 +129,10 @@ class DirichletAnalytic final : public BoundaryCondition<Dim> {
           std::string,
           std::unique_ptr<::domain::FunctionsOfTime::FunctionOfTime>>&
           functions_of_time,
-      const ElementMap<Dim, Frame::Grid>& logical_to_grid_map,
-      const domain::CoordinateMapBase<Frame::Grid, Frame::Inertial, Dim>&
+      const ElementMap<3, Frame::Grid>& logical_to_grid_map,
+      const domain::CoordinateMapBase<Frame::Grid, Frame::Inertial, 3>&
           grid_to_inertial_map,
-      const fd::Reconstructor<Dim>& reconstructor) const;
+      const fd::Reconstructor& reconstructor) const;
 
   /// @{
   /// The background-field overload is selected by the boundary correction's
@@ -140,66 +140,62 @@ class DirichletAnalytic final : public BoundaryCondition<Dim> {
   /// is empty, so neither the ghost nor the interior \f$B_0\f$ exists.
   std::optional<std::string> dg_ghost(
       gsl::not_null<Scalar<DataVector>*> mass_density_cons,
-      gsl::not_null<tnsr::I<DataVector, Dim, Frame::Inertial>*>
-          momentum_density,
+      gsl::not_null<tnsr::I<DataVector, 3, Frame::Inertial>*> momentum_density,
       gsl::not_null<Scalar<DataVector>*> energy_density,
-      gsl::not_null<tnsr::I<DataVector, Dim, Frame::Inertial>*>
+      gsl::not_null<tnsr::I<DataVector, 3, Frame::Inertial>*>
           magnetic_field_cons,
       gsl::not_null<Scalar<DataVector>*> divergence_cleaning_field_cons,
 
-      gsl::not_null<tnsr::I<DataVector, Dim, Frame::Inertial>*>
-          flux_mass_density,
-      gsl::not_null<tnsr::IJ<DataVector, Dim, Frame::Inertial>*>
+      gsl::not_null<tnsr::I<DataVector, 3, Frame::Inertial>*> flux_mass_density,
+      gsl::not_null<tnsr::IJ<DataVector, 3, Frame::Inertial>*>
           flux_momentum_density,
-      gsl::not_null<tnsr::I<DataVector, Dim, Frame::Inertial>*>
+      gsl::not_null<tnsr::I<DataVector, 3, Frame::Inertial>*>
           flux_energy_density,
-      gsl::not_null<tnsr::IJ<DataVector, Dim, Frame::Inertial>*>
+      gsl::not_null<tnsr::IJ<DataVector, 3, Frame::Inertial>*>
           flux_magnetic_field,
-      gsl::not_null<tnsr::I<DataVector, Dim, Frame::Inertial>*>
+      gsl::not_null<tnsr::I<DataVector, 3, Frame::Inertial>*>
           flux_divergence_cleaning_field,
 
-      gsl::not_null<tnsr::I<DataVector, Dim, Frame::Inertial>*> velocity,
+      gsl::not_null<tnsr::I<DataVector, 3, Frame::Inertial>*> velocity,
       gsl::not_null<Scalar<DataVector>*> specific_internal_energy,
 
       const std::optional<
-          tnsr::I<DataVector, Dim, Frame::Inertial>>& /*face_mesh_velocity*/,
-      const tnsr::i<DataVector, Dim, Frame::Inertial>& /*normal_covector*/,
+          tnsr::I<DataVector, 3, Frame::Inertial>>& /*face_mesh_velocity*/,
+      const tnsr::i<DataVector, 3, Frame::Inertial>& /*normal_covector*/,
 
-      const tnsr::I<DataVector, Dim, Frame::Inertial>& coords, double time,
+      const tnsr::I<DataVector, 3, Frame::Inertial>& coords, double time,
       double divergence_cleaning_speed) const;
 
   std::optional<std::string> dg_ghost(
       gsl::not_null<Scalar<DataVector>*> mass_density_cons,
-      gsl::not_null<tnsr::I<DataVector, Dim, Frame::Inertial>*>
-          momentum_density,
+      gsl::not_null<tnsr::I<DataVector, 3, Frame::Inertial>*> momentum_density,
       gsl::not_null<Scalar<DataVector>*> energy_density,
-      gsl::not_null<tnsr::I<DataVector, Dim, Frame::Inertial>*>
+      gsl::not_null<tnsr::I<DataVector, 3, Frame::Inertial>*>
           magnetic_field_cons,
       gsl::not_null<Scalar<DataVector>*> divergence_cleaning_field_cons,
 
-      gsl::not_null<tnsr::I<DataVector, Dim, Frame::Inertial>*>
-          flux_mass_density,
-      gsl::not_null<tnsr::IJ<DataVector, Dim, Frame::Inertial>*>
+      gsl::not_null<tnsr::I<DataVector, 3, Frame::Inertial>*> flux_mass_density,
+      gsl::not_null<tnsr::IJ<DataVector, 3, Frame::Inertial>*>
           flux_momentum_density,
-      gsl::not_null<tnsr::I<DataVector, Dim, Frame::Inertial>*>
+      gsl::not_null<tnsr::I<DataVector, 3, Frame::Inertial>*>
           flux_energy_density,
-      gsl::not_null<tnsr::IJ<DataVector, Dim, Frame::Inertial>*>
+      gsl::not_null<tnsr::IJ<DataVector, 3, Frame::Inertial>*>
           flux_magnetic_field,
-      gsl::not_null<tnsr::I<DataVector, Dim, Frame::Inertial>*>
+      gsl::not_null<tnsr::I<DataVector, 3, Frame::Inertial>*>
           flux_divergence_cleaning_field,
 
-      BackgroundMagneticFieldOutput<Dim, UseBackgroundMagneticField>
+      BackgroundMagneticFieldOutput<UseBackgroundMagneticField>
           background_magnetic_field,
 
-      gsl::not_null<tnsr::I<DataVector, Dim, Frame::Inertial>*> velocity,
+      gsl::not_null<tnsr::I<DataVector, 3, Frame::Inertial>*> velocity,
       gsl::not_null<Scalar<DataVector>*> specific_internal_energy,
 
       const std::optional<
-          tnsr::I<DataVector, Dim, Frame::Inertial>>& /*face_mesh_velocity*/,
-      const tnsr::i<DataVector, Dim, Frame::Inertial>& /*normal_covector*/,
+          tnsr::I<DataVector, 3, Frame::Inertial>>& /*face_mesh_velocity*/,
+      const tnsr::i<DataVector, 3, Frame::Inertial>& /*normal_covector*/,
 
-      const tnsr::I<DataVector, Dim, Frame::Inertial>& coords,
-      BackgroundMagneticFieldArgument<Dim, UseBackgroundMagneticField>
+      const tnsr::I<DataVector, 3, Frame::Inertial>& coords,
+      BackgroundMagneticFieldArgument<UseBackgroundMagneticField>
           interior_background_magnetic_field,
       double time, double divergence_cleaning_speed) const;
   /// @}

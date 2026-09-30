@@ -34,9 +34,8 @@ namespace NewtonianMhd::subcell {
  */
 template <bool UseBackgroundMagneticField>
 struct NeighborPackagedData {
-  template <size_t Dim>
-  static DirectionalIdMap<Dim, DataVector> apply(
+  static DirectionalIdMap<3, DataVector> apply(
       const db::Access& box,
-      const std::vector<DirectionalId<Dim>>& mortars_to_reconstruct_to);
+      const std::vector<DirectionalId<3>>& mortars_to_reconstruct_to);
 };
 }  // namespace NewtonianMhd::subcell

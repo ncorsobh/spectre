@@ -26,13 +26,12 @@ namespace NewtonianMhd::subcell {
 /// \brief Sets the initial RDMP data.
 ///
 /// Used on the subcells after the TCI marked the DG solution as inadmissible.
-template <size_t Dim>
 struct SetInitialRdmpData {
  private:
   using MassDensityCons = NewtonianMhd::Tags::MassDensityCons;
   using EnergyDensity = NewtonianMhd::Tags::EnergyDensity;
-  using MomentumDensity = NewtonianMhd::Tags::MomentumDensity<Dim>;
-  using MagneticFieldCons = NewtonianMhd::Tags::MagneticFieldCons<Dim>;
+  using MomentumDensity = NewtonianMhd::Tags::MomentumDensity<>;
+  using MagneticFieldCons = NewtonianMhd::Tags::MagneticFieldCons<>;
   using DivergenceCleaningFieldCons =
       NewtonianMhd::Tags::DivergenceCleaningFieldCons;
 
@@ -41,8 +40,8 @@ struct SetInitialRdmpData {
       ::Tags::Variables<
           tmpl::list<MassDensityCons, MomentumDensity, EnergyDensity,
                      MagneticFieldCons, DivergenceCleaningFieldCons>>,
-      evolution::dg::subcell::Tags::ActiveGrid, ::domain::Tags::Mesh<Dim>,
-      evolution::dg::subcell::Tags::Mesh<Dim>>;
+      evolution::dg::subcell::Tags::ActiveGrid, ::domain::Tags::Mesh<3>,
+      evolution::dg::subcell::Tags::Mesh<3>>;
   using return_tags = tmpl::list<evolution::dg::subcell::Tags::DataForRdmpTci>;
 
   static void apply(
@@ -50,7 +49,7 @@ struct SetInitialRdmpData {
       const Variables<tmpl::list<MassDensityCons, MomentumDensity,
                                  EnergyDensity, MagneticFieldCons,
                                  DivergenceCleaningFieldCons>>& subcell_vars,
-      evolution::dg::subcell::ActiveGrid active_grid, const Mesh<Dim>& dg_mesh,
-      const Mesh<Dim>& subcell_mesh);
+      evolution::dg::subcell::ActiveGrid active_grid, const Mesh<3>& dg_mesh,
+      const Mesh<3>& subcell_mesh);
 };
 }  // namespace NewtonianMhd::subcell

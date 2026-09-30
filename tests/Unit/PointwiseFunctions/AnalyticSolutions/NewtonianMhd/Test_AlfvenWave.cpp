@@ -74,7 +74,7 @@ State state_at(const AlfvenWave& solution, const std::array<double, 3>& coords,
   Scalar<DataVector> energy_density{1_st};
   tnsr::I<DataVector, 3> magnetic_field_cons{1_st};
   Scalar<DataVector> divergence_cleaning_field_cons{1_st};
-  NewtonianMhd::ConservativeFromPrimitive<3>::apply(
+  NewtonianMhd::ConservativeFromPrimitive::apply(
       make_not_null(&mass_density_cons), make_not_null(&momentum_density),
       make_not_null(&energy_density), make_not_null(&magnetic_field_cons),
       make_not_null(&divergence_cleaning_field_cons), get<Density>(primitives),
@@ -86,7 +86,7 @@ State state_at(const AlfvenWave& solution, const std::array<double, 3>& coords,
   tnsr::I<DataVector, 3> energy_density_flux{1_st};
   tnsr::IJ<DataVector, 3> magnetic_field_flux{1_st};
   tnsr::I<DataVector, 3> divergence_cleaning_field_flux{1_st};
-  NewtonianMhd::ComputeFluxes<3, false>::apply(
+  NewtonianMhd::ComputeFluxes<false>::apply(
       make_not_null(&mass_density_flux), make_not_null(&momentum_density_flux),
       make_not_null(&energy_density_flux), make_not_null(&magnetic_field_flux),
       make_not_null(&divergence_cleaning_field_flux), momentum_density,

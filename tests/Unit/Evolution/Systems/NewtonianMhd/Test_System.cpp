@@ -10,21 +10,18 @@
 #include "Utilities/TMPL.hpp"
 
 SPECTRE_TEST_CASE("Unit.NewtonianMhd.System.Name", "[Unit][Evolution]") {
-  CHECK((NewtonianMhd::System<1, false>::name()) == "NewtonianMhd");
-  CHECK((NewtonianMhd::System<2, false>::name()) == "NewtonianMhd");
-  CHECK((NewtonianMhd::System<3, false>::name()) == "NewtonianMhd");
-  CHECK((NewtonianMhd::System<3, true>::name()) == "NewtonianMhd");
+  CHECK((NewtonianMhd::System<false>::name()) == "NewtonianMhd");
+  CHECK((NewtonianMhd::System<true>::name()) == "NewtonianMhd");
 
   // With the splitting disabled B0 is absent from the time derivative rather
   // than present and zero.
   static_assert(
       not tmpl::list_contains_v<
           typename NewtonianMhd::System<
-              3, false>::compute_volume_time_derivative_terms::temporary_tags,
-          NewtonianMhd::Tags::BackgroundMagneticField<3>>);
-  static_assert(
-      tmpl::list_contains_v<
-          typename NewtonianMhd::System<
-              3, true>::compute_volume_time_derivative_terms::temporary_tags,
-          NewtonianMhd::Tags::BackgroundMagneticField<3>>);
+              false>::compute_volume_time_derivative_terms::temporary_tags,
+          NewtonianMhd::Tags::BackgroundMagneticField<>>);
+  static_assert(tmpl::list_contains_v<
+                typename NewtonianMhd::System<
+                    true>::compute_volume_time_derivative_terms::temporary_tags,
+                NewtonianMhd::Tags::BackgroundMagneticField<>>);
 }

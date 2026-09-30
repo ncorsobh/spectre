@@ -37,12 +37,12 @@ void test_hydrodynamic_limit() {
   get<2>(normal) = 0.0 * one;
 
   Scalar<DataVector> fast_speed(one.size());
-  NewtonianMhd::fast_magnetosonic_speed<3, true>(
-      make_not_null(&fast_speed), mass_density, sound_speed_squared, zero_field,
-      zero_field);
+  NewtonianMhd::fast_magnetosonic_speed<true>(make_not_null(&fast_speed),
+                                              mass_density, sound_speed_squared,
+                                              zero_field, zero_field);
   CHECK_ITERABLE_APPROX(get(fast_speed), 0.6 * one);
 
-  const auto speeds = NewtonianMhd::characteristic_speeds<3, true>(
+  const auto speeds = NewtonianMhd::characteristic_speeds<true>(
       mass_density, velocity, sound_speed_squared, zero_field, normal,
       divergence_cleaning_speed, zero_field);
   CHECK_ITERABLE_APPROX(speeds[0],
@@ -83,12 +83,12 @@ void test_field_aligned_with_normal() {
   const double expected_fast_speed = sqrt(9.25);
 
   Scalar<DataVector> fast_speed(one.size());
-  NewtonianMhd::fast_magnetosonic_speed<3, true>(
+  NewtonianMhd::fast_magnetosonic_speed<true>(
       make_not_null(&fast_speed), mass_density, sound_speed_squared,
       magnetic_field, background_magnetic_field);
   CHECK_ITERABLE_APPROX(get(fast_speed), DataVector(expected_fast_speed * one));
 
-  const auto speeds = NewtonianMhd::characteristic_speeds<3, true>(
+  const auto speeds = NewtonianMhd::characteristic_speeds<true>(
       mass_density, velocity, sound_speed_squared, magnetic_field, normal,
       divergence_cleaning_speed, background_magnetic_field);
   CHECK_ITERABLE_APPROX(speeds[1], DataVector(-expected_fast_speed * one));
@@ -130,7 +130,7 @@ void test_ordering(const gsl::not_null<std::mt19937*> generator) {
     normal.get(i) /= normal_magnitude;
   }
 
-  const auto speeds = NewtonianMhd::characteristic_speeds<3, true>(
+  const auto speeds = NewtonianMhd::characteristic_speeds<true>(
       mass_density, velocity, sound_speed_squared, magnetic_field, normal,
       divergence_cleaning_speed, background_magnetic_field);
   for (size_t i = 0; i + 1 < speeds.size(); ++i) {

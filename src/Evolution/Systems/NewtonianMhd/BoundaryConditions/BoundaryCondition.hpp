@@ -13,7 +13,6 @@ namespace NewtonianMhd {
 namespace BoundaryConditions {
 /// \brief The base class off of which all NewtonianMhd boundary conditions
 /// must inherit.
-template <size_t Dim>
 class BoundaryCondition : public domain::BoundaryConditions::BoundaryCondition {
  public:
   BoundaryCondition() = default;

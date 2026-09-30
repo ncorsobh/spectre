@@ -50,34 +50,31 @@ struct ConvertIdeal {
   static size_t get_size(const packed_container& /*packed*/) { return 1; }
 };
 
-template <size_t Dim>
 using ghost_function_names = tuples::TaggedTuple<
     helpers::Tags::PythonFunctionForErrorMessage<>,
     helpers::Tags::PythonFunctionName<NewtonianMhd::Tags::MassDensityCons>,
-    helpers::Tags::PythonFunctionName<NewtonianMhd::Tags::MomentumDensity<Dim>>,
+    helpers::Tags::PythonFunctionName<NewtonianMhd::Tags::MomentumDensity<>>,
     helpers::Tags::PythonFunctionName<NewtonianMhd::Tags::EnergyDensity>,
-    helpers::Tags::PythonFunctionName<
-        NewtonianMhd::Tags::MagneticFieldCons<Dim>>,
+    helpers::Tags::PythonFunctionName<NewtonianMhd::Tags::MagneticFieldCons<>>,
     helpers::Tags::PythonFunctionName<
         NewtonianMhd::Tags::DivergenceCleaningFieldCons>,
+    helpers::Tags::PythonFunctionName<::Tags::Flux<
+        NewtonianMhd::Tags::MassDensityCons, tmpl::size_t<3>, Frame::Inertial>>,
     helpers::Tags::PythonFunctionName<
-        ::Tags::Flux<NewtonianMhd::Tags::MassDensityCons, tmpl::size_t<Dim>,
+        ::Tags::Flux<NewtonianMhd::Tags::MomentumDensity<>, tmpl::size_t<3>,
+                     Frame::Inertial>>,
+    helpers::Tags::PythonFunctionName<::Tags::Flux<
+        NewtonianMhd::Tags::EnergyDensity, tmpl::size_t<3>, Frame::Inertial>>,
+    helpers::Tags::PythonFunctionName<
+        ::Tags::Flux<NewtonianMhd::Tags::MagneticFieldCons<>, tmpl::size_t<3>,
                      Frame::Inertial>>,
     helpers::Tags::PythonFunctionName<
-        ::Tags::Flux<NewtonianMhd::Tags::MomentumDensity<Dim>,
-                     tmpl::size_t<Dim>, Frame::Inertial>>,
-    helpers::Tags::PythonFunctionName<::Tags::Flux<
-        NewtonianMhd::Tags::EnergyDensity, tmpl::size_t<Dim>, Frame::Inertial>>,
-    helpers::Tags::PythonFunctionName<
-        ::Tags::Flux<NewtonianMhd::Tags::MagneticFieldCons<Dim>,
-                     tmpl::size_t<Dim>, Frame::Inertial>>,
-    helpers::Tags::PythonFunctionName<
         ::Tags::Flux<NewtonianMhd::Tags::DivergenceCleaningFieldCons,
-                     tmpl::size_t<Dim>, Frame::Inertial>>,
+                     tmpl::size_t<3>, Frame::Inertial>>,
     helpers::Tags::PythonFunctionName<
-        NewtonianMhd::Tags::BackgroundMagneticField<Dim>>,
+        NewtonianMhd::Tags::BackgroundMagneticField<>>,
     helpers::Tags::PythonFunctionName<
-        hydro::Tags::SpatialVelocity<DataVector, Dim>>,
+        hydro::Tags::SpatialVelocity<DataVector, 3>>,
     helpers::Tags::PythonFunctionName<
         hydro::Tags::SpecificInternalEnergy<DataVector>>>;
 
@@ -91,43 +88,42 @@ auto positive_ranges() {
 // Only the background-field build is exercised here: with the splitting
 // disabled neither the ghost B0 nor the interior B0 exists, so there is no
 // B0-related behaviour left to compare against.
-template <size_t Dim, typename BoundaryConditionType>
+template <typename BoundaryConditionType>
 void test_ghost_condition(const std::string& python_module,
                           const std::string& option_string) {
   MAKE_GENERATOR(gen);
   helpers::test_boundary_condition_with_python<
       BoundaryConditionType,
-      NewtonianMhd::BoundaryConditions::BoundaryCondition<Dim>,
-      NewtonianMhd::System<Dim, true>,
-      tmpl::list<NewtonianMhd::BoundaryCorrections::Hll<Dim, true>>>(
+      NewtonianMhd::BoundaryConditions::BoundaryCondition,
+      NewtonianMhd::System<true>,
+      tmpl::list<NewtonianMhd::BoundaryCorrections::Hll<true>>>(
       make_not_null(&gen), python_module,
-      ghost_function_names<Dim>{
+      ghost_function_names{
           "error", "mass_density_cons", "momentum_density", "energy_density",
           "magnetic_field_cons", "divergence_cleaning_field_cons",
           "flux_mass_density", "flux_momentum_density", "flux_energy_density",
           "flux_magnetic_field", "flux_divergence_cleaning_field",
           "background_magnetic_field", "velocity", "specific_internal_energy"},
-      option_string, Index<Dim - 1>{Dim == 1 ? 1 : 5},
+      option_string, Index<3 - 1>{3 == 1 ? 1 : 5},
       db::create<
           db::AddSimpleTags<NewtonianMhd::Tags::DivergenceCleaningSpeed>>(1.5),
       positive_ranges());
 }
 
-template <size_t Dim>
 void test_demand_outgoing_char_speeds() {
   MAKE_GENERATOR(gen);
   helpers::test_boundary_condition_with_python<
-      NewtonianMhd::BoundaryConditions::DemandOutgoingCharSpeeds<Dim, true>,
-      NewtonianMhd::BoundaryConditions::BoundaryCondition<Dim>,
-      NewtonianMhd::System<Dim, true>,
-      tmpl::list<NewtonianMhd::BoundaryCorrections::Hll<Dim, true>>,
+      NewtonianMhd::BoundaryConditions::DemandOutgoingCharSpeeds<true>,
+      NewtonianMhd::BoundaryConditions::BoundaryCondition,
+      NewtonianMhd::System<true>,
+      tmpl::list<NewtonianMhd::BoundaryCorrections::Hll<true>>,
       tmpl::list<ConvertIdeal>>(
       make_not_null(&gen),
       "Evolution.Systems.NewtonianMhd.BoundaryConditions."
       "DemandOutgoingCharSpeeds",
       tuples::TaggedTuple<helpers::Tags::PythonFunctionForErrorMessage<>>{
           "error"},
-      "DemandOutgoingCharSpeeds:\n", Index<Dim - 1>{Dim == 1 ? 1 : 5},
+      "DemandOutgoingCharSpeeds:\n", Index<3 - 1>{3 == 1 ? 1 : 5},
       db::create<db::AddSimpleTags<hydro::Tags::EquationOfState<false, 2>>>(
           EquationsOfState::IdealFluid<false>{1.3}.get_clone()),
       positive_ranges());
@@ -136,13 +132,12 @@ void test_demand_outgoing_char_speeds() {
 
 SPECTRE_TEST_CASE("Unit.NewtonianMhd.BoundaryConditions", "[Unit][Evolution]") {
   pypp::SetupLocalPythonEnvironment local_python_env{""};
-  test_ghost_condition<3,
-                       NewtonianMhd::BoundaryConditions::Reflection<3, true>>(
+  test_ghost_condition<NewtonianMhd::BoundaryConditions::Reflection<true>>(
       "Evolution.Systems.NewtonianMhd.BoundaryConditions.Reflection",
       "Reflection:\n");
   test_ghost_condition<
-      3, NewtonianMhd::BoundaryConditions::ConductorReflection<3, true>>(
+      NewtonianMhd::BoundaryConditions::ConductorReflection<true>>(
       "Evolution.Systems.NewtonianMhd.BoundaryConditions.ConductorReflection",
       "ConductorReflection:\n");
-  test_demand_outgoing_char_speeds<3>();
+  test_demand_outgoing_char_speeds();
 }

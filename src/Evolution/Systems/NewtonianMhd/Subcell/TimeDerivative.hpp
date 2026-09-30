@@ -60,7 +60,6 @@ namespace NewtonianMhd::subcell {
  * from the logical to the inertial frame
  * - Assumes the mesh is not moving (grid and inertial frame are the same)
  */
-template <size_t Dim>
 struct TimeDerivative {
   template <typename DbTagsList>
   static void apply(const gsl::not_null<db::DataBox<DbTagsList>*> box) {
@@ -74,20 +73,19 @@ struct TimeDerivative {
     using evolved_vars_tags = typename evolved_vars_tag::tags_list;
     using prim_tags = typename system::primitive_variables_tag::tags_list;
     using fluxes_tags = db::wrap_tags_in<::Tags::Flux, evolved_vars_tags,
-                                         tmpl::size_t<Dim>, Frame::Inertial>;
+                                         tmpl::size_t<3>, Frame::Inertial>;
 
     ASSERT((db::get<::domain::CoordinateMaps::Tags::CoordinateMap<
-                Dim, Frame::Grid, Frame::Inertial>>(*box))
+                3, Frame::Grid, Frame::Inertial>>(*box))
                .is_identity(),
            "Do not yet support moving mesh with DG-subcell.");
 
     // The copy of Mesh is intentional to avoid a GCC-7 internal compiler error.
-    const Mesh<Dim> subcell_mesh =
-        db::get<evolution::dg::subcell::Tags::Mesh<Dim>>(*box);
+    const Mesh<3> subcell_mesh =
+        db::get<evolution::dg::subcell::Tags::Mesh<3>>(*box);
     ASSERT(
-        subcell_mesh == Mesh<Dim>(subcell_mesh.extents(0),
-                                  subcell_mesh.basis(0),
-                                  subcell_mesh.quadrature(0)),
+        subcell_mesh == Mesh<3>(subcell_mesh.extents(0), subcell_mesh.basis(0),
+                                subcell_mesh.quadrature(0)),
         "The subcell/FD mesh must be isotropic for the FD time derivative but "
         "got "
             << subcell_mesh);
@@ -96,22 +94,22 @@ struct TimeDerivative {
         (subcell_mesh.extents(0) + 1) *
         subcell_mesh.extents().slice_away(0).product();
 
-    const tnsr::I<DataVector, Dim, Frame::ElementLogical>&
+    const tnsr::I<DataVector, 3, Frame::ElementLogical>&
         cell_centered_logical_coords =
             db::get<evolution::dg::subcell::Tags::Coordinates<
-                Dim, Frame::ElementLogical>>(*box);
-    std::array<double, Dim> one_over_delta_xi{};
-    for (size_t i = 0; i < Dim; ++i) {
+                3, Frame::ElementLogical>>(*box);
+    std::array<double, 3> one_over_delta_xi{};
+    for (size_t i = 0; i < 3; ++i) {
       // Note: assumes isotropic extents
       gsl::at(one_over_delta_xi, i) =
           1.0 / (get<0>(cell_centered_logical_coords)[1] -
                  get<0>(cell_centered_logical_coords)[0]);
     }
 
-    const NewtonianMhd::fd::Reconstructor<Dim>& recons =
-        db::get<NewtonianMhd::fd::Tags::Reconstructor<Dim>>(*box);
+    const NewtonianMhd::fd::Reconstructor& recons =
+        db::get<NewtonianMhd::fd::Tags::Reconstructor>(*box);
 
-    const Element<Dim>& element = db::get<domain::Tags::Element<Dim>>(*box);
+    const Element<3>& element = db::get<domain::Tags::Element<3>>(*box);
     constexpr bool subcell_enabled_at_external_boundary =
         metavariables::SubcellOptions::subcell_enabled_at_external_boundary;
     ASSERT(element.external_boundaries().empty() or
@@ -124,7 +122,7 @@ struct TimeDerivative {
     // conditions, so that the reconstruction below has neighbour data there.
     if constexpr (subcell_enabled_at_external_boundary) {
       if (not element.external_boundaries().empty()) {
-        fd::BoundaryConditionGhostData<Dim>::apply(box, element, recons);
+        fd::BoundaryConditionGhostData::apply(box, element, recons);
       }
     }
 
@@ -134,7 +132,7 @@ struct TimeDerivative {
     using derived_boundary_corrections =
         tmpl::at<typename metavariables::factory_creation::factory_classes,
                  evolution::BoundaryCorrection>;
-    std::array<Variables<evolved_vars_tags>, Dim> boundary_corrections{};
+    std::array<Variables<evolved_vars_tags>, 3> boundary_corrections{};
     tmpl::for_each<derived_boundary_corrections>([&boundary_correction,
                                                   &reconstructed_num_pts,
                                                   &recons, &box, &element,
@@ -150,14 +148,14 @@ struct TimeDerivative {
             tmpl::append<evolved_vars_tags, prim_tags, fluxes_tags,
                          dg_package_data_temporary_tags>;
         // Computed prims and cons on face via reconstruction
-        auto package_data_argvars_lower_face = make_array<Dim>(
+        auto package_data_argvars_lower_face = make_array<3>(
             Variables<dg_package_data_argument_tags>(reconstructed_num_pts));
-        auto package_data_argvars_upper_face = make_array<Dim>(
+        auto package_data_argvars_upper_face = make_array<3>(
             Variables<dg_package_data_argument_tags>(reconstructed_num_pts));
 
         // Reconstruct data to the face
-        call_with_dynamic_type<void, typename NewtonianMhd::fd::Reconstructor<
-                                         Dim>::creatable_classes>(
+        call_with_dynamic_type<
+            void, typename NewtonianMhd::fd::Reconstructor::creatable_classes>(
             &recons,
             [&box, &package_data_argvars_lower_face,
              &package_data_argvars_upper_face](const auto& reconstructor) {
@@ -183,7 +181,7 @@ struct TimeDerivative {
             reconstructed_num_pts};
 
         // Compute fluxes on faces
-        for (size_t i = 0; i < Dim; ++i) {
+        for (size_t i = 0; i < 3; ++i) {
           auto& vars_upper_face = gsl::at(package_data_argvars_upper_face, i);
           auto& vars_lower_face = gsl::at(package_data_argvars_lower_face, i);
           if constexpr (use_background_magnetic_field) {
@@ -191,29 +189,26 @@ struct TimeDerivative {
             // reconstructed.
             const auto& background_magnetic_field_at_faces =
                 db::get<evolution::dg::subcell::Tags::OnSubcellFaces<
-                    NewtonianMhd::Tags::BackgroundMagneticField<Dim>, Dim>>(
-                    *box);
-            get<NewtonianMhd::Tags::BackgroundMagneticField<Dim>>(
+                    NewtonianMhd::Tags::BackgroundMagneticField<>, 3>>(*box);
+            get<NewtonianMhd::Tags::BackgroundMagneticField<>>(
                 vars_upper_face) =
                 gsl::at(background_magnetic_field_at_faces, i);
-            get<NewtonianMhd::Tags::BackgroundMagneticField<Dim>>(
+            get<NewtonianMhd::Tags::BackgroundMagneticField<>>(
                 vars_lower_face) =
                 gsl::at(background_magnetic_field_at_faces, i);
           }
           const double divergence_cleaning_speed =
               db::get<NewtonianMhd::Tags::DivergenceCleaningSpeed>(*box);
-          NewtonianMhd::subcell::compute_fluxes<Dim,
-                                                use_background_magnetic_field>(
+          NewtonianMhd::subcell::compute_fluxes<use_background_magnetic_field>(
               make_not_null(&vars_upper_face), divergence_cleaning_speed);
-          NewtonianMhd::subcell::compute_fluxes<Dim,
-                                                use_background_magnetic_field>(
+          NewtonianMhd::subcell::compute_fluxes<use_background_magnetic_field>(
               make_not_null(&vars_lower_face), divergence_cleaning_speed);
 
-          tnsr::i<DataVector, Dim, Frame::Inertial> lower_outward_conormal{
+          tnsr::i<DataVector, 3, Frame::Inertial> lower_outward_conormal{
               reconstructed_num_pts, 0.0};
           lower_outward_conormal.get(i) = 1.0;
 
-          tnsr::i<DataVector, Dim, Frame::Inertial> upper_outward_conormal{
+          tnsr::i<DataVector, 3, Frame::Inertial> upper_outward_conormal{
               reconstructed_num_pts, 0.0};
           upper_outward_conormal.get(i) = -1.0;
 
@@ -245,7 +240,7 @@ struct TimeDerivative {
           evolution::dg::subcell::correct_package_data<true>(
               make_not_null(&lower_packaged_data),
               make_not_null(&upper_packaged_data), i, element, subcell_mesh,
-              db::get<evolution::dg::Tags::MortarData<Dim>>(*box), 0);
+              db::get<evolution::dg::Tags::MortarData<3>>(*box), 0);
 
           // Compute the corrections on the faces. We only need to
           // compute this once because we can just flip the normal
@@ -265,44 +260,44 @@ struct TimeDerivative {
     using source_argument_tags = tmpl::append<
         tmpl::list<
             NewtonianMhd::Tags::MassDensityCons,
-            NewtonianMhd::Tags::MomentumDensity<Dim>,
+            NewtonianMhd::Tags::MomentumDensity<>,
             NewtonianMhd::Tags::EnergyDensity,
-            NewtonianMhd::Tags::MagneticFieldCons<Dim>,
+            NewtonianMhd::Tags::MagneticFieldCons<>,
             NewtonianMhd::Tags::DivergenceCleaningFieldCons,
-            hydro::Tags::SpatialVelocity<DataVector, Dim>,
+            hydro::Tags::SpatialVelocity<DataVector, 3>,
             hydro::Tags::Pressure<DataVector>,
             NewtonianMhd::Tags::DivergenceCleaningSpeed,
             NewtonianMhd::Tags::ConstraintDampingParameter,
             hydro::Tags::EquationOfState<false, 2>,
-            evolution::dg::subcell::Tags::Coordinates<Dim, Frame::Inertial>,
+            evolution::dg::subcell::Tags::Coordinates<3, Frame::Inertial>,
             ::Tags::Time,
-            NewtonianMhd::Tags::SourceTerm<Dim, use_background_magnetic_field>>,
+            NewtonianMhd::Tags::SourceTerm<use_background_magnetic_field>>,
         background_magnetic_field_tag_list<
-            NewtonianMhd::Tags::BackgroundMagneticFieldVolume<Dim>,
+            NewtonianMhd::Tags::BackgroundMagneticFieldVolume<>,
             use_background_magnetic_field>>;
     db::mutate_apply<tmpl::list<dt_variables_tag>, source_argument_tags>(
         [&num_pts, &boundary_corrections, &subcell_mesh, &one_over_delta_xi,
-         &cell_centered_logical_to_grid_inv_jacobian =
-             db::get<evolution::dg::subcell::fd::Tags::
-                         InverseJacobianLogicalToGrid<Dim>>(*box)](
+         &cell_centered_logical_to_grid_inv_jacobian = db::get<
+             evolution::dg::subcell::fd::Tags::InverseJacobianLogicalToGrid<3>>(
+             *box)](
             const auto dt_vars_ptr, const Scalar<DataVector>& mass_density_cons,
-            const tnsr::I<DataVector, Dim>& momentum_density,
+            const tnsr::I<DataVector, 3>& momentum_density,
             const Scalar<DataVector>& energy_density,
-            const tnsr::I<DataVector, Dim>& magnetic_field,
+            const tnsr::I<DataVector, 3>& magnetic_field,
             const Scalar<DataVector>& divergence_cleaning_field,
-            const tnsr::I<DataVector, Dim>& velocity,
+            const tnsr::I<DataVector, 3>& velocity,
             const Scalar<DataVector>& pressure,
             const double divergence_cleaning_speed,
             const double constraint_damping_parameter,
             const EquationsOfState::EquationOfState<false, 2>& eos,
-            const tnsr::I<DataVector, Dim>& coords, const double time,
-            const Sources::Source<Dim, use_background_magnetic_field>& source,
+            const tnsr::I<DataVector, 3>& coords, const double time,
+            const Sources::Source<use_background_magnetic_field>& source,
             const auto&... background_magnetic_field) {
           dt_vars_ptr->initialize(num_pts, 0.0);
           using MassDensityCons = NewtonianMhd::Tags::MassDensityCons;
-          using MomentumDensity = NewtonianMhd::Tags::MomentumDensity<Dim>;
+          using MomentumDensity = NewtonianMhd::Tags::MomentumDensity<>;
           using EnergyDensity = NewtonianMhd::Tags::EnergyDensity;
-          using MagneticFieldCons = NewtonianMhd::Tags::MagneticFieldCons<Dim>;
+          using MagneticFieldCons = NewtonianMhd::Tags::MagneticFieldCons<>;
           using DivergenceCleaningFieldCons =
               NewtonianMhd::Tags::DivergenceCleaningFieldCons;
 
@@ -333,7 +328,7 @@ struct TimeDerivative {
             call_source(NoBackgroundMagneticField{});
           }
 
-          for (size_t dim = 0; dim < Dim; ++dim) {
+          for (size_t dim = 0; dim < 3; ++dim) {
             auto& corrections = gsl::at(boundary_corrections, dim);
             const double one_over_delta = gsl::at(one_over_delta_xi, dim);
             const DataVector& inv_jacobian =
@@ -351,7 +346,7 @@ struct TimeDerivative {
                 one_over_delta, inv_jacobian,
                 get(get<DivergenceCleaningFieldCons>(corrections)),
                 subcell_mesh.extents(), dim);
-            for (size_t d = 0; d < Dim; ++d) {
+            for (size_t d = 0; d < 3; ++d) {
               evolution::dg::subcell::add_cartesian_flux_divergence(
                   make_not_null(&dt_momentum.get(d)), one_over_delta,
                   inv_jacobian, get<MomentumDensity>(corrections).get(d),

@@ -11,6 +11,6 @@
 
 namespace NewtonianMhd::Sources {
 /// All the available source terms.
-template <size_t Dim, bool UseBackgroundMagneticField = false>
-using all_sources = tmpl::list<NoSource<Dim, UseBackgroundMagneticField>>;
+template <bool UseBackgroundMagneticField = false>
+using all_sources = tmpl::list<NoSource<UseBackgroundMagneticField>>;
 }  // namespace NewtonianMhd::Sources

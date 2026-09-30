@@ -34,7 +34,7 @@ namespace Sources {
 /// perturbation-magnetic-field, and GLM-cleaning-field equations.  It is
 /// invoked from `TimeDerivativeTerms::apply` after fluxes and prior to
 /// integration.
-template <size_t Dim, bool UseBackgroundMagneticField = false>
+template <bool UseBackgroundMagneticField = false>
 class Source : public PUP::able {
  protected:
   Source() = default;
@@ -51,21 +51,21 @@ class Source : public PUP::able {
 
   virtual void operator()(
       gsl::not_null<Scalar<DataVector>*> source_mass_density_cons,
-      gsl::not_null<tnsr::I<DataVector, Dim>*> source_momentum_density,
+      gsl::not_null<tnsr::I<DataVector, 3>*> source_momentum_density,
       gsl::not_null<Scalar<DataVector>*> source_energy_density,
-      gsl::not_null<tnsr::I<DataVector, Dim>*> source_magnetic_field,
+      gsl::not_null<tnsr::I<DataVector, 3>*> source_magnetic_field,
       gsl::not_null<Scalar<DataVector>*> source_divergence_cleaning_field,
       const Scalar<DataVector>& mass_density_cons,
-      const tnsr::I<DataVector, Dim>& momentum_density,
+      const tnsr::I<DataVector, 3>& momentum_density,
       const Scalar<DataVector>& energy_density,
-      const tnsr::I<DataVector, Dim>& magnetic_field,
+      const tnsr::I<DataVector, 3>& magnetic_field,
       const Scalar<DataVector>& divergence_cleaning_field,
-      const tnsr::I<DataVector, Dim>& velocity,
+      const tnsr::I<DataVector, 3>& velocity,
       const Scalar<DataVector>& pressure,
-      BackgroundMagneticFieldArgument<Dim, UseBackgroundMagneticField>
+      BackgroundMagneticFieldArgument<UseBackgroundMagneticField>
           background_magnetic_field,
       const EquationsOfState::EquationOfState<false, 2>& eos,
-      const tnsr::I<DataVector, Dim>& coords, double time) const = 0;
+      const tnsr::I<DataVector, 3>& coords, double time) const = 0;
 };
 }  // namespace Sources
 }  // namespace NewtonianMhd

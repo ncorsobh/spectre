@@ -40,15 +40,14 @@ namespace NewtonianMhd::subcell {
  * `::Actions::MutateApply` action right after the
  * `evolution::dg::subcell::Actions::Labels::BeginSubcellAfterDgRollback` label.
  */
-template <size_t Dim>
 struct PrimsAfterRollback {
  private:
   using MassDensity = hydro::Tags::RestMassDensity<DataVector>;
-  using Velocity = hydro::Tags::SpatialVelocity<DataVector, Dim>;
+  using Velocity = hydro::Tags::SpatialVelocity<DataVector, 3>;
   using SpecificInternalEnergy =
       hydro::Tags::SpecificInternalEnergy<DataVector>;
   using Pressure = hydro::Tags::Pressure<DataVector>;
-  using MagneticField = hydro::Tags::MagneticField<DataVector, Dim>;
+  using MagneticField = hydro::Tags::MagneticField<DataVector, 3>;
   using DivergenceCleaningField =
       hydro::Tags::DivergenceCleaningField<DataVector>;
 
@@ -58,11 +57,11 @@ struct PrimsAfterRollback {
                  MagneticField, DivergenceCleaningField>>>;
   using argument_tags =
       tmpl::list<evolution::dg::subcell::Tags::DidRollback,
-                 evolution::dg::subcell::Tags::Mesh<Dim>,
+                 evolution::dg::subcell::Tags::Mesh<3>,
                  NewtonianMhd::Tags::MassDensityCons,
-                 NewtonianMhd::Tags::MomentumDensity<Dim>,
+                 NewtonianMhd::Tags::MomentumDensity<>,
                  NewtonianMhd::Tags::EnergyDensity,
-                 NewtonianMhd::Tags::MagneticFieldCons<Dim>,
+                 NewtonianMhd::Tags::MagneticFieldCons<>,
                  NewtonianMhd::Tags::DivergenceCleaningFieldCons,
                  hydro::Tags::EquationOfState<false, 2>>;
 
@@ -71,11 +70,11 @@ struct PrimsAfterRollback {
           tmpl::list<MassDensity, Velocity, SpecificInternalEnergy, Pressure,
                      MagneticField, DivergenceCleaningField>>*>
           prim_vars,
-      bool did_rollback, const Mesh<Dim>& subcell_mesh,
+      bool did_rollback, const Mesh<3>& subcell_mesh,
       const Scalar<DataVector>& mass_density_cons,
-      const tnsr::I<DataVector, Dim>& momentum_density,
+      const tnsr::I<DataVector, 3>& momentum_density,
       const Scalar<DataVector>& energy_density,
-      const tnsr::I<DataVector, Dim>& magnetic_field_cons,
+      const tnsr::I<DataVector, 3>& magnetic_field_cons,
       const Scalar<DataVector>& divergence_cleaning_field_cons,
       const EquationsOfState::EquationOfState<false, 2>& equation_of_state);
 };

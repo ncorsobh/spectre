@@ -21,10 +21,10 @@
 #include "Utilities/TMPL.hpp"
 
 namespace {
-template <size_t Dim, bool UseBackgroundMagneticField>
+template <bool UseBackgroundMagneticField>
 void test(const gsl::not_null<std::mt19937*> gen,
           const gsl::not_null<std::uniform_real_distribution<>*> dist) {
-  using Fluxes = NewtonianMhd::ComputeFluxes<Dim, UseBackgroundMagneticField>;
+  using Fluxes = NewtonianMhd::ComputeFluxes<UseBackgroundMagneticField>;
   const size_t num_pts = 5;
   const double divergence_cleaning_speed = 1.3;
 
@@ -32,14 +32,14 @@ void test(const gsl::not_null<std::mt19937*> gen,
   // the variables are listed explicitly instead of taken from argument_tags.
   using field_tags =
       tmpl::append<typename Fluxes::return_tags,
-                   tmpl::list<NewtonianMhd::Tags::MomentumDensity<Dim>,
+                   tmpl::list<NewtonianMhd::Tags::MomentumDensity<>,
                               NewtonianMhd::Tags::EnergyDensity,
-                              NewtonianMhd::Tags::MagneticFieldCons<Dim>,
+                              NewtonianMhd::Tags::MagneticFieldCons<>,
                               NewtonianMhd::Tags::DivergenceCleaningFieldCons,
-                              hydro::Tags::SpatialVelocity<DataVector, Dim>,
+                              hydro::Tags::SpatialVelocity<DataVector, 3>,
                               hydro::Tags::Pressure<DataVector>>,
                    NewtonianMhd::background_magnetic_field_tag_list<
-                       NewtonianMhd::Tags::BackgroundMagneticField<Dim>,
+                       NewtonianMhd::Tags::BackgroundMagneticField<>,
                        UseBackgroundMagneticField>>;
 
   auto vars =
@@ -51,38 +51,36 @@ void test(const gsl::not_null<std::mt19937*> gen,
                                 const auto&... background_magnetic_field) {
     Fluxes::apply(
         make_not_null(&get<::Tags::Flux<NewtonianMhd::Tags::MassDensityCons,
-                                        tmpl::size_t<Dim>, Frame::Inertial>>(
+                                        tmpl::size_t<3>, Frame::Inertial>>(
             expected_fluxes)),
-        make_not_null(
-            &get<::Tags::Flux<NewtonianMhd::Tags::MomentumDensity<Dim>,
-                              tmpl::size_t<Dim>, Frame::Inertial>>(
-                expected_fluxes)),
+        make_not_null(&get<::Tags::Flux<NewtonianMhd::Tags::MomentumDensity<>,
+                                        tmpl::size_t<3>, Frame::Inertial>>(
+            expected_fluxes)),
         make_not_null(&get<::Tags::Flux<NewtonianMhd::Tags::EnergyDensity,
-                                        tmpl::size_t<Dim>, Frame::Inertial>>(
+                                        tmpl::size_t<3>, Frame::Inertial>>(
             expected_fluxes)),
-        make_not_null(
-            &get<::Tags::Flux<NewtonianMhd::Tags::MagneticFieldCons<Dim>,
-                              tmpl::size_t<Dim>, Frame::Inertial>>(
-                expected_fluxes)),
+        make_not_null(&get<::Tags::Flux<NewtonianMhd::Tags::MagneticFieldCons<>,
+                                        tmpl::size_t<3>, Frame::Inertial>>(
+            expected_fluxes)),
         make_not_null(
             &get<::Tags::Flux<NewtonianMhd::Tags::DivergenceCleaningFieldCons,
-                              tmpl::size_t<Dim>, Frame::Inertial>>(
+                              tmpl::size_t<3>, Frame::Inertial>>(
                 expected_fluxes)),
-        get<NewtonianMhd::Tags::MomentumDensity<Dim>>(vars),
+        get<NewtonianMhd::Tags::MomentumDensity<>>(vars),
         get<NewtonianMhd::Tags::EnergyDensity>(vars),
-        get<NewtonianMhd::Tags::MagneticFieldCons<Dim>>(vars),
+        get<NewtonianMhd::Tags::MagneticFieldCons<>>(vars),
         get<NewtonianMhd::Tags::DivergenceCleaningFieldCons>(vars),
-        get<hydro::Tags::SpatialVelocity<DataVector, Dim>>(vars),
+        get<hydro::Tags::SpatialVelocity<DataVector, 3>>(vars),
         get<hydro::Tags::Pressure<DataVector>>(vars), divergence_cleaning_speed,
         background_magnetic_field...);
   };
   if constexpr (UseBackgroundMagneticField) {
-    apply_fluxes(get<NewtonianMhd::Tags::BackgroundMagneticField<Dim>>(vars));
+    apply_fluxes(get<NewtonianMhd::Tags::BackgroundMagneticField<>>(vars));
   } else {
     apply_fluxes();
   }
 
-  NewtonianMhd::subcell::compute_fluxes<Dim, UseBackgroundMagneticField>(
+  NewtonianMhd::subcell::compute_fluxes<UseBackgroundMagneticField>(
       make_not_null(&vars), divergence_cleaning_speed);
 
   tmpl::for_each<typename Fluxes::return_tags>(
@@ -97,10 +95,6 @@ SPECTRE_TEST_CASE("Unit.Evolution.Systems.NewtonianMhd.Subcell.ComputeFluxes",
                   "[Unit][Evolution]") {
   MAKE_GENERATOR(gen);
   std::uniform_real_distribution<double> dist(0.0, 1.0);
-  test<1, false>(make_not_null(&gen), make_not_null(&dist));
-  test<2, false>(make_not_null(&gen), make_not_null(&dist));
-  test<3, false>(make_not_null(&gen), make_not_null(&dist));
-  test<1, true>(make_not_null(&gen), make_not_null(&dist));
-  test<2, true>(make_not_null(&gen), make_not_null(&dist));
-  test<3, true>(make_not_null(&gen), make_not_null(&dist));
+  test<false>(make_not_null(&gen), make_not_null(&dist));
+  test<true>(make_not_null(&gen), make_not_null(&dist));
 }

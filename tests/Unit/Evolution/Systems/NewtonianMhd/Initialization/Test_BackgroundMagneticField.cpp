@@ -22,19 +22,18 @@
 #include "Utilities/TMPL.hpp"
 
 namespace {
-constexpr size_t Dim = 3;
-using BackgroundField = NewtonianMhd::Tags::BackgroundMagneticFieldVolume<Dim>;
-using MagneticField = hydro::Tags::MagneticField<DataVector, Dim>;
+using BackgroundField = NewtonianMhd::Tags::BackgroundMagneticFieldVolume<>;
+using MagneticField = hydro::Tags::MagneticField<DataVector, 3>;
 using primitive_variables_tag =
-    typename NewtonianMhd::System<Dim, true>::primitive_variables_tag;
+    typename NewtonianMhd::System<true>::primitive_variables_tag;
 
 NewtonianMhd::Solutions::AlfvenWave make_initial_data() {
   return NewtonianMhd::Solutions::AlfvenWave{
       {{1.0, 2.0, -1.0}}, 1.5, 0.8, 1.1, 0.3, 5.0 / 3.0};
 }
 
-tnsr::I<DataVector, Dim, Frame::Inertial> sample_coordinates() {
-  tnsr::I<DataVector, Dim, Frame::Inertial> coords{3_st};
+tnsr::I<DataVector, 3, Frame::Inertial> sample_coordinates() {
+  tnsr::I<DataVector, 3, Frame::Inertial> coords{3_st};
   get<0>(coords) = DataVector{2.0, -3.5, 0.0};
   get<1>(coords) = DataVector{4.0, 1.0, -2.5};
   get<2>(coords) = DataVector{-1.0, 2.5, 5.0};
@@ -46,13 +45,13 @@ void test_sets_the_background_from_the_initial_data() {
   const auto initial_data = make_initial_data();
 
   auto box = db::create<db::AddSimpleTags<
-      BackgroundField, domain::Tags::Coordinates<Dim, Frame::Inertial>,
+      BackgroundField, domain::Tags::Coordinates<3, Frame::Inertial>,
       evolution::initial_data::Tags::InitialData>>(
       typename BackgroundField::type{}, coords,
       std::unique_ptr<evolution::initial_data::InitialData>{
           initial_data.get_clone()});
 
-  db::mutate_apply<NewtonianMhd::Initialization::BackgroundMagneticField<Dim>>(
+  db::mutate_apply<NewtonianMhd::Initialization::BackgroundMagneticField>(
       make_not_null(&box));
 
   const auto expected = get<BackgroundField>(
@@ -79,12 +78,12 @@ void test_subtracts_the_background_from_the_primitives() {
       db::create<db::AddSimpleTags<primitive_variables_tag, BackgroundField>>(
           prims, background);
   db::mutate_apply<
-      NewtonianMhd::Initialization::SubtractBackgroundMagneticField<Dim>>(
+      NewtonianMhd::Initialization::SubtractBackgroundMagneticField>(
       make_not_null(&box));
 
   const auto& perturbation =
       get<MagneticField>(db::get<primitive_variables_tag>(box));
-  for (size_t i = 0; i < Dim; ++i) {
+  for (size_t i = 0; i < 3; ++i) {
     CAPTURE(i);
     const DataVector recovered = perturbation.get(i) + background.get(i);
     CHECK_ITERABLE_APPROX(recovered, expected_total_field.get(i));

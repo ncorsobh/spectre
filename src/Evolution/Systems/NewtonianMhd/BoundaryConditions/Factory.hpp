@@ -15,11 +15,11 @@
 
 namespace NewtonianMhd::BoundaryConditions {
 /// Typelist of standard BoundaryConditions
-template <size_t Dim, bool UseBackgroundMagneticField = false>
+template <bool UseBackgroundMagneticField = false>
 using standard_boundary_conditions =
-    tmpl::list<ConductorReflection<Dim, UseBackgroundMagneticField>,
-               DemandOutgoingCharSpeeds<Dim, UseBackgroundMagneticField>,
-               DirichletAnalytic<Dim, UseBackgroundMagneticField>,
-               Reflection<Dim, UseBackgroundMagneticField>,
-               domain::BoundaryConditions::Periodic<BoundaryCondition<Dim>>>;
+    tmpl::list<ConductorReflection<UseBackgroundMagneticField>,
+               DemandOutgoingCharSpeeds<UseBackgroundMagneticField>,
+               DirichletAnalytic<UseBackgroundMagneticField>,
+               Reflection<UseBackgroundMagneticField>,
+               domain::BoundaryConditions::Periodic<BoundaryCondition>>;
 }  // namespace NewtonianMhd::BoundaryConditions

@@ -51,24 +51,23 @@ namespace NewtonianMhd::fd {
  * \brief Monotonised central reconstruction. See
  * `::fd::reconstruction::monotonised_central()` for details.
  */
-template <size_t Dim>
-class MonotonisedCentralPrim : public Reconstructor<Dim> {
+class MonotonisedCentralPrim : public Reconstructor {
  private:
   // Conservative vars tags
   using MassDensityCons = NewtonianMhd::Tags::MassDensityCons;
   using EnergyDensity = NewtonianMhd::Tags::EnergyDensity;
-  using MomentumDensity = NewtonianMhd::Tags::MomentumDensity<Dim>;
-  using MagneticFieldCons = NewtonianMhd::Tags::MagneticFieldCons<Dim>;
+  using MomentumDensity = NewtonianMhd::Tags::MomentumDensity<>;
+  using MagneticFieldCons = NewtonianMhd::Tags::MagneticFieldCons<>;
   using DivergenceCleaningFieldCons =
       NewtonianMhd::Tags::DivergenceCleaningFieldCons;
 
   // Primitive vars tags
   using MassDensity = hydro::Tags::RestMassDensity<DataVector>;
-  using Velocity = hydro::Tags::SpatialVelocity<DataVector, Dim>;
+  using Velocity = hydro::Tags::SpatialVelocity<DataVector, 3>;
   using SpecificInternalEnergy =
       hydro::Tags::SpecificInternalEnergy<DataVector>;
   using Pressure = hydro::Tags::Pressure<DataVector>;
-  using MagneticField = hydro::Tags::MagneticField<DataVector, Dim>;
+  using MagneticField = hydro::Tags::MagneticField<DataVector, 3>;
   using DivergenceCleaningField =
       hydro::Tags::DivergenceCleaningField<DataVector>;
 
@@ -77,7 +76,7 @@ class MonotonisedCentralPrim : public Reconstructor<Dim> {
                  MagneticField, DivergenceCleaningField>;
   using cons_tags = tmpl::list<MassDensityCons, MomentumDensity, EnergyDensity,
                                MagneticFieldCons, DivergenceCleaningFieldCons>;
-  using flux_tags = db::wrap_tags_in<::Tags::Flux, cons_tags, tmpl::size_t<Dim>,
+  using flux_tags = db::wrap_tags_in<::Tags::Flux, cons_tags, tmpl::size_t<3>,
                                      Frame::Inertial>;
   // The background field B0 is smooth by construction and is not limited, so
   // only the evolved perturbation is reconstructed.
@@ -99,10 +98,9 @@ class MonotonisedCentralPrim : public Reconstructor<Dim> {
 
   explicit MonotonisedCentralPrim(CkMigrateMessage* msg);
 
-  WRAPPED_PUPable_decl_base_template(Reconstructor<Dim>,
-                                     MonotonisedCentralPrim);
+  WRAPPED_PUPable_decl_base_template(Reconstructor, MonotonisedCentralPrim);
 
-  auto get_clone() const -> std::unique_ptr<Reconstructor<Dim>> override;
+  auto get_clone() const -> std::unique_ptr<Reconstructor> override;
 
   void pup(PUP::er& p) override;
 
@@ -111,20 +109,19 @@ class MonotonisedCentralPrim : public Reconstructor<Dim> {
   using reconstruction_argument_tags =
       tmpl::list<::Tags::Variables<prims_tags>,
                  hydro::Tags::EquationOfState<false, 2>,
-                 domain::Tags::Element<Dim>,
-                 evolution::dg::subcell::Tags::GhostDataForReconstruction<Dim>,
-                 evolution::dg::subcell::Tags::Mesh<Dim>>;
+                 domain::Tags::Element<3>,
+                 evolution::dg::subcell::Tags::GhostDataForReconstruction<3>,
+                 evolution::dg::subcell::Tags::Mesh<3>>;
 
   template <typename TagsList>
   void reconstruct(
-      gsl::not_null<std::array<Variables<TagsList>, Dim>*> vars_on_lower_face,
-      gsl::not_null<std::array<Variables<TagsList>, Dim>*> vars_on_upper_face,
+      gsl::not_null<std::array<Variables<TagsList>, 3>*> vars_on_lower_face,
+      gsl::not_null<std::array<Variables<TagsList>, 3>*> vars_on_upper_face,
       const Variables<prims_tags>& volume_prims,
       const EquationsOfState::EquationOfState<false, 2>& eos,
-      const Element<Dim>& element,
-      const DirectionalIdMap<Dim, evolution::dg::subcell::GhostData>&
-          ghost_data,
-      const Mesh<Dim>& subcell_mesh) const;
+      const Element<3>& element,
+      const DirectionalIdMap<3, evolution::dg::subcell::GhostData>& ghost_data,
+      const Mesh<3>& subcell_mesh) const;
 
   /// Called by an element doing DG when the neighbor is doing subcell.
   ///
@@ -137,22 +134,19 @@ class MonotonisedCentralPrim : public Reconstructor<Dim> {
       gsl::not_null<Variables<TagsList>*> vars_on_face,
       const Variables<prims_tags>& subcell_volume_prims,
       const EquationsOfState::EquationOfState<false, 2>& eos,
-      const Element<Dim>& element,
-      const DirectionalIdMap<Dim, evolution::dg::subcell::GhostData>&
-          ghost_data,
-      const Mesh<Dim>& subcell_mesh,
-      const Direction<Dim> direction_to_reconstruct) const;
+      const Element<3>& element,
+      const DirectionalIdMap<3, evolution::dg::subcell::GhostData>& ghost_data,
+      const Mesh<3>& subcell_mesh,
+      const Direction<3> direction_to_reconstruct) const;
 };
 
-template <size_t Dim>
-bool operator==(const MonotonisedCentralPrim<Dim>& /*lhs*/,
-                const MonotonisedCentralPrim<Dim>& /*rhs*/) {
+inline bool operator==(const MonotonisedCentralPrim& /*lhs*/,
+                       const MonotonisedCentralPrim& /*rhs*/) {
   return true;
 }
 
-template <size_t Dim>
-bool operator!=(const MonotonisedCentralPrim<Dim>& lhs,
-                const MonotonisedCentralPrim<Dim>& rhs) {
+inline bool operator!=(const MonotonisedCentralPrim& lhs,
+                       const MonotonisedCentralPrim& rhs) {
   return not(lhs == rhs);
 }
 }  // namespace NewtonianMhd::fd

@@ -40,27 +40,26 @@ enum class TestThis {
   MagneticEnergyTooLarge
 };
 
-template <size_t Dim>
 void test(const TestThis test_this) {
   using MassDensityCons = NewtonianMhd::Tags::MassDensityCons;
   using EnergyDensity = NewtonianMhd::Tags::EnergyDensity;
-  using MomentumDensity = NewtonianMhd::Tags::MomentumDensity<Dim>;
-  using MagneticFieldCons = NewtonianMhd::Tags::MagneticFieldCons<Dim>;
+  using MomentumDensity = NewtonianMhd::Tags::MomentumDensity<>;
+  using MagneticFieldCons = NewtonianMhd::Tags::MagneticFieldCons<>;
   using DivergenceCleaningFieldCons =
       NewtonianMhd::Tags::DivergenceCleaningFieldCons;
 
   using MassDensity = hydro::Tags::RestMassDensity<DataVector>;
-  using Velocity = hydro::Tags::SpatialVelocity<DataVector, Dim>;
+  using Velocity = hydro::Tags::SpatialVelocity<DataVector, 3>;
   using SpecificInternalEnergy =
       hydro::Tags::SpecificInternalEnergy<DataVector>;
   using Pressure = hydro::Tags::Pressure<DataVector>;
-  using MagneticField = hydro::Tags::MagneticField<DataVector, Dim>;
+  using MagneticField = hydro::Tags::MagneticField<DataVector, 3>;
   using DivergenceCleaningField =
       hydro::Tags::DivergenceCleaningField<DataVector>;
 
-  const Mesh<Dim> dg_mesh{5, Spectral::Basis::Legendre,
-                          Spectral::Quadrature::GaussLobatto};
-  const Mesh<Dim> subcell_mesh = evolution::dg::subcell::fd::mesh(dg_mesh);
+  const Mesh<3> dg_mesh{5, Spectral::Basis::Legendre,
+                        Spectral::Quadrature::GaussLobatto};
+  const Mesh<3> subcell_mesh = evolution::dg::subcell::fd::mesh(dg_mesh);
 
   using cons_tags = tmpl::list<MassDensityCons, MomentumDensity, EnergyDensity,
                                MagneticFieldCons, DivergenceCleaningFieldCons>;
@@ -132,15 +131,15 @@ void test(const TestThis test_this) {
 
   auto box = db::create<db::AddSimpleTags<
       ::Tags::Variables<cons_tags>, ::Tags::Variables<prim_tags>,
-      ::domain::Tags::Mesh<Dim>, ::evolution::dg::subcell::Tags::Mesh<Dim>,
+      ::domain::Tags::Mesh<3>, ::evolution::dg::subcell::Tags::Mesh<3>,
       hydro::Tags::EquationOfState<false, 2>,
-      evolution::dg::subcell::Tags::SubcellOptions<Dim>,
+      evolution::dg::subcell::Tags::SubcellOptions<3>,
       NewtonianMhd::subcell::Tags::TciOptions,
       evolution::dg::subcell::Tags::DataForRdmpTci>>(
       ConsVars{dg_mesh.number_of_grid_points()}, dg_prims, dg_mesh,
       subcell_mesh, std::move(eos), subcell_options, tci_options,
       evolution::dg::subcell::RdmpTciData{});
-  db::mutate_apply<NewtonianMhd::ConservativeFromPrimitive<Dim>>(
+  db::mutate_apply<NewtonianMhd::ConservativeFromPrimitive>(
       make_not_null(&box));
 
   // Set the RDMP TCI past data.
@@ -183,7 +182,7 @@ void test(const TestThis test_this) {
 
   const bool element_stays_on_dg = false;
   const std::tuple<bool, evolution::dg::subcell::RdmpTciData> result =
-      db::mutate_apply<NewtonianMhd::subcell::TciOnDgGrid<Dim>>(
+      db::mutate_apply<NewtonianMhd::subcell::TciOnDgGrid>(
           make_not_null(&box), persson_exponent, element_stays_on_dg);
 
   CHECK_ITERABLE_APPROX(get<1>(result).max_variables_values,
@@ -205,8 +204,6 @@ SPECTRE_TEST_CASE("Unit.Evolution.Systems.NewtonianMhd.Subcell.TciOnDgGrid",
         TestThis::PerssonDensity, TestThis::PerssonEnergyDensity,
         TestThis::RdmpMassDensity, TestThis::RdmpEnergyDensity,
         TestThis::PerssonMagneticField, TestThis::MagneticEnergyTooLarge}) {
-    test<1>(test_this);
-    test<2>(test_this);
-    test<3>(test_this);
+    test(test_this);
   }
 }

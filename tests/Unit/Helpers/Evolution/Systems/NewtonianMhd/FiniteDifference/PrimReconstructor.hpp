@@ -40,17 +40,16 @@
 namespace TestHelpers::NewtonianMhd::fd {
 using GhostData = evolution::dg::subcell::GhostData;
 
-template <size_t Dim, typename F>
-DirectionalIdMap<Dim, GhostData> compute_ghost_data(
-    const Mesh<Dim>& subcell_mesh,
-    const tnsr::I<DataVector, Dim, Frame::ElementLogical>&
-        volume_logical_coords,
-    const DirectionMap<Dim, Neighbors<Dim>>& neighbors,
+template <typename F>
+DirectionalIdMap<3, GhostData> compute_ghost_data(
+    const Mesh<3>& subcell_mesh,
+    const tnsr::I<DataVector, 3, Frame::ElementLogical>& volume_logical_coords,
+    const DirectionMap<3, Neighbors<3>>& neighbors,
     const size_t ghost_zone_size, const F& compute_variables_of_neighbor_data) {
-  DirectionalIdMap<Dim, GhostData> ghost_data{};
+  DirectionalIdMap<3, GhostData> ghost_data{};
   for (const auto& [direction, neighbors_in_direction] : neighbors) {
     REQUIRE(neighbors_in_direction.size() == 1);
-    const ElementId<Dim>& neighbor_id = *neighbors_in_direction.begin();
+    const ElementId<3>& neighbor_id = *neighbors_in_direction.begin();
     auto neighbor_logical_coords = volume_logical_coords;
     neighbor_logical_coords.get(direction.dimension()) +=
         direction.sign() * 2.0;
@@ -64,8 +63,8 @@ DirectionalIdMap<Dim, GhostData> compute_ghost_data(
         std::unordered_set{direction.opposite()}, 0, {});
     REQUIRE(sliced_data.size() == 1);
     REQUIRE(sliced_data.contains(direction.opposite()));
-    ghost_data[DirectionalId<Dim>{direction, neighbor_id}] = GhostData{1};
-    ghost_data.at(DirectionalId<Dim>{direction, neighbor_id})
+    ghost_data[DirectionalId<3>{direction, neighbor_id}] = GhostData{1};
+    ghost_data.at(DirectionalId<3>{direction, neighbor_id})
         .neighbor_ghost_data_for_reconstruction() =
         sliced_data.at(direction.opposite());
   }
@@ -73,7 +72,7 @@ DirectionalIdMap<Dim, GhostData> compute_ghost_data(
 }
 
 namespace detail {
-template <size_t Dim, typename Reconstructor>
+template <typename Reconstructor>
 void test_prim_reconstructor_impl(
     const size_t points_per_dimension,
     const Reconstructor& derived_reconstructor,
@@ -82,23 +81,23 @@ void test_prim_reconstructor_impl(
   // reconstruction scheme here must reproduce exactly, and check both the
   // reconstructed primitives and the conservative variables computed from them.
   namespace nm = ::NewtonianMhd;
-  const nm::fd::Reconstructor<Dim>& reconstructor = derived_reconstructor;
-  static_assert(tmpl::list_contains_v<
-                typename nm::fd::Reconstructor<Dim>::creatable_classes,
-                Reconstructor>);
+  const nm::fd::Reconstructor& reconstructor = derived_reconstructor;
+  static_assert(
+      tmpl::list_contains_v<typename nm::fd::Reconstructor::creatable_classes,
+                            Reconstructor>);
 
   using MassDensityCons = nm::Tags::MassDensityCons;
-  using MomentumDensity = nm::Tags::MomentumDensity<Dim>;
+  using MomentumDensity = nm::Tags::MomentumDensity<>;
   using EnergyDensity = nm::Tags::EnergyDensity;
-  using MagneticFieldCons = nm::Tags::MagneticFieldCons<Dim>;
+  using MagneticFieldCons = nm::Tags::MagneticFieldCons<>;
   using DivergenceCleaningFieldCons = nm::Tags::DivergenceCleaningFieldCons;
 
   using MassDensity = hydro::Tags::RestMassDensity<DataVector>;
-  using Velocity = hydro::Tags::SpatialVelocity<DataVector, Dim>;
+  using Velocity = hydro::Tags::SpatialVelocity<DataVector, 3>;
   using SpecificInternalEnergy =
       hydro::Tags::SpecificInternalEnergy<DataVector>;
   using Pressure = hydro::Tags::Pressure<DataVector>;
-  using MagneticField = hydro::Tags::MagneticField<DataVector, Dim>;
+  using MagneticField = hydro::Tags::MagneticField<DataVector, 3>;
   using DivergenceCleaningField =
       hydro::Tags::DivergenceCleaningField<DataVector>;
 
@@ -107,34 +106,34 @@ void test_prim_reconstructor_impl(
                  MagneticField, DivergenceCleaningField>;
   using cons_tags = tmpl::list<MassDensityCons, MomentumDensity, EnergyDensity,
                                MagneticFieldCons, DivergenceCleaningFieldCons>;
-  using flux_tags = db::wrap_tags_in<::Tags::Flux, cons_tags, tmpl::size_t<Dim>,
+  using flux_tags = db::wrap_tags_in<::Tags::Flux, cons_tags, tmpl::size_t<3>,
                                      Frame::Inertial>;
   using prim_tags_for_reconstruction =
       tmpl::list<MassDensity, Velocity, Pressure, MagneticField,
                  DivergenceCleaningField>;
 
-  const Mesh<Dim> subcell_mesh{points_per_dimension,
-                               Spectral::Basis::FiniteDifference,
-                               Spectral::Quadrature::CellCentered};
+  const Mesh<3> subcell_mesh{points_per_dimension,
+                             Spectral::Basis::FiniteDifference,
+                             Spectral::Quadrature::CellCentered};
   auto logical_coords = logical_coordinates(subcell_mesh);
   // Make the logical coordinates different in each direction
-  for (size_t i = 1; i < Dim; ++i) {
+  for (size_t i = 1; i < 3; ++i) {
     logical_coords.get(i) += 4.0 * i;
   }
 
-  DirectionMap<Dim, Neighbors<Dim>> neighbors{};
-  for (size_t i = 0; i < 2 * Dim; ++i) {
-    neighbors[gsl::at(Direction<Dim>::all_directions(), i)] = Neighbors<Dim>{
-        {ElementId<Dim>{i + 1, {}}}, OrientationMap<Dim>::create_aligned()};
+  DirectionMap<3, Neighbors<3>> neighbors{};
+  for (size_t i = 0; i < 2 * 3; ++i) {
+    neighbors[gsl::at(Direction<3>::all_directions(), i)] = Neighbors<3>{
+        {ElementId<3>{i + 1, {}}}, OrientationMap<3>::create_aligned()};
   }
-  const Element<Dim> element{ElementId<Dim>{0, {}}, neighbors};
+  const Element<3> element{ElementId<3>{0, {}}, neighbors};
   const auto compute_solution = [](const auto& coords) {
     Variables<prim_tags_for_reconstruction> vars{get<0>(coords).size(), 0.0};
-    for (size_t i = 0; i < Dim; ++i) {
+    for (size_t i = 0; i < 3; ++i) {
       get(get<MassDensity>(vars)) += coords.get(i);
       get(get<Pressure>(vars)) += coords.get(i);
       get(get<DivergenceCleaningField>(vars)) += 0.1 * coords.get(i);
-      for (size_t j = 0; j < Dim; ++j) {
+      for (size_t j = 0; j < 3; ++j) {
         get<Velocity>(vars).get(j) += coords.get(i);
         get<MagneticField>(vars).get(j) += 0.5 * coords.get(i);
       }
@@ -142,14 +141,14 @@ void test_prim_reconstructor_impl(
     get(get<MassDensity>(vars)) += 2.0;
     get(get<Pressure>(vars)) += 30.0;
     get(get<DivergenceCleaningField>(vars)) += 0.3;
-    for (size_t j = 0; j < Dim; ++j) {
+    for (size_t j = 0; j < 3; ++j) {
       get<Velocity>(vars).get(j) += 1.0e-2 * (j + 2.0) + 10.0;
       get<MagneticField>(vars).get(j) += 1.0e-2 * (j + 3.0) + 1.0;
     }
     return vars;
   };
 
-  const DirectionalIdMap<Dim, GhostData> ghost_data =
+  const DirectionalIdMap<3, GhostData> ghost_data =
       compute_ghost_data(subcell_mesh, logical_coords, element.neighbors(),
                          reconstructor.ghost_zone_size(), compute_solution);
 
@@ -159,9 +158,9 @@ void test_prim_reconstructor_impl(
 
   using dg_package_data_argument_tags =
       tmpl::append<cons_tags, prims_tags, flux_tags>;
-  auto vars_on_lower_face = make_array<Dim>(
+  auto vars_on_lower_face = make_array<3>(
       Variables<dg_package_data_argument_tags>(reconstructed_num_pts));
-  auto vars_on_upper_face = make_array<Dim>(
+  auto vars_on_upper_face = make_array<3>(
       Variables<dg_package_data_argument_tags>(reconstructed_num_pts));
 
   Variables<prims_tags> volume_prims{subcell_mesh.number_of_grid_points()};
@@ -172,16 +171,16 @@ void test_prim_reconstructor_impl(
                    make_not_null(&vars_on_upper_face), volume_prims, eos,
                    element, ghost_data, subcell_mesh);
 
-  for (size_t dim = 0; dim < Dim; ++dim) {
+  for (size_t dim = 0; dim < 3; ++dim) {
     CAPTURE(dim);
-    const auto basis = make_array<Dim>(Spectral::Basis::FiniteDifference);
-    auto quadrature = make_array<Dim>(Spectral::Quadrature::CellCentered);
-    auto extents = make_array<Dim>(points_per_dimension);
+    const auto basis = make_array<3>(Spectral::Basis::FiniteDifference);
+    auto quadrature = make_array<3>(Spectral::Quadrature::CellCentered);
+    auto extents = make_array<3>(points_per_dimension);
     gsl::at(extents, dim) = points_per_dimension + 1;
     gsl::at(quadrature, dim) = Spectral::Quadrature::FaceCentered;
-    const Mesh<Dim> face_centered_mesh{extents, basis, quadrature};
+    const Mesh<3> face_centered_mesh{extents, basis, quadrature};
     auto logical_coords_face_centered = logical_coordinates(face_centered_mesh);
-    for (size_t i = 1; i < Dim; ++i) {
+    for (size_t i = 1; i < 3; ++i) {
       logical_coords_face_centered.get(i) =
           logical_coords_face_centered.get(i) + 4.0 * i;
     }
@@ -193,7 +192,7 @@ void test_prim_reconstructor_impl(
         eos.specific_internal_energy_from_density_and_pressure(
             get<MassDensity>(expected_face_values),
             get<Pressure>(expected_face_values));
-    nm::ConservativeFromPrimitive<Dim>::apply(
+    nm::ConservativeFromPrimitive::apply(
         make_not_null(&get<MassDensityCons>(expected_face_values)),
         make_not_null(&get<MomentumDensity>(expected_face_values)),
         make_not_null(&get<EnergyDensity>(expected_face_values)),
@@ -221,10 +220,10 @@ void test_prim_reconstructor_impl(
 }
 }  // namespace detail
 
-template <size_t Dim, typename Reconstructor>
+template <typename Reconstructor>
 void test_prim_reconstructor(const size_t points_per_dimension,
                              const Reconstructor& derived_reconstructor) {
-  detail::test_prim_reconstructor_impl<Dim>(
+  detail::test_prim_reconstructor_impl<>(
       points_per_dimension, derived_reconstructor,
       EquationsOfState::IdealFluid<false>{1.4});
 }

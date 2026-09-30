@@ -16,14 +16,13 @@
 #include "Utilities/GenerateInstantiations.hpp"
 
 namespace NewtonianMhd::subcell {
-template <size_t Dim>
-void SetInitialRdmpData<Dim>::apply(
+void SetInitialRdmpData::apply(
     const gsl::not_null<evolution::dg::subcell::RdmpTciData*> rdmp_tci_data,
     const Variables<tmpl::list<MassDensityCons, MomentumDensity, EnergyDensity,
                                MagneticFieldCons, DivergenceCleaningFieldCons>>&
         vars,
     const evolution::dg::subcell::ActiveGrid active_grid,
-    const Mesh<Dim>& dg_mesh, const Mesh<Dim>& subcell_mesh) {
+    const Mesh<3>& dg_mesh, const Mesh<3>& subcell_mesh) {
   if (active_grid == evolution::dg::subcell::ActiveGrid::Subcell) {
     const Scalar<DataVector>& mass_density = get<MassDensityCons>(vars);
     const Scalar<DataVector>& energy_density = get<EnergyDensity>(vars);
@@ -47,9 +46,6 @@ void SetInitialRdmpData<Dim>::apply(
   }
 }
 
-#define DIM(data) BOOST_PP_TUPLE_ELEM(0, data)
-#define INSTANTIATION(r, data) template struct SetInitialRdmpData<DIM(data)>;
-GENERATE_INSTANTIATIONS(INSTANTIATION, (1, 2, 3))
+#define INSTANTIATION(r, data) INSTANTIATION(~, ~)
 #undef INSTANTIATION
-#undef DIM
 }  // namespace NewtonianMhd::subcell

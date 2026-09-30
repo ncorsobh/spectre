@@ -46,7 +46,7 @@ void test_glm_damping_and_fluxes() {
   const Scalar<DataVector> divergence_cleaning_field{0.25 * one};
   const tnsr::I<DataVector, dim> coords{DataVector(num_points, 0.0)};
   const EquationsOfState::IdealFluid<false> equation_of_state{5.0 / 3.0};
-  const NewtonianMhd::Sources::NoSource<dim, true> source{};
+  const NewtonianMhd::Sources::NoSource<true> source{};
 
   Scalar<DataVector> dt_mass_density(num_points);
   tnsr::I<DataVector, dim> dt_momentum_density(num_points);
@@ -61,7 +61,7 @@ void test_glm_damping_and_fluxes() {
   Scalar<DataVector> magnetic_pressure(num_points);
   tnsr::I<DataVector, dim> background_magnetic_field(num_points);
 
-  NewtonianMhd::TimeDerivativeTerms<dim, true>::apply(
+  NewtonianMhd::TimeDerivativeTerms<true>::apply(
       make_not_null(&dt_mass_density), make_not_null(&dt_momentum_density),
       make_not_null(&dt_energy_density), make_not_null(&dt_magnetic_field),
       make_not_null(&dt_divergence_cleaning_field),
@@ -90,7 +90,7 @@ void test_glm_damping_and_fluxes() {
   tnsr::I<DataVector, dim> expected_energy_density_flux(num_points);
   tnsr::IJ<DataVector, dim> expected_magnetic_field_flux(num_points);
   tnsr::I<DataVector, dim> expected_divergence_cleaning_field_flux(num_points);
-  NewtonianMhd::ComputeFluxes<dim, true>::apply(
+  NewtonianMhd::ComputeFluxes<true>::apply(
       make_not_null(&expected_mass_density_flux),
       make_not_null(&expected_momentum_density_flux),
       make_not_null(&expected_energy_density_flux),

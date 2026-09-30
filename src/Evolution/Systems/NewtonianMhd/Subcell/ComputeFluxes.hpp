@@ -24,37 +24,37 @@ namespace NewtonianMhd::subcell {
  * from `vars` where the splitting is enabled; where it is disabled it is not
  * part of `vars` at all.
  */
-template <size_t Dim, bool UseBackgroundMagneticField, typename TagsList>
+template <bool UseBackgroundMagneticField, typename TagsList>
 void compute_fluxes(const gsl::not_null<Variables<TagsList>*> vars,
                     const double divergence_cleaning_speed) {
   const auto call = [&vars, &divergence_cleaning_speed](
                         const auto&... background_magnetic_field) {
-    NewtonianMhd::ComputeFluxes<Dim, UseBackgroundMagneticField>::apply(
+    NewtonianMhd::ComputeFluxes<UseBackgroundMagneticField>::apply(
         make_not_null(
             &get<::Tags::Flux<NewtonianMhd::Tags::MassDensityCons,
-                              tmpl::size_t<Dim>, Frame::Inertial>>(*vars)),
+                              tmpl::size_t<3>, Frame::Inertial>>(*vars)),
         make_not_null(
-            &get<::Tags::Flux<NewtonianMhd::Tags::MomentumDensity<Dim>,
-                              tmpl::size_t<Dim>, Frame::Inertial>>(*vars)),
+            &get<::Tags::Flux<NewtonianMhd::Tags::MomentumDensity<>,
+                              tmpl::size_t<3>, Frame::Inertial>>(*vars)),
         make_not_null(
             &get<::Tags::Flux<NewtonianMhd::Tags::EnergyDensity,
-                              tmpl::size_t<Dim>, Frame::Inertial>>(*vars)),
+                              tmpl::size_t<3>, Frame::Inertial>>(*vars)),
         make_not_null(
-            &get<::Tags::Flux<NewtonianMhd::Tags::MagneticFieldCons<Dim>,
-                              tmpl::size_t<Dim>, Frame::Inertial>>(*vars)),
+            &get<::Tags::Flux<NewtonianMhd::Tags::MagneticFieldCons<>,
+                              tmpl::size_t<3>, Frame::Inertial>>(*vars)),
         make_not_null(
             &get<::Tags::Flux<NewtonianMhd::Tags::DivergenceCleaningFieldCons,
-                              tmpl::size_t<Dim>, Frame::Inertial>>(*vars)),
-        get<NewtonianMhd::Tags::MomentumDensity<Dim>>(*vars),
+                              tmpl::size_t<3>, Frame::Inertial>>(*vars)),
+        get<NewtonianMhd::Tags::MomentumDensity<>>(*vars),
         get<NewtonianMhd::Tags::EnergyDensity>(*vars),
-        get<NewtonianMhd::Tags::MagneticFieldCons<Dim>>(*vars),
+        get<NewtonianMhd::Tags::MagneticFieldCons<>>(*vars),
         get<NewtonianMhd::Tags::DivergenceCleaningFieldCons>(*vars),
-        get<hydro::Tags::SpatialVelocity<DataVector, Dim>>(*vars),
+        get<hydro::Tags::SpatialVelocity<DataVector, 3>>(*vars),
         get<hydro::Tags::Pressure<DataVector>>(*vars),
         divergence_cleaning_speed, background_magnetic_field...);
   };
   if constexpr (UseBackgroundMagneticField) {
-    call(get<NewtonianMhd::Tags::BackgroundMagneticField<Dim>>(*vars));
+    call(get<NewtonianMhd::Tags::BackgroundMagneticField<>>(*vars));
   } else {
     call();
   }

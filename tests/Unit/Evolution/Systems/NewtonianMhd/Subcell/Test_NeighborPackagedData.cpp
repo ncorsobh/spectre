@@ -72,7 +72,6 @@ namespace {
 using Affine = domain::CoordinateMaps::Affine;
 using Affine3D = domain::CoordinateMaps::ProductOf3Maps<Affine, Affine, Affine>;
 
-constexpr size_t Dim = 3;
 constexpr double divergence_cleaning_speed = 1.5;
 
 auto make_coord_map() {
@@ -83,27 +82,27 @@ auto make_coord_map() {
 
 auto make_element() {
   const Affine affine_map{-1.0, 1.0, 2.0, 3.0};
-  std::vector<Block<Dim>> blocks;
-  blocks.emplace_back(Block<Dim>(
+  std::vector<Block<3>> blocks;
+  blocks.emplace_back(Block<3>(
       domain::make_coordinate_map_base<Frame::BlockLogical, Frame::Inertial>(
           Affine3D{affine_map, affine_map, affine_map}),
       0, {}));
   return domain::create_initial_element(
-      ElementId<Dim>{0, {SegmentId{3, 4}, SegmentId{3, 4}, SegmentId{3, 4}}},
+      ElementId<3>{0, {SegmentId{3, 4}, SegmentId{3, 4}, SegmentId{3, 4}}},
       blocks,
-      std::vector<std::array<size_t, Dim>>{std::array<size_t, Dim>{{3, 3, 3}}});
+      std::vector<std::array<size_t, 3>>{std::array<size_t, 3>{{3, 3, 3}}});
 }
 
 template <bool UseBackgroundMagneticField>
 struct MetaVars {
-  using system = NewtonianMhd::System<Dim, UseBackgroundMagneticField>;
+  using system = NewtonianMhd::System<UseBackgroundMagneticField>;
 };
 
 // A uniform field is curl-free and divergence-free, so splitting it off leaves
 // the total state, and hence the characteristic speeds, unchanged.
-tnsr::I<DataVector, Dim, Frame::Inertial> uniform_background_field(
+tnsr::I<DataVector, 3, Frame::Inertial> uniform_background_field(
     const size_t num_points) {
-  tnsr::I<DataVector, Dim, Frame::Inertial> field{num_points};
+  tnsr::I<DataVector, 3, Frame::Inertial> field{num_points};
   get<0>(field) = 0.4;
   get<1>(field) = -0.7;
   get<2>(field) = 0.2;
@@ -113,41 +112,40 @@ tnsr::I<DataVector, Dim, Frame::Inertial> uniform_background_field(
 // Returns the packaged data on each mortar, and the evolved variables sliced to
 // the corresponding face.
 template <bool UseBackgroundMagneticField>
-std::pair<
-    DirectionalIdMap<Dim, DataVector>,
-    DirectionalIdMap<
-        Dim, Variables<typename NewtonianMhd::System<
-                 Dim, UseBackgroundMagneticField>::variables_tag::tags_list>>>
+std::pair<DirectionalIdMap<3, DataVector>,
+          DirectionalIdMap<
+              3, Variables<typename NewtonianMhd::System<
+                     UseBackgroundMagneticField>::variables_tag::tags_list>>>
 compute_packaged_data(const size_t num_dg_pts) {
   using solution = NewtonianMhd::Solutions::AlfvenWave;
-  using system = NewtonianMhd::System<Dim, UseBackgroundMagneticField>;
+  using system = NewtonianMhd::System<UseBackgroundMagneticField>;
   using variables_tag = typename system::variables_tag;
   using prim_tags = typename system::primitive_variables_tag::tags_list;
-  using MagneticField = hydro::Tags::MagneticField<DataVector, Dim>;
+  using MagneticField = hydro::Tags::MagneticField<DataVector, 3>;
 
   const auto coordinate_map = make_coord_map();
   const auto moving_mesh_map =
       domain::make_coordinate_map<Frame::Grid, Frame::Inertial>(
-          domain::CoordinateMaps::Identity<Dim>{});
+          domain::CoordinateMaps::Identity<3>{});
   const auto element = make_element();
 
   const solution soln{{{1.0, 1.0, 1.0}}, 1.0, 1.0, 1.0, 0.1, 5.0 / 3.0};
 
   const double time = 0.0;
-  const Mesh<Dim> dg_mesh{num_dg_pts, Spectral::Basis::Legendre,
-                          Spectral::Quadrature::GaussLobatto};
-  const Mesh<Dim> subcell_mesh = evolution::dg::subcell::fd::mesh(dg_mesh);
+  const Mesh<3> dg_mesh{num_dg_pts, Spectral::Basis::Legendre,
+                        Spectral::Quadrature::GaussLobatto};
+  const Mesh<3> subcell_mesh = evolution::dg::subcell::fd::mesh(dg_mesh);
   const auto dg_coords = coordinate_map(logical_coordinates(dg_mesh));
 
   using prims_to_reconstruct_tags =
       tmpl::list<hydro::Tags::RestMassDensity<DataVector>,
-                 hydro::Tags::SpatialVelocity<DataVector, Dim>,
+                 hydro::Tags::SpatialVelocity<DataVector, 3>,
                  hydro::Tags::Pressure<DataVector>, MagneticField,
                  hydro::Tags::DivergenceCleaningField<DataVector>>;
 
-  typename evolution::dg::subcell::Tags::GhostDataForReconstruction<Dim>::type
+  typename evolution::dg::subcell::Tags::GhostDataForReconstruction<3>::type
       neighbor_data{};
-  for (const Direction<Dim>& direction : Direction<Dim>::all_directions()) {
+  for (const Direction<3>& direction : Direction<3>::all_directions()) {
     auto neighbor_logical_coords = logical_coordinates(subcell_mesh);
     neighbor_logical_coords.get(direction.dimension()) +=
         2.0 * direction.sign();
@@ -164,18 +162,18 @@ compute_packaged_data(const size_t num_dg_pts) {
     if constexpr (UseBackgroundMagneticField) {
       const auto background =
           uniform_background_field(subcell_mesh.number_of_grid_points());
-      for (size_t i = 0; i < Dim; ++i) {
+      for (size_t i = 0; i < 3; ++i) {
         get<MagneticField>(prims_to_reconstruct).get(i) -= background.get(i);
       }
     }
     const DataVector neighbor_data_in_direction =
         evolution::dg::subcell::slice_data(
             prims_to_reconstruct, subcell_mesh.extents(),
-            NewtonianMhd::fd::MonotonisedCentralPrim<Dim>{}.ghost_zone_size(),
+            NewtonianMhd::fd::MonotonisedCentralPrim{}.ghost_zone_size(),
             std::unordered_set{direction.opposite()}, 0, {})
             .at(direction.opposite());
-    const auto key = DirectionalId<Dim>{
-        direction, *element.neighbors().at(direction).begin()};
+    const auto key =
+        DirectionalId<3>{direction, *element.neighbors().at(direction).begin()};
     neighbor_data[key] = evolution::dg::subcell::GhostData{1};
     neighbor_data[key].neighbor_ghost_data_for_reconstruction() =
         neighbor_data_in_direction;
@@ -186,31 +184,30 @@ compute_packaged_data(const size_t num_dg_pts) {
   if constexpr (UseBackgroundMagneticField) {
     const auto background =
         uniform_background_field(dg_mesh.number_of_grid_points());
-    for (size_t i = 0; i < Dim; ++i) {
+    for (size_t i = 0; i < 3; ++i) {
       get<MagneticField>(dg_prim_vars).get(i) -= background.get(i);
     }
   }
 
-  DirectionMap<Dim, std::optional<Variables<
-                        tmpl::list<evolution::dg::Tags::MagnitudeOfNormal,
-                                   evolution::dg::Tags::NormalCovector<Dim>>>>>
+  DirectionMap<3, std::optional<Variables<
+                      tmpl::list<evolution::dg::Tags::MagnitudeOfNormal,
+                                 evolution::dg::Tags::NormalCovector<3>>>>>
       normal_vectors{};
-  for (const auto& direction : Direction<Dim>::all_directions()) {
-    const Mesh<Dim - 1> face_mesh = dg_mesh.slice_away(direction.dimension());
+  for (const auto& direction : Direction<3>::all_directions()) {
+    const Mesh<3 - 1> face_mesh = dg_mesh.slice_away(direction.dimension());
     const auto face_logical_coords =
         interface_logical_coordinates(face_mesh, direction);
-    std::unordered_map<Direction<Dim>,
-                       tnsr::i<DataVector, Dim, Frame::Inertial>>
+    std::unordered_map<Direction<3>, tnsr::i<DataVector, 3, Frame::Inertial>>
         unnormalized_normal_covectors{};
-    tnsr::i<DataVector, Dim, Frame::Inertial> unnormalized_covector{};
-    for (size_t i = 0; i < Dim; ++i) {
+    tnsr::i<DataVector, 3, Frame::Inertial> unnormalized_covector{};
+    for (size_t i = 0; i < 3; ++i) {
       unnormalized_covector.get(i) =
           coordinate_map.inv_jacobian(face_logical_coords)
               .get(direction.dimension(), i);
     }
     unnormalized_normal_covectors[direction] = unnormalized_covector;
     Variables<tmpl::list<
-        evolution::dg::Actions::detail::NormalVector<Dim>,
+        evolution::dg::Actions::detail::NormalVector<3>,
         evolution::dg::Actions::detail::OneOverNormalVectorMagnitude>>
         fields_on_face{face_mesh.number_of_grid_points()};
     normal_vectors[direction] = std::nullopt;
@@ -225,31 +222,30 @@ compute_packaged_data(const size_t num_dg_pts) {
         db::AddSimpleTags<
             Parallel::Tags::MetavariablesImpl<
                 MetaVars<UseBackgroundMagneticField>>,
-            domain::Tags::Element<Dim>, domain::Tags::Mesh<Dim>,
-            evolution::dg::subcell::Tags::Mesh<Dim>,
-            NewtonianMhd::fd::Tags::Reconstructor<Dim>,
+            domain::Tags::Element<3>, domain::Tags::Mesh<3>,
+            evolution::dg::subcell::Tags::Mesh<3>,
+            NewtonianMhd::fd::Tags::Reconstructor,
             evolution::Tags::BoundaryCorrection,
             hydro::Tags::EquationOfState<false, 2>,
             typename system::primitive_variables_tag, variables_tag,
-            evolution::dg::subcell::Tags::GhostDataForReconstruction<Dim>,
-            evolution::dg::Tags::MortarData<Dim>,
-            domain::Tags::MeshVelocity<Dim>,
-            evolution::dg::Tags::NormalCovectorAndMagnitude<Dim>,
-            evolution::dg::subcell::Tags::SubcellOptions<Dim>,
+            evolution::dg::subcell::Tags::GhostDataForReconstruction<3>,
+            evolution::dg::Tags::MortarData<3>, domain::Tags::MeshVelocity<3>,
+            evolution::dg::Tags::NormalCovectorAndMagnitude<3>,
+            evolution::dg::subcell::Tags::SubcellOptions<3>,
             NewtonianMhd::Tags::DivergenceCleaningSpeed,
             decltype(background_at_faces)...>,
         db::AddComputeTags<
-            evolution::dg::subcell::Tags::LogicalCoordinatesCompute<Dim>>>(
+            evolution::dg::subcell::Tags::LogicalCoordinatesCompute<3>>>(
         MetaVars<UseBackgroundMagneticField>{}, element, dg_mesh, subcell_mesh,
-        std::unique_ptr<NewtonianMhd::fd::Reconstructor<Dim>>{
-            std::make_unique<NewtonianMhd::fd::MonotonisedCentralPrim<Dim>>()},
+        std::unique_ptr<NewtonianMhd::fd::Reconstructor>{
+            std::make_unique<NewtonianMhd::fd::MonotonisedCentralPrim>()},
         std::unique_ptr<evolution::BoundaryCorrection>{
             std::make_unique<NewtonianMhd::BoundaryCorrections::Hll<
-                Dim, UseBackgroundMagneticField>>()},
+                UseBackgroundMagneticField>>()},
         soln.equation_of_state().get_clone(), dg_prim_vars,
         typename variables_tag::type{dg_mesh.number_of_grid_points()},
-        neighbor_data, typename evolution::dg::Tags::MortarData<Dim>::type{},
-        std::optional<tnsr::I<DataVector, Dim, Frame::Inertial>>{},
+        neighbor_data, typename evolution::dg::Tags::MortarData<3>::type{},
+        std::optional<tnsr::I<DataVector, 3, Frame::Inertial>>{},
         normal_vectors,
         evolution::dg::subcell::SubcellOptions{
             4.0, 1_st, 1.0e-3, 1.0e-4, false, false,
@@ -257,7 +253,7 @@ compute_packaged_data(const size_t num_dg_pts) {
             ::fd::DerivativeOrder::Two, 1, 1, 1},
         divergence_cleaning_speed,
         typename decltype(background_at_faces)::type{
-            make_array<Dim>(uniform_background_field(
+            make_array<3>(uniform_background_field(
                 (subcell_mesh.extents(0) + 1) *
                 subcell_mesh.extents().slice_away(0).product()))}...);
   };
@@ -265,25 +261,25 @@ compute_packaged_data(const size_t num_dg_pts) {
   auto box = [&make_box]() {
     if constexpr (UseBackgroundMagneticField) {
       return make_box(evolution::dg::subcell::Tags::OnSubcellFaces<
-                      NewtonianMhd::Tags::BackgroundMagneticField<Dim>, Dim>{});
+                      NewtonianMhd::Tags::BackgroundMagneticField<>, 3>{});
     } else {
       return make_box();
     }
   }();
 
-  db::mutate_apply<NewtonianMhd::ConservativeFromPrimitive<Dim>>(
+  db::mutate_apply<NewtonianMhd::ConservativeFromPrimitive>(
       make_not_null(&box));
 
-  std::vector<DirectionalId<Dim>> mortars_to_reconstruct_to{};
+  std::vector<DirectionalId<3>> mortars_to_reconstruct_to{};
   for (const auto& [direction, neighbors] : element.neighbors()) {
     mortars_to_reconstruct_to.emplace_back(
-        DirectionalId<Dim>{direction, *neighbors.begin()});
+        DirectionalId<3>{direction, *neighbors.begin()});
   }
 
   auto all_packaged_data = NewtonianMhd::subcell::NeighborPackagedData<
       UseBackgroundMagneticField>::apply(box, mortars_to_reconstruct_to);
 
-  DirectionalIdMap<Dim, Variables<typename variables_tag::tags_list>>
+  DirectionalIdMap<3, Variables<typename variables_tag::tags_list>>
       sliced_evolved_vars{};
   for (const auto& directional_id : mortars_to_reconstruct_to) {
     const auto& direction = directional_id.direction();
@@ -301,17 +297,17 @@ compute_packaged_data(const size_t num_dg_pts) {
 double reconstruction_error(const size_t num_dg_pts) {
   const auto [all_packaged_data, sliced_evolved_vars] =
       compute_packaged_data<false>(num_dg_pts);
-  using system = NewtonianMhd::System<Dim, false>;
+  using system = NewtonianMhd::System<false>;
   using variables_tag = typename system::variables_tag;
-  const Mesh<Dim> dg_mesh{num_dg_pts, Spectral::Basis::Legendre,
-                          Spectral::Quadrature::GaussLobatto};
+  const Mesh<3> dg_mesh{num_dg_pts, Spectral::Basis::Legendre,
+                        Spectral::Quadrature::GaussLobatto};
 
   double max_abs_error = 0.0;
   for (const auto& [directional_id, data] : all_packaged_data) {
     const auto& direction = directional_id.direction();
-    using Hll = NewtonianMhd::BoundaryCorrections::Hll<Dim, false>;
+    using Hll = NewtonianMhd::BoundaryCorrections::Hll<false>;
     using dg_package_field_tags = typename Hll::dg_package_field_tags;
-    const Mesh<Dim - 1> face_mesh = dg_mesh.slice_away(direction.dimension());
+    const Mesh<3 - 1> face_mesh = dg_mesh.slice_away(direction.dimension());
     Variables<dg_package_field_tags> packaged_data{
         face_mesh.number_of_grid_points()};
     std::copy(data.begin(), data.end(), packaged_data.data());
@@ -345,16 +341,16 @@ void test_background_field_splitting(const size_t num_dg_pts) {
       compute_packaged_data<true>(num_dg_pts);
   REQUIRE(unsplit_data.size() == split_data.size());
 
-  const Mesh<Dim> dg_mesh{num_dg_pts, Spectral::Basis::Legendre,
-                          Spectral::Quadrature::GaussLobatto};
-  using UnsplitHll = NewtonianMhd::BoundaryCorrections::Hll<Dim, false>;
-  using SplitHll = NewtonianMhd::BoundaryCorrections::Hll<Dim, true>;
+  const Mesh<3> dg_mesh{num_dg_pts, Spectral::Basis::Legendre,
+                        Spectral::Quadrature::GaussLobatto};
+  using UnsplitHll = NewtonianMhd::BoundaryCorrections::Hll<false>;
+  using SplitHll = NewtonianMhd::BoundaryCorrections::Hll<true>;
   using unsplit_fields = typename UnsplitHll::dg_package_field_tags;
   using split_fields = typename SplitHll::dg_package_field_tags;
 
   for (const auto& [directional_id, data] : unsplit_data) {
     CAPTURE(directional_id);
-    const Mesh<Dim - 1> face_mesh =
+    const Mesh<3 - 1> face_mesh =
         dg_mesh.slice_away(directional_id.direction().dimension());
     Variables<unsplit_fields> unsplit{face_mesh.number_of_grid_points()};
     Variables<split_fields> split{face_mesh.number_of_grid_points()};
@@ -373,10 +369,9 @@ void test_background_field_splitting(const size_t num_dg_pts) {
     const auto background =
         uniform_background_field(face_mesh.number_of_grid_points());
     const auto& unsplit_b =
-        get<NewtonianMhd::Tags::MagneticFieldCons<Dim>>(unsplit);
-    const auto& split_b =
-        get<NewtonianMhd::Tags::MagneticFieldCons<Dim>>(split);
-    for (size_t i = 0; i < Dim; ++i) {
+        get<NewtonianMhd::Tags::MagneticFieldCons<>>(unsplit);
+    const auto& split_b = get<NewtonianMhd::Tags::MagneticFieldCons<>>(split);
+    for (size_t i = 0; i < 3; ++i) {
       const DataVector expected = unsplit_b.get(i) - background.get(i);
       CHECK_ITERABLE_APPROX(split_b.get(i), expected);
     }

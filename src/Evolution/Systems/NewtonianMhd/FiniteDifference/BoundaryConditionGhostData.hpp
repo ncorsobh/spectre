@@ -49,12 +49,11 @@ namespace NewtonianMhd::fd {
  * \note Subcell needs to be enabled for boundary elements. Otherwise this
  * function would never be called.
  */
-template <size_t Dim>
 struct BoundaryConditionGhostData {
   template <typename DbTagsList>
   static void apply(gsl::not_null<db::DataBox<DbTagsList>*> box,
-                    const Element<Dim>& element,
-                    const Reconstructor<Dim>& reconstructor);
+                    const Element<3>& element,
+                    const Reconstructor& reconstructor);
 
  private:
   template <typename FdBoundaryConditionHelper, typename DbTagsList,
@@ -69,28 +68,27 @@ struct BoundaryConditionGhostData {
   }
 };
 
-template <size_t Dim>
 template <typename DbTagsList>
-void BoundaryConditionGhostData<Dim>::apply(
+void BoundaryConditionGhostData::apply(
     const gsl::not_null<db::DataBox<DbTagsList>*> box,
-    const Element<Dim>& element, const Reconstructor<Dim>& reconstructor) {
+    const Element<3>& element, const Reconstructor& reconstructor) {
   const auto& external_boundary_condition =
-      db::get<domain::Tags::ExternalBoundaryConditions<Dim>>(*box).at(
+      db::get<domain::Tags::ExternalBoundaryConditions<3>>(*box).at(
           element.id().block_id());
 
   ASSERT(not element.external_boundaries().empty(),
          "The element (ID : " << element.id()
                               << ") is not on external boundaries");
 
-  const Mesh<Dim> subcell_mesh =
-      db::get<evolution::dg::subcell::Tags::Mesh<Dim>>(*box);
+  const Mesh<3> subcell_mesh =
+      db::get<evolution::dg::subcell::Tags::Mesh<3>>(*box);
 
   const size_t ghost_zone_size{reconstructor.ghost_zone_size()};
 
   using MassDensity = hydro::Tags::RestMassDensity<DataVector>;
-  using Velocity = hydro::Tags::SpatialVelocity<DataVector, Dim>;
+  using Velocity = hydro::Tags::SpatialVelocity<DataVector, 3>;
   using Pressure = hydro::Tags::Pressure<DataVector>;
-  using MagneticField = hydro::Tags::MagneticField<DataVector, Dim>;
+  using MagneticField = hydro::Tags::MagneticField<DataVector, 3>;
   using DivergenceCleaningField =
       hydro::Tags::DivergenceCleaningField<DataVector>;
 
@@ -109,9 +107,9 @@ void BoundaryConditionGhostData<Dim>::apply(
         subcell_mesh.extents().slice_away(direction.dimension()).product()};
 
     auto& all_ghost_data = db::get_mutable_reference<
-        evolution::dg::subcell::Tags::GhostDataForReconstruction<Dim>>(box);
-    const DirectionalId<Dim> mortar_id{direction,
-                                       ElementId<Dim>::external_boundary_id()};
+        evolution::dg::subcell::Tags::GhostDataForReconstruction<3>>(box);
+    const DirectionalId<3> mortar_id{direction,
+                                     ElementId<3>::external_boundary_id()};
 
     all_ghost_data[mortar_id] = evolution::dg::subcell::GhostData{1};
     DataVector& boundary_ghost_data =
@@ -130,7 +128,7 @@ void BoundaryConditionGhostData<Dim>::apply(
             *box))>::factory_creation::factory_classes;
     using derived_boundary_conditions_for_subcell = tmpl::remove_if<
         tmpl::at<factory_classes,
-                 NewtonianMhd::BoundaryConditions::BoundaryCondition<Dim>>,
+                 NewtonianMhd::BoundaryConditions::BoundaryCondition>,
         tmpl::or_<
             std::is_base_of<domain::BoundaryConditions::MarkAsPeriodic,
                             tmpl::_1>,
@@ -176,18 +174,18 @@ void BoundaryConditionGhostData<Dim>::apply(
                                evolution::BoundaryConditions::Type::
                                    DemandOutgoingCharSpeeds) {
             const auto& volume_mesh_velocity =
-                db::get<domain::Tags::MeshVelocity<Dim, Frame::Inertial>>(*box);
+                db::get<domain::Tags::MeshVelocity<3, Frame::Inertial>>(*box);
             if (volume_mesh_velocity.has_value()) {
               ERROR("Subcell currently does not support moving mesh");
             }
 
-            const std::optional<tnsr::I<DataVector, Dim>> face_mesh_velocity{};
+            const std::optional<tnsr::I<DataVector, 3>> face_mesh_velocity{};
 
             const auto& normal_covector_and_magnitude =
-                db::get<evolution::dg::Tags::NormalCovectorAndMagnitude<Dim>>(
+                db::get<evolution::dg::Tags::NormalCovectorAndMagnitude<3>>(
                     *box);
             const auto& outward_directed_normal_covector =
-                get<evolution::dg::Tags::NormalCovector<Dim>>(
+                get<evolution::dg::Tags::NormalCovector<3>>(
                     normal_covector_and_magnitude.at(direction).value());
 
             const auto apply_fd_demand_outgoing_char_speeds =

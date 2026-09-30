@@ -15,9 +15,8 @@ namespace NewtonianMhd::fd {
 /// Option tags for reconstruction
 namespace OptionTags {
 /// \brief Option tag for the reconstructor
-template <size_t Dim>
 struct Reconstructor {
-  using type = std::unique_ptr<fd::Reconstructor<Dim>>;
+  using type = std::unique_ptr<fd::Reconstructor>;
 
   static constexpr Options::String help = {"The reconstruction scheme to use."};
   using group = evolution::dg::subcell::OptionTags::SubcellSolverGroup;
@@ -27,10 +26,9 @@ struct Reconstructor {
 /// %Tags for reconstruction
 namespace Tags {
 /// \brief Tag for the reconstructor
-template <size_t Dim>
 struct Reconstructor : db::SimpleTag {
-  using type = std::unique_ptr<fd::Reconstructor<Dim>>;
-  using option_tags = tmpl::list<OptionTags::Reconstructor<Dim>>;
+  using type = std::unique_ptr<fd::Reconstructor>;
+  using option_tags = tmpl::list<OptionTags::Reconstructor>;
 
   static constexpr bool pass_metavariables = false;
   static type create_from_options(const type& reconstructor) {

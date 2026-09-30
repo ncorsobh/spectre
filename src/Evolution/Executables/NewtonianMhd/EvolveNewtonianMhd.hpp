@@ -8,5 +8,4 @@
 
 /// Standard Newtonian MHD: the whole magnetic field is evolved.
 using EvolutionMetavars =
-    NewtonianMhdMetavars<NewtonianMhd::InitialData::initial_data_list<3>,
-                         false>;
+    NewtonianMhdMetavars<NewtonianMhd::InitialData::initial_data_list, false>;

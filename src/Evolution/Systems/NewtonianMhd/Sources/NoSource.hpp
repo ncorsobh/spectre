@@ -31,8 +31,8 @@ namespace NewtonianMhd::Sources {
  * \brief Used to mark that the initial data do not require source terms in the
  * evolution equations.
  */
-template <size_t Dim, bool UseBackgroundMagneticField = false>
-class NoSource : public Source<Dim, UseBackgroundMagneticField> {
+template <bool UseBackgroundMagneticField = false>
+class NoSource : public Source<UseBackgroundMagneticField> {
  public:
   using options = tmpl::list<>;
 
@@ -55,25 +55,25 @@ class NoSource : public Source<Dim, UseBackgroundMagneticField> {
   void pup(PUP::er& p) override;
 
   auto get_clone() const
-      -> std::unique_ptr<Source<Dim, UseBackgroundMagneticField>> override;
+      -> std::unique_ptr<Source<UseBackgroundMagneticField>> override;
 
   void operator()(
       gsl::not_null<Scalar<DataVector>*> source_mass_density_cons,
-      gsl::not_null<tnsr::I<DataVector, Dim>*> source_momentum_density,
+      gsl::not_null<tnsr::I<DataVector, 3>*> source_momentum_density,
       gsl::not_null<Scalar<DataVector>*> source_energy_density,
-      gsl::not_null<tnsr::I<DataVector, Dim>*> source_magnetic_field,
+      gsl::not_null<tnsr::I<DataVector, 3>*> source_magnetic_field,
       gsl::not_null<Scalar<DataVector>*> source_divergence_cleaning_field,
       const Scalar<DataVector>& mass_density_cons,
-      const tnsr::I<DataVector, Dim>& momentum_density,
+      const tnsr::I<DataVector, 3>& momentum_density,
       const Scalar<DataVector>& energy_density,
-      const tnsr::I<DataVector, Dim>& magnetic_field,
+      const tnsr::I<DataVector, 3>& magnetic_field,
       const Scalar<DataVector>& divergence_cleaning_field,
-      const tnsr::I<DataVector, Dim>& velocity,
+      const tnsr::I<DataVector, 3>& velocity,
       const Scalar<DataVector>& pressure,
-      BackgroundMagneticFieldArgument<Dim, UseBackgroundMagneticField>
+      BackgroundMagneticFieldArgument<UseBackgroundMagneticField>
           background_magnetic_field,
       const EquationsOfState::EquationOfState<false, 2>& eos,
-      const tnsr::I<DataVector, Dim>& coords, double time) const override;
+      const tnsr::I<DataVector, 3>& coords, double time) const override;
 
   using sourced_variables = tmpl::list<>;
   using argument_tags = tmpl::list<>;

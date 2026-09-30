@@ -60,25 +60,24 @@ namespace NewtonianMhd::subcell {
  * `Initialization::Actions::AddSimpleTags`, and to be re-applied after each
  * change of the active grid.
  */
-template <size_t Dim>
 struct BackgroundMagneticFieldVars : tt::ConformsTo<db::protocols::Mutator> {
-  using background_field = NewtonianMhd::Tags::BackgroundMagneticField<Dim>;
-  using volume_tag = NewtonianMhd::Tags::BackgroundMagneticFieldVolume<Dim>;
+  using background_field = NewtonianMhd::Tags::BackgroundMagneticField<>;
+  using volume_tag = NewtonianMhd::Tags::BackgroundMagneticFieldVolume<>;
   using subcell_faces_background_field =
-      ::evolution::dg::subcell::Tags::OnSubcellFaces<background_field, Dim>;
+      ::evolution::dg::subcell::Tags::OnSubcellFaces<background_field, 3>;
   using face_vars = typename subcell_faces_background_field::type::value_type;
 
   using return_tags = tmpl::list<volume_tag, subcell_faces_background_field>;
-  using argument_tags = tmpl::list<
-      ::Tags::Time, evolution::dg::subcell::Tags::ActiveGrid,
-      domain::Tags::Coordinates<Dim, Frame::Inertial>,
-      evolution::dg::subcell::Tags::Coordinates<Dim, Frame::Inertial>,
-      evolution::dg::subcell::Tags::Mesh<Dim>,
-      domain::Tags::ElementMap<Dim, Frame::Grid>,
-      domain::CoordinateMaps::Tags::CoordinateMap<Dim, Frame::Grid,
-                                                  Frame::Inertial>,
-      domain::Tags::FunctionsOfTime,
-      evolution::initial_data::Tags::InitialData>;
+  using argument_tags =
+      tmpl::list<::Tags::Time, evolution::dg::subcell::Tags::ActiveGrid,
+                 domain::Tags::Coordinates<3, Frame::Inertial>,
+                 evolution::dg::subcell::Tags::Coordinates<3, Frame::Inertial>,
+                 evolution::dg::subcell::Tags::Mesh<3>,
+                 domain::Tags::ElementMap<3, Frame::Grid>,
+                 domain::CoordinateMaps::Tags::CoordinateMap<3, Frame::Grid,
+                                                             Frame::Inertial>,
+                 domain::Tags::FunctionsOfTime,
+                 evolution::initial_data::Tags::InitialData>;
 
   using simple_tags = return_tags;
   using compute_tags = tmpl::list<>;
@@ -88,23 +87,23 @@ struct BackgroundMagneticFieldVars : tt::ConformsTo<db::protocols::Mutator> {
   using mutable_global_cache_tags = tmpl::list<>;
 
   static void apply(
-      const gsl::not_null<tnsr::I<DataVector, Dim, Frame::Inertial>*>
+      const gsl::not_null<tnsr::I<DataVector, 3, Frame::Inertial>*>
           background_magnetic_field,
-      const gsl::not_null<std::array<face_vars, Dim>*> face_centered_vars,
+      const gsl::not_null<std::array<face_vars, 3>*> face_centered_vars,
       const double time, const evolution::dg::subcell::ActiveGrid active_grid,
-      const tnsr::I<DataVector, Dim, Frame::Inertial>& dg_inertial_coords,
-      const tnsr::I<DataVector, Dim, Frame::Inertial>& subcell_inertial_coords,
-      const Mesh<Dim>& subcell_mesh,
-      const ElementMap<Dim, Frame::Grid>& logical_to_grid_map,
-      const domain::CoordinateMapBase<Frame::Grid, Frame::Inertial, Dim>&
+      const tnsr::I<DataVector, 3, Frame::Inertial>& dg_inertial_coords,
+      const tnsr::I<DataVector, 3, Frame::Inertial>& subcell_inertial_coords,
+      const Mesh<3>& subcell_mesh,
+      const ElementMap<3, Frame::Grid>& logical_to_grid_map,
+      const domain::CoordinateMapBase<Frame::Grid, Frame::Inertial, 3>&
           grid_to_inertial_map,
       const std::unordered_map<
           std::string,
           std::unique_ptr<domain::FunctionsOfTime::FunctionOfTime>>&
           functions_of_time,
       const evolution::initial_data::InitialData& initial_data) {
-    ASSERT(Mesh<Dim>(subcell_mesh.extents(0), subcell_mesh.basis(0),
-                     subcell_mesh.quadrature(0)) == subcell_mesh,
+    ASSERT(Mesh<3>(subcell_mesh.extents(0), subcell_mesh.basis(0),
+                   subcell_mesh.quadrature(0)) == subcell_mesh,
            "The subcell mesh must have isotropic basis, quadrature, and "
            "extents but got "
                << subcell_mesh);
@@ -121,13 +120,13 @@ struct BackgroundMagneticFieldVars : tt::ConformsTo<db::protocols::Mutator> {
     if (get<0>(gsl::at(*face_centered_vars, 0)).size() != 0) {
       return;
     }
-    for (size_t dim = 0; dim < Dim; ++dim) {
-      const auto basis = make_array<Dim>(subcell_mesh.basis(0));
-      auto quadrature = make_array<Dim>(subcell_mesh.quadrature(0));
-      auto extents = make_array<Dim>(subcell_mesh.extents(0));
+    for (size_t dim = 0; dim < 3; ++dim) {
+      const auto basis = make_array<3>(subcell_mesh.basis(0));
+      auto quadrature = make_array<3>(subcell_mesh.quadrature(0));
+      auto extents = make_array<3>(subcell_mesh.extents(0));
       gsl::at(extents, dim) = subcell_mesh.extents(0) + 1;
       gsl::at(quadrature, dim) = Spectral::Quadrature::FaceCentered;
-      const Mesh<Dim> face_centered_mesh{extents, basis, quadrature};
+      const Mesh<3> face_centered_mesh{extents, basis, quadrature};
       gsl::at(*face_centered_vars, dim) = evaluate(
           grid_to_inertial_map(
               logical_to_grid_map(logical_coordinates(face_centered_mesh)),
@@ -137,17 +136,15 @@ struct BackgroundMagneticFieldVars : tt::ConformsTo<db::protocols::Mutator> {
   }
 
  private:
-  static tnsr::I<DataVector, Dim, Frame::Inertial> evaluate(
-      const tnsr::I<DataVector, Dim, Frame::Inertial>& coords,
-      const double time,
+  static tnsr::I<DataVector, 3, Frame::Inertial> evaluate(
+      const tnsr::I<DataVector, 3, Frame::Inertial>& coords, const double time,
       const evolution::initial_data::InitialData& initial_data) {
     using tags =
-        tmpl::list<NewtonianMhd::Tags::BackgroundMagneticFieldVolume<Dim>>;
-    return get<NewtonianMhd::Tags::BackgroundMagneticFieldVolume<Dim>>(
-        call_with_dynamic_type<
-            tuples::tagged_tuple_from_typelist<tags>,
-            NewtonianMhd::InitialData::
-                background_magnetic_field_initial_data_list<Dim>>(
+        tmpl::list<NewtonianMhd::Tags::BackgroundMagneticFieldVolume<>>;
+    return get<NewtonianMhd::Tags::BackgroundMagneticFieldVolume<>>(
+        call_with_dynamic_type<tuples::tagged_tuple_from_typelist<tags>,
+                               NewtonianMhd::InitialData::
+                                   background_magnetic_field_initial_data_list>(
             &initial_data, [&coords, &time](const auto* const data) {
               if constexpr (is_analytic_solution_v<
                                 std::decay_t<decltype(*data)>>) {

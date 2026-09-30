@@ -69,7 +69,7 @@ namespace NewtonianMhd::BoundaryCorrections {
  * speed built from the *total* magnetic field and \f$c_h\f$ is the GLM cleaning
  * speed, which bounds the speed of the \f$\psi\f$ waves.
  */
-template <size_t Dim, bool UseBackgroundMagneticField = false>
+template <bool UseBackgroundMagneticField = false>
 class Hll final : public evolution::BoundaryCorrection {
  public:
   struct LargestOutgoingCharSpeed : db::SimpleTag {
@@ -101,20 +101,20 @@ class Hll final : public evolution::BoundaryCorrection {
   std::unique_ptr<BoundaryCorrection> get_clone() const override;
 
   using dg_package_field_tags =
-      tmpl::list<Tags::MassDensityCons, Tags::MomentumDensity<Dim>,
-                 Tags::EnergyDensity, Tags::MagneticFieldCons<Dim>,
+      tmpl::list<Tags::MassDensityCons, Tags::MomentumDensity<>,
+                 Tags::EnergyDensity, Tags::MagneticFieldCons<>,
                  Tags::DivergenceCleaningFieldCons,
                  ::Tags::NormalDotFlux<Tags::MassDensityCons>,
-                 ::Tags::NormalDotFlux<Tags::MomentumDensity<Dim>>,
+                 ::Tags::NormalDotFlux<Tags::MomentumDensity<>>,
                  ::Tags::NormalDotFlux<Tags::EnergyDensity>,
-                 ::Tags::NormalDotFlux<Tags::MagneticFieldCons<Dim>>,
+                 ::Tags::NormalDotFlux<Tags::MagneticFieldCons<>>,
                  ::Tags::NormalDotFlux<Tags::DivergenceCleaningFieldCons>,
                  LargestOutgoingCharSpeed, LargestIngoingCharSpeed>;
   using dg_package_data_temporary_tags =
-      background_magnetic_field_tag_list<Tags::BackgroundMagneticField<Dim>,
+      background_magnetic_field_tag_list<Tags::BackgroundMagneticField<>,
                                          UseBackgroundMagneticField>;
   using dg_package_data_primitive_tags =
-      tmpl::list<hydro::Tags::SpatialVelocity<DataVector, Dim>,
+      tmpl::list<hydro::Tags::SpatialVelocity<DataVector, 3>,
                  hydro::Tags::SpecificInternalEnergy<DataVector>>;
   using dg_package_data_volume_tags =
       tmpl::list<hydro::Tags::EquationOfState<false, 2>,
@@ -128,18 +128,18 @@ class Hll final : public evolution::BoundaryCorrection {
   /// never projected onto faces.
   double dg_package_data(
       gsl::not_null<Scalar<DataVector>*> packaged_mass_density,
-      gsl::not_null<tnsr::I<DataVector, Dim, Frame::Inertial>*>
+      gsl::not_null<tnsr::I<DataVector, 3, Frame::Inertial>*>
           packaged_momentum_density,
       gsl::not_null<Scalar<DataVector>*> packaged_energy_density,
-      gsl::not_null<tnsr::I<DataVector, Dim, Frame::Inertial>*>
+      gsl::not_null<tnsr::I<DataVector, 3, Frame::Inertial>*>
           packaged_magnetic_field,
       gsl::not_null<Scalar<DataVector>*> packaged_divergence_cleaning_field,
       gsl::not_null<Scalar<DataVector>*> packaged_normal_dot_flux_mass_density,
-      gsl::not_null<tnsr::I<DataVector, Dim, Frame::Inertial>*>
+      gsl::not_null<tnsr::I<DataVector, 3, Frame::Inertial>*>
           packaged_normal_dot_flux_momentum_density,
       gsl::not_null<Scalar<DataVector>*>
           packaged_normal_dot_flux_energy_density,
-      gsl::not_null<tnsr::I<DataVector, Dim, Frame::Inertial>*>
+      gsl::not_null<tnsr::I<DataVector, 3, Frame::Inertial>*>
           packaged_normal_dot_flux_magnetic_field,
       gsl::not_null<Scalar<DataVector>*>
           packaged_normal_dot_flux_divergence_cleaning_field,
@@ -147,23 +147,23 @@ class Hll final : public evolution::BoundaryCorrection {
       gsl::not_null<Scalar<DataVector>*> packaged_largest_ingoing_char_speed,
 
       const Scalar<DataVector>& mass_density,
-      const tnsr::I<DataVector, Dim, Frame::Inertial>& momentum_density,
+      const tnsr::I<DataVector, 3, Frame::Inertial>& momentum_density,
       const Scalar<DataVector>& energy_density,
-      const tnsr::I<DataVector, Dim, Frame::Inertial>& magnetic_field,
+      const tnsr::I<DataVector, 3, Frame::Inertial>& magnetic_field,
       const Scalar<DataVector>& divergence_cleaning_field,
 
-      const tnsr::I<DataVector, Dim, Frame::Inertial>& flux_mass_density,
-      const tnsr::IJ<DataVector, Dim, Frame::Inertial>& flux_momentum_density,
-      const tnsr::I<DataVector, Dim, Frame::Inertial>& flux_energy_density,
-      const tnsr::IJ<DataVector, Dim, Frame::Inertial>& flux_magnetic_field,
-      const tnsr::I<DataVector, Dim, Frame::Inertial>&
+      const tnsr::I<DataVector, 3, Frame::Inertial>& flux_mass_density,
+      const tnsr::IJ<DataVector, 3, Frame::Inertial>& flux_momentum_density,
+      const tnsr::I<DataVector, 3, Frame::Inertial>& flux_energy_density,
+      const tnsr::IJ<DataVector, 3, Frame::Inertial>& flux_magnetic_field,
+      const tnsr::I<DataVector, 3, Frame::Inertial>&
           flux_divergence_cleaning_field,
 
-      const tnsr::I<DataVector, Dim, Frame::Inertial>& velocity,
+      const tnsr::I<DataVector, 3, Frame::Inertial>& velocity,
       const Scalar<DataVector>& specific_internal_energy,
 
-      const tnsr::i<DataVector, Dim, Frame::Inertial>& normal_covector,
-      const std::optional<tnsr::I<DataVector, Dim, Frame::Inertial>>&
+      const tnsr::i<DataVector, 3, Frame::Inertial>& normal_covector,
+      const std::optional<tnsr::I<DataVector, 3, Frame::Inertial>>&
           mesh_velocity,
       const std::optional<Scalar<DataVector>>& normal_dot_mesh_velocity,
       const EquationsOfState::EquationOfState<false, 2>& equation_of_state,
@@ -171,18 +171,18 @@ class Hll final : public evolution::BoundaryCorrection {
 
   double dg_package_data(
       gsl::not_null<Scalar<DataVector>*> packaged_mass_density,
-      gsl::not_null<tnsr::I<DataVector, Dim, Frame::Inertial>*>
+      gsl::not_null<tnsr::I<DataVector, 3, Frame::Inertial>*>
           packaged_momentum_density,
       gsl::not_null<Scalar<DataVector>*> packaged_energy_density,
-      gsl::not_null<tnsr::I<DataVector, Dim, Frame::Inertial>*>
+      gsl::not_null<tnsr::I<DataVector, 3, Frame::Inertial>*>
           packaged_magnetic_field,
       gsl::not_null<Scalar<DataVector>*> packaged_divergence_cleaning_field,
       gsl::not_null<Scalar<DataVector>*> packaged_normal_dot_flux_mass_density,
-      gsl::not_null<tnsr::I<DataVector, Dim, Frame::Inertial>*>
+      gsl::not_null<tnsr::I<DataVector, 3, Frame::Inertial>*>
           packaged_normal_dot_flux_momentum_density,
       gsl::not_null<Scalar<DataVector>*>
           packaged_normal_dot_flux_energy_density,
-      gsl::not_null<tnsr::I<DataVector, Dim, Frame::Inertial>*>
+      gsl::not_null<tnsr::I<DataVector, 3, Frame::Inertial>*>
           packaged_normal_dot_flux_magnetic_field,
       gsl::not_null<Scalar<DataVector>*>
           packaged_normal_dot_flux_divergence_cleaning_field,
@@ -190,26 +190,26 @@ class Hll final : public evolution::BoundaryCorrection {
       gsl::not_null<Scalar<DataVector>*> packaged_largest_ingoing_char_speed,
 
       const Scalar<DataVector>& mass_density,
-      const tnsr::I<DataVector, Dim, Frame::Inertial>& momentum_density,
+      const tnsr::I<DataVector, 3, Frame::Inertial>& momentum_density,
       const Scalar<DataVector>& energy_density,
-      const tnsr::I<DataVector, Dim, Frame::Inertial>& magnetic_field,
+      const tnsr::I<DataVector, 3, Frame::Inertial>& magnetic_field,
       const Scalar<DataVector>& divergence_cleaning_field,
 
-      const tnsr::I<DataVector, Dim, Frame::Inertial>& flux_mass_density,
-      const tnsr::IJ<DataVector, Dim, Frame::Inertial>& flux_momentum_density,
-      const tnsr::I<DataVector, Dim, Frame::Inertial>& flux_energy_density,
-      const tnsr::IJ<DataVector, Dim, Frame::Inertial>& flux_magnetic_field,
-      const tnsr::I<DataVector, Dim, Frame::Inertial>&
+      const tnsr::I<DataVector, 3, Frame::Inertial>& flux_mass_density,
+      const tnsr::IJ<DataVector, 3, Frame::Inertial>& flux_momentum_density,
+      const tnsr::I<DataVector, 3, Frame::Inertial>& flux_energy_density,
+      const tnsr::IJ<DataVector, 3, Frame::Inertial>& flux_magnetic_field,
+      const tnsr::I<DataVector, 3, Frame::Inertial>&
           flux_divergence_cleaning_field,
 
-      BackgroundMagneticFieldArgument<Dim, UseBackgroundMagneticField>
+      BackgroundMagneticFieldArgument<UseBackgroundMagneticField>
           background_magnetic_field,
 
-      const tnsr::I<DataVector, Dim, Frame::Inertial>& velocity,
+      const tnsr::I<DataVector, 3, Frame::Inertial>& velocity,
       const Scalar<DataVector>& specific_internal_energy,
 
-      const tnsr::i<DataVector, Dim, Frame::Inertial>& normal_covector,
-      const std::optional<tnsr::I<DataVector, Dim, Frame::Inertial>>&
+      const tnsr::i<DataVector, 3, Frame::Inertial>& normal_covector,
+      const std::optional<tnsr::I<DataVector, 3, Frame::Inertial>>&
           mesh_velocity,
       const std::optional<Scalar<DataVector>>& normal_dot_mesh_velocity,
       const EquationsOfState::EquationOfState<false, 2>& equation_of_state,
@@ -218,37 +218,37 @@ class Hll final : public evolution::BoundaryCorrection {
 
   void dg_boundary_terms(
       gsl::not_null<Scalar<DataVector>*> boundary_correction_mass_density,
-      gsl::not_null<tnsr::I<DataVector, Dim, Frame::Inertial>*>
+      gsl::not_null<tnsr::I<DataVector, 3, Frame::Inertial>*>
           boundary_correction_momentum_density,
       gsl::not_null<Scalar<DataVector>*> boundary_correction_energy_density,
-      gsl::not_null<tnsr::I<DataVector, Dim, Frame::Inertial>*>
+      gsl::not_null<tnsr::I<DataVector, 3, Frame::Inertial>*>
           boundary_correction_magnetic_field,
       gsl::not_null<Scalar<DataVector>*>
           boundary_correction_divergence_cleaning_field,
       const Scalar<DataVector>& mass_density_int,
-      const tnsr::I<DataVector, Dim, Frame::Inertial>& momentum_density_int,
+      const tnsr::I<DataVector, 3, Frame::Inertial>& momentum_density_int,
       const Scalar<DataVector>& energy_density_int,
-      const tnsr::I<DataVector, Dim, Frame::Inertial>& magnetic_field_int,
+      const tnsr::I<DataVector, 3, Frame::Inertial>& magnetic_field_int,
       const Scalar<DataVector>& divergence_cleaning_field_int,
       const Scalar<DataVector>& normal_dot_flux_mass_density_int,
-      const tnsr::I<DataVector, Dim, Frame::Inertial>&
+      const tnsr::I<DataVector, 3, Frame::Inertial>&
           normal_dot_flux_momentum_density_int,
       const Scalar<DataVector>& normal_dot_flux_energy_density_int,
-      const tnsr::I<DataVector, Dim, Frame::Inertial>&
+      const tnsr::I<DataVector, 3, Frame::Inertial>&
           normal_dot_flux_magnetic_field_int,
       const Scalar<DataVector>& normal_dot_flux_divergence_cleaning_field_int,
       const Scalar<DataVector>& largest_outgoing_char_speed_int,
       const Scalar<DataVector>& largest_ingoing_char_speed_int,
       const Scalar<DataVector>& mass_density_ext,
-      const tnsr::I<DataVector, Dim, Frame::Inertial>& momentum_density_ext,
+      const tnsr::I<DataVector, 3, Frame::Inertial>& momentum_density_ext,
       const Scalar<DataVector>& energy_density_ext,
-      const tnsr::I<DataVector, Dim, Frame::Inertial>& magnetic_field_ext,
+      const tnsr::I<DataVector, 3, Frame::Inertial>& magnetic_field_ext,
       const Scalar<DataVector>& divergence_cleaning_field_ext,
       const Scalar<DataVector>& normal_dot_flux_mass_density_ext,
-      const tnsr::I<DataVector, Dim, Frame::Inertial>&
+      const tnsr::I<DataVector, 3, Frame::Inertial>&
           normal_dot_flux_momentum_density_ext,
       const Scalar<DataVector>& normal_dot_flux_energy_density_ext,
-      const tnsr::I<DataVector, Dim, Frame::Inertial>&
+      const tnsr::I<DataVector, 3, Frame::Inertial>&
           normal_dot_flux_magnetic_field_ext,
       const Scalar<DataVector>& normal_dot_flux_divergence_cleaning_field_ext,
       const Scalar<DataVector>& largest_outgoing_char_speed_ext,

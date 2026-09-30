@@ -156,7 +156,7 @@ struct NewtonianMhdMetavars {
   // (true).
   static constexpr bool use_dg_subcell = true;
 
-  using system = NewtonianMhd::System<volume_dim, UseBackgroundMagneticField>;
+  using system = NewtonianMhd::System<UseBackgroundMagneticField>;
 
   using temporal_id = Tags::TimeStepId;
 
@@ -183,7 +183,7 @@ struct NewtonianMhdMetavars {
           typename system::variables_tag::tags_list,
           typename system::primitive_variables_tag::tags_list, error_tags,
           NewtonianMhd::background_magnetic_field_tag_list<
-              NewtonianMhd::Tags::BackgroundMagneticFieldVolume<volume_dim>,
+              NewtonianMhd::Tags::BackgroundMagneticFieldVolume<>,
               UseBackgroundMagneticField>,
           tmpl::conditional_t<use_dg_subcell,
                               tmpl::list<evolution::dg::subcell::Tags::
@@ -229,10 +229,9 @@ struct NewtonianMhdMetavars {
     using factory_classes = tmpl::map<
         tmpl::pair<DenseTrigger, DenseTriggers::standard_dense_triggers>,
         tmpl::pair<DomainCreator<volume_dim>, domain_creators<volume_dim>>,
-        tmpl::pair<NewtonianMhd::Sources::Source<volume_dim,
-                                                 UseBackgroundMagneticField>,
-                   NewtonianMhd::Sources::all_sources<
-                       volume_dim, UseBackgroundMagneticField>>,
+        tmpl::pair<
+            NewtonianMhd::Sources::Source<UseBackgroundMagneticField>,
+            NewtonianMhd::Sources::all_sources<UseBackgroundMagneticField>>,
         tmpl::pair<evolution::initial_data::InitialData, initial_data_list>,
         tmpl::pair<Event,
                    tmpl::flatten<tmpl::list<
@@ -244,12 +243,12 @@ struct NewtonianMhdMetavars {
         tmpl::pair<
             evolution::BoundaryCorrection,
             NewtonianMhd::BoundaryCorrections::standard_boundary_corrections<
-                volume_dim, UseBackgroundMagneticField>>,
+                UseBackgroundMagneticField>>,
         tmpl::pair<LtsTimeStepper, TimeSteppers::lts_time_steppers>,
         tmpl::pair<
-            NewtonianMhd::BoundaryConditions::BoundaryCondition<volume_dim>,
+            NewtonianMhd::BoundaryConditions::BoundaryCondition,
             NewtonianMhd::BoundaryConditions::standard_boundary_conditions<
-                volume_dim, UseBackgroundMagneticField>>,
+                UseBackgroundMagneticField>>,
         tmpl::pair<PhaseChange, PhaseControl::factory_creatable_classes>,
         tmpl::pair<StepChooser<StepChooserUse::LtsStep>,
                    StepChoosers::standard_step_choosers<system>>,
@@ -288,15 +287,12 @@ struct NewtonianMhdMetavars {
   // initial data's total magnetic field by the evolved perturbation.
   using background_magnetic_field_actions = tmpl::conditional_t<
       UseBackgroundMagneticField,
-      tmpl::list<
-          Initialization::Actions::InitializeItems<tmpl::conditional_t<
-              use_dg_subcell,
-              NewtonianMhd::subcell::BackgroundMagneticFieldVars<volume_dim>,
-              NewtonianMhd::Initialization::BackgroundMagneticField<
-                  volume_dim>>>,
-          Actions::MutateApply<
-              NewtonianMhd::Initialization::SubtractBackgroundMagneticField<
-                  volume_dim>>>,
+      tmpl::list<Initialization::Actions::InitializeItems<tmpl::conditional_t<
+                     use_dg_subcell,
+                     NewtonianMhd::subcell::BackgroundMagneticFieldVars,
+                     NewtonianMhd::Initialization::BackgroundMagneticField>>,
+                 Actions::MutateApply<NewtonianMhd::Initialization::
+                                          SubtractBackgroundMagneticField>>,
       tmpl::list<>>;
 
   // Re-evaluates the background field after the active grid has changed. The
@@ -304,8 +300,7 @@ struct NewtonianMhdMetavars {
   // the other evolved variables.
   using background_magnetic_field_update = tmpl::conditional_t<
       UseBackgroundMagneticField and use_dg_subcell,
-      Actions::MutateApply<
-          NewtonianMhd::subcell::BackgroundMagneticFieldVars<volume_dim>>,
+      Actions::MutateApply<NewtonianMhd::subcell::BackgroundMagneticFieldVars>,
       tmpl::list<>>;
 
   using initialization_actions = tmpl::flatten<tmpl::list<
@@ -320,19 +315,16 @@ struct NewtonianMhdMetavars {
               evolution::dg::subcell::Actions::SetSubcellGrid<volume_dim,
                                                               system, false>,
               Actions::MutateApply<evolution::dg::subcell::SetInterpolators<
-                  volume_dim,
-                  NewtonianMhd::fd::Tags::Reconstructor<volume_dim>>>,
+                  volume_dim, NewtonianMhd::fd::Tags::Reconstructor>>,
               background_magnetic_field_actions, Actions::UpdateConservatives,
               evolution::dg::subcell::Actions::SetAndCommunicateInitialRdmpData<
-                  volume_dim,
-                  NewtonianMhd::subcell::SetInitialRdmpData<volume_dim>>,
+                  volume_dim, NewtonianMhd::subcell::SetInitialRdmpData>,
               evolution::dg::subcell::Actions::ComputeAndSendTciOnInitialGrid<
-                  volume_dim, system,
-                  NewtonianMhd::subcell::TciOnFdGrid<volume_dim>>,
+                  volume_dim, system, NewtonianMhd::subcell::TciOnFdGrid>,
               evolution::dg::subcell::Actions::SetInitialGridFromTciData<
                   volume_dim, system>,
               Actions::MutateApply<
-                  NewtonianMhd::subcell::ResizeAndComputePrims<volume_dim>>,
+                  NewtonianMhd::subcell::ResizeAndComputePrims>,
               background_magnetic_field_update, Actions::UpdateConservatives>,
           tmpl::list<
               evolution::Initialization::Actions::SetVariables<
@@ -341,7 +333,7 @@ struct NewtonianMhdMetavars {
       Initialization::Actions::AddComputeTags<
           tmpl::list<NewtonianMhd::Tags::SoundSpeedSquaredCompute<DataVector>,
                      NewtonianMhd::Tags::FastMagnetosonicSpeedCompute<
-                         volume_dim, UseBackgroundMagneticField>>>,
+                         UseBackgroundMagneticField>>>,
       Initialization::Actions::AddComputeTags<
           StepChoosers::step_chooser_compute_tags<metavariables>>,
       ::evolution::dg::Initialization::Mortars<volume_dim>,
@@ -369,13 +361,12 @@ struct NewtonianMhdMetavars {
       evolution::dg::Actions::ApplyLtsBoundaryCorrections<
           volume_dim, use_dg_element_collection>,
       Actions::MutateApply<ChangeTimeStepperOrder<system>>,
-      VariableFixing::Actions::FixVariables<
-          NewtonianMhd::FixConservatives<volume_dim>>,
+      VariableFixing::Actions::FixVariables<NewtonianMhd::FixConservatives>,
       tmpl::conditional_t<
           use_dg_subcell,
           // The primitive variables are computed as part of the TCI.
           tmpl::list<evolution::dg::subcell::Actions::TciAndRollback<
-                         NewtonianMhd::subcell::TciOnDgGrid<volume_dim>>,
+                         NewtonianMhd::subcell::TciOnDgGrid>,
                      background_magnetic_field_update>,
           Actions::MutateApply<typename system::primitive_from_conservative>>,
       Actions::MutateApply<CleanHistory<system>>,
@@ -390,15 +381,14 @@ struct NewtonianMhdMetavars {
     template <typename DbTagsList>
     static constexpr size_t ghost_zone_size(
         const db::DataBox<DbTagsList>& box) {
-      return db::get<NewtonianMhd::fd::Tags::Reconstructor<volume_dim>>(box)
+      return db::get<NewtonianMhd::fd::Tags::Reconstructor>(box)
           .ghost_zone_size();
     }
 
     using DgComputeSubcellNeighborPackagedData =
         NewtonianMhd::subcell::NeighborPackagedData<UseBackgroundMagneticField>;
 
-    using GhostVariables =
-        NewtonianMhd::subcell::PrimitiveGhostVariables<volume_dim>;
+    using GhostVariables = NewtonianMhd::subcell::PrimitiveGhostVariables;
   };
 
   using dg_subcell_step_actions = tmpl::flatten<tmpl::list<
@@ -413,30 +403,26 @@ struct NewtonianMhdMetavars {
       // of StepChoosers.
       Actions::MutateApply<ChangeStepSize<tmpl::list<>>>,
       evolution::dg::subcell::Actions::SendDataForReconstruction<
-          volume_dim,
-          NewtonianMhd::subcell::PrimitiveGhostVariables<volume_dim>,
+          volume_dim, NewtonianMhd::subcell::PrimitiveGhostVariables,
           use_dg_element_collection>,
       evolution::dg::subcell::Actions::ReceiveDataForReconstruction<volume_dim>,
       Actions::Label<
           evolution::dg::subcell::Actions::Labels::BeginSubcellAfterDgRollback>,
-      Actions::MutateApply<
-          NewtonianMhd::subcell::PrimsAfterRollback<volume_dim>>,
+      Actions::MutateApply<NewtonianMhd::subcell::PrimsAfterRollback>,
       background_magnetic_field_update,
       evolution::dg::subcell::fd::Actions::TakeTimeStep<
-          NewtonianMhd::subcell::TimeDerivative<volume_dim>>,
+          NewtonianMhd::subcell::TimeDerivative>,
       Actions::MutateApply<RecordTimeStepperData<system>>,
       evolution::Actions::RunEventsAndDenseTriggers<
           events_and_dense_triggers_postprocessors>,
       Actions::MutateApply<UpdateU<system>>,
       Actions::MutateApply<CleanHistory<system>>,
       Actions::MutateApply<evolution::dg::CleanMortarHistory<volume_dim>>,
-      VariableFixing::Actions::FixVariables<
-          NewtonianMhd::FixConservatives<volume_dim>>,
+      VariableFixing::Actions::FixVariables<NewtonianMhd::FixConservatives>,
       Actions::MutateApply<typename system::primitive_from_conservative>,
       evolution::dg::subcell::Actions::TciAndSwitchToDg<
-          NewtonianMhd::subcell::TciOnFdGrid<volume_dim>>,
-      Actions::MutateApply<
-          NewtonianMhd::subcell::ResizeAndComputePrims<volume_dim>>,
+          NewtonianMhd::subcell::TciOnFdGrid>,
+      Actions::MutateApply<NewtonianMhd::subcell::ResizeAndComputePrims>,
       background_magnetic_field_update,
 
       Actions::Label<evolution::dg::subcell::Actions::Labels::EndOfSolvers>>>;
@@ -492,16 +478,15 @@ struct NewtonianMhdMetavars {
                  observers::ObserverWriter<metavariables>, dg_element_array>;
 
   using const_global_cache_tags = tmpl::push_back<
-      tmpl::conditional_t<
-          use_dg_subcell,
-          tmpl::list<NewtonianMhd::fd::Tags::Reconstructor<volume_dim>,
-                     NewtonianMhd::subcell::Tags::TciOptions>,
-          tmpl::list<>>,
+      tmpl::conditional_t<use_dg_subcell,
+                          tmpl::list<NewtonianMhd::fd::Tags::Reconstructor,
+                                     NewtonianMhd::subcell::Tags::TciOptions>,
+                          tmpl::list<>>,
       initial_data_tag, equation_of_state_tag,
-      NewtonianMhd::Tags::SourceTerm<volume_dim, UseBackgroundMagneticField>,
+      NewtonianMhd::Tags::SourceTerm<UseBackgroundMagneticField>,
       NewtonianMhd::Tags::DivergenceCleaningSpeed,
       NewtonianMhd::Tags::ConstraintDampingParameter,
-      ::Tags::VariableFixer<NewtonianMhd::FixConservatives<volume_dim>>>;
+      ::Tags::VariableFixer<NewtonianMhd::FixConservatives>>;
 
   static constexpr Options::String help{
       "Evolve the Newtonian MHD system in conservative form.\n\n"};

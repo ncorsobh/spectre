@@ -22,61 +22,60 @@
 #include "Utilities/Gsl.hpp"
 
 namespace NewtonianMhd::BoundaryCorrections {
-template <size_t Dim, bool UseBackgroundMagneticField>
-Rusanov<Dim, UseBackgroundMagneticField>::Rusanov(CkMigrateMessage* msg)
+template <bool UseBackgroundMagneticField>
+Rusanov<UseBackgroundMagneticField>::Rusanov(CkMigrateMessage* msg)
     : BoundaryCorrection(msg) {}
 
-template <size_t Dim, bool UseBackgroundMagneticField>
+template <bool UseBackgroundMagneticField>
 std::unique_ptr<evolution::BoundaryCorrection>
-Rusanov<Dim, UseBackgroundMagneticField>::get_clone() const {
+Rusanov<UseBackgroundMagneticField>::get_clone() const {
   return std::make_unique<Rusanov>(*this);
 }
 
-template <size_t Dim, bool UseBackgroundMagneticField>
-void Rusanov<Dim, UseBackgroundMagneticField>::pup(PUP::er& p) {
+template <bool UseBackgroundMagneticField>
+void Rusanov<UseBackgroundMagneticField>::pup(PUP::er& p) {
   BoundaryCorrection::pup(p);
 }
 
-template <size_t Dim, bool UseBackgroundMagneticField>
-double Rusanov<Dim, UseBackgroundMagneticField>::dg_package_data(
+template <bool UseBackgroundMagneticField>
+double Rusanov<UseBackgroundMagneticField>::dg_package_data(
     const gsl::not_null<Scalar<DataVector>*> packaged_mass_density,
-    const gsl::not_null<tnsr::I<DataVector, Dim, Frame::Inertial>*>
+    const gsl::not_null<tnsr::I<DataVector, 3, Frame::Inertial>*>
         packaged_momentum_density,
     const gsl::not_null<Scalar<DataVector>*> packaged_energy_density,
-    const gsl::not_null<tnsr::I<DataVector, Dim, Frame::Inertial>*>
+    const gsl::not_null<tnsr::I<DataVector, 3, Frame::Inertial>*>
         packaged_magnetic_field,
     const gsl::not_null<Scalar<DataVector>*> packaged_divergence_cleaning_field,
     const gsl::not_null<Scalar<DataVector>*>
         packaged_normal_dot_flux_mass_density,
-    const gsl::not_null<tnsr::I<DataVector, Dim, Frame::Inertial>*>
+    const gsl::not_null<tnsr::I<DataVector, 3, Frame::Inertial>*>
         packaged_normal_dot_flux_momentum_density,
     const gsl::not_null<Scalar<DataVector>*>
         packaged_normal_dot_flux_energy_density,
-    const gsl::not_null<tnsr::I<DataVector, Dim, Frame::Inertial>*>
+    const gsl::not_null<tnsr::I<DataVector, 3, Frame::Inertial>*>
         packaged_normal_dot_flux_magnetic_field,
     const gsl::not_null<Scalar<DataVector>*>
         packaged_normal_dot_flux_divergence_cleaning_field,
     const gsl::not_null<Scalar<DataVector>*> packaged_abs_char_speed,
 
     const Scalar<DataVector>& mass_density,
-    const tnsr::I<DataVector, Dim, Frame::Inertial>& momentum_density,
+    const tnsr::I<DataVector, 3, Frame::Inertial>& momentum_density,
     const Scalar<DataVector>& energy_density,
-    const tnsr::I<DataVector, Dim, Frame::Inertial>& magnetic_field,
+    const tnsr::I<DataVector, 3, Frame::Inertial>& magnetic_field,
     const Scalar<DataVector>& divergence_cleaning_field,
 
-    const tnsr::I<DataVector, Dim, Frame::Inertial>& flux_mass_density,
-    const tnsr::IJ<DataVector, Dim, Frame::Inertial>& flux_momentum_density,
-    const tnsr::I<DataVector, Dim, Frame::Inertial>& flux_energy_density,
-    const tnsr::IJ<DataVector, Dim, Frame::Inertial>& flux_magnetic_field,
-    const tnsr::I<DataVector, Dim, Frame::Inertial>&
+    const tnsr::I<DataVector, 3, Frame::Inertial>& flux_mass_density,
+    const tnsr::IJ<DataVector, 3, Frame::Inertial>& flux_momentum_density,
+    const tnsr::I<DataVector, 3, Frame::Inertial>& flux_energy_density,
+    const tnsr::IJ<DataVector, 3, Frame::Inertial>& flux_magnetic_field,
+    const tnsr::I<DataVector, 3, Frame::Inertial>&
         flux_divergence_cleaning_field,
 
-    const tnsr::I<DataVector, Dim, Frame::Inertial>& velocity,
+    const tnsr::I<DataVector, 3, Frame::Inertial>& velocity,
     const Scalar<DataVector>& specific_internal_energy,
 
-    const tnsr::i<DataVector, Dim, Frame::Inertial>& normal_covector,
-    const std::optional<tnsr::I<DataVector, Dim, Frame::Inertial>>&
-        mesh_velocity,
+    const tnsr::i<DataVector, 3, Frame::Inertial>& normal_covector,
+    const std::optional<tnsr::I<DataVector, 3, Frame::Inertial>>& mesh_velocity,
     const std::optional<Scalar<DataVector>>& normal_dot_mesh_velocity,
     const EquationsOfState::EquationOfState<false, 2>& equation_of_state,
     const double divergence_cleaning_speed) const {
@@ -105,48 +104,48 @@ double Rusanov<Dim, UseBackgroundMagneticField>::dg_package_data(
   }
 }
 
-template <size_t Dim, bool UseBackgroundMagneticField>
-double Rusanov<Dim, UseBackgroundMagneticField>::dg_package_data(
+template <bool UseBackgroundMagneticField>
+double Rusanov<UseBackgroundMagneticField>::dg_package_data(
     const gsl::not_null<Scalar<DataVector>*> packaged_mass_density,
-    const gsl::not_null<tnsr::I<DataVector, Dim, Frame::Inertial>*>
+    const gsl::not_null<tnsr::I<DataVector, 3, Frame::Inertial>*>
         packaged_momentum_density,
     const gsl::not_null<Scalar<DataVector>*> packaged_energy_density,
-    const gsl::not_null<tnsr::I<DataVector, Dim, Frame::Inertial>*>
+    const gsl::not_null<tnsr::I<DataVector, 3, Frame::Inertial>*>
         packaged_magnetic_field,
     const gsl::not_null<Scalar<DataVector>*> packaged_divergence_cleaning_field,
     const gsl::not_null<Scalar<DataVector>*>
         packaged_normal_dot_flux_mass_density,
-    const gsl::not_null<tnsr::I<DataVector, Dim, Frame::Inertial>*>
+    const gsl::not_null<tnsr::I<DataVector, 3, Frame::Inertial>*>
         packaged_normal_dot_flux_momentum_density,
     const gsl::not_null<Scalar<DataVector>*>
         packaged_normal_dot_flux_energy_density,
-    const gsl::not_null<tnsr::I<DataVector, Dim, Frame::Inertial>*>
+    const gsl::not_null<tnsr::I<DataVector, 3, Frame::Inertial>*>
         packaged_normal_dot_flux_magnetic_field,
     const gsl::not_null<Scalar<DataVector>*>
         packaged_normal_dot_flux_divergence_cleaning_field,
     const gsl::not_null<Scalar<DataVector>*> packaged_abs_char_speed,
 
     const Scalar<DataVector>& mass_density,
-    const tnsr::I<DataVector, Dim, Frame::Inertial>& momentum_density,
+    const tnsr::I<DataVector, 3, Frame::Inertial>& momentum_density,
     const Scalar<DataVector>& energy_density,
-    const tnsr::I<DataVector, Dim, Frame::Inertial>& magnetic_field,
+    const tnsr::I<DataVector, 3, Frame::Inertial>& magnetic_field,
     const Scalar<DataVector>& divergence_cleaning_field,
 
-    const tnsr::I<DataVector, Dim, Frame::Inertial>& flux_mass_density,
-    const tnsr::IJ<DataVector, Dim, Frame::Inertial>& flux_momentum_density,
-    const tnsr::I<DataVector, Dim, Frame::Inertial>& flux_energy_density,
-    const tnsr::IJ<DataVector, Dim, Frame::Inertial>& flux_magnetic_field,
-    const tnsr::I<DataVector, Dim, Frame::Inertial>&
+    const tnsr::I<DataVector, 3, Frame::Inertial>& flux_mass_density,
+    const tnsr::IJ<DataVector, 3, Frame::Inertial>& flux_momentum_density,
+    const tnsr::I<DataVector, 3, Frame::Inertial>& flux_energy_density,
+    const tnsr::IJ<DataVector, 3, Frame::Inertial>& flux_magnetic_field,
+    const tnsr::I<DataVector, 3, Frame::Inertial>&
         flux_divergence_cleaning_field,
 
-    const BackgroundMagneticFieldArgument<Dim, UseBackgroundMagneticField>
+    const BackgroundMagneticFieldArgument<UseBackgroundMagneticField>
         background_magnetic_field,
 
-    const tnsr::I<DataVector, Dim, Frame::Inertial>& velocity,
+    const tnsr::I<DataVector, 3, Frame::Inertial>& velocity,
     const Scalar<DataVector>& specific_internal_energy,
 
-    const tnsr::i<DataVector, Dim, Frame::Inertial>& normal_covector,
-    const std::optional<tnsr::I<DataVector, Dim, Frame::Inertial>>&
+    const tnsr::i<DataVector, 3, Frame::Inertial>& normal_covector,
+    const std::optional<tnsr::I<DataVector, 3, Frame::Inertial>>&
     /*mesh_velocity*/,
     const std::optional<Scalar<DataVector>>& normal_dot_mesh_velocity,
     const EquationsOfState::EquationOfState<false, 2>& equation_of_state,
@@ -160,7 +159,7 @@ double Rusanov<Dim, UseBackgroundMagneticField>::dg_package_data(
 
   sound_speed_squared(make_not_null(&sound_speed_sq), mass_density,
                       specific_internal_energy, equation_of_state);
-  fast_magnetosonic_speed<Dim, UseBackgroundMagneticField>(
+  fast_magnetosonic_speed<UseBackgroundMagneticField>(
       make_not_null(&fast_speed), mass_density, sound_speed_sq, magnetic_field,
       background_magnetic_field);
   dot_product(make_not_null(&normal_dot_velocity), velocity, normal_covector);
@@ -194,39 +193,39 @@ double Rusanov<Dim, UseBackgroundMagneticField>::dg_package_data(
   return max(get(*packaged_abs_char_speed));
 }
 
-template <size_t Dim, bool UseBackgroundMagneticField>
-void Rusanov<Dim, UseBackgroundMagneticField>::dg_boundary_terms(
+template <bool UseBackgroundMagneticField>
+void Rusanov<UseBackgroundMagneticField>::dg_boundary_terms(
     const gsl::not_null<Scalar<DataVector>*> boundary_correction_mass_density,
-    const gsl::not_null<tnsr::I<DataVector, Dim, Frame::Inertial>*>
+    const gsl::not_null<tnsr::I<DataVector, 3, Frame::Inertial>*>
         boundary_correction_momentum_density,
     const gsl::not_null<Scalar<DataVector>*> boundary_correction_energy_density,
-    const gsl::not_null<tnsr::I<DataVector, Dim, Frame::Inertial>*>
+    const gsl::not_null<tnsr::I<DataVector, 3, Frame::Inertial>*>
         boundary_correction_magnetic_field,
     const gsl::not_null<Scalar<DataVector>*>
         boundary_correction_divergence_cleaning_field,
     const Scalar<DataVector>& mass_density_int,
-    const tnsr::I<DataVector, Dim, Frame::Inertial>& momentum_density_int,
+    const tnsr::I<DataVector, 3, Frame::Inertial>& momentum_density_int,
     const Scalar<DataVector>& energy_density_int,
-    const tnsr::I<DataVector, Dim, Frame::Inertial>& magnetic_field_int,
+    const tnsr::I<DataVector, 3, Frame::Inertial>& magnetic_field_int,
     const Scalar<DataVector>& divergence_cleaning_field_int,
     const Scalar<DataVector>& normal_dot_flux_mass_density_int,
-    const tnsr::I<DataVector, Dim, Frame::Inertial>&
+    const tnsr::I<DataVector, 3, Frame::Inertial>&
         normal_dot_flux_momentum_density_int,
     const Scalar<DataVector>& normal_dot_flux_energy_density_int,
-    const tnsr::I<DataVector, Dim, Frame::Inertial>&
+    const tnsr::I<DataVector, 3, Frame::Inertial>&
         normal_dot_flux_magnetic_field_int,
     const Scalar<DataVector>& normal_dot_flux_divergence_cleaning_field_int,
     const Scalar<DataVector>& abs_char_speed_int,
     const Scalar<DataVector>& mass_density_ext,
-    const tnsr::I<DataVector, Dim, Frame::Inertial>& momentum_density_ext,
+    const tnsr::I<DataVector, 3, Frame::Inertial>& momentum_density_ext,
     const Scalar<DataVector>& energy_density_ext,
-    const tnsr::I<DataVector, Dim, Frame::Inertial>& magnetic_field_ext,
+    const tnsr::I<DataVector, 3, Frame::Inertial>& magnetic_field_ext,
     const Scalar<DataVector>& divergence_cleaning_field_ext,
     const Scalar<DataVector>& normal_dot_flux_mass_density_ext,
-    const tnsr::I<DataVector, Dim, Frame::Inertial>&
+    const tnsr::I<DataVector, 3, Frame::Inertial>&
         normal_dot_flux_momentum_density_ext,
     const Scalar<DataVector>& normal_dot_flux_energy_density_ext,
-    const tnsr::I<DataVector, Dim, Frame::Inertial>&
+    const tnsr::I<DataVector, 3, Frame::Inertial>&
         normal_dot_flux_magnetic_field_ext,
     const Scalar<DataVector>& normal_dot_flux_divergence_cleaning_field_ext,
     const Scalar<DataVector>& abs_char_speed_ext,
@@ -253,13 +252,13 @@ void Rusanov<Dim, UseBackgroundMagneticField>::dg_boundary_terms(
       };
   const auto vector_correction =
       [&max_abs_char_speed, &dg_formulation](
-          const gsl::not_null<tnsr::I<DataVector, Dim, Frame::Inertial>*>
+          const gsl::not_null<tnsr::I<DataVector, 3, Frame::Inertial>*>
               correction,
-          const tnsr::I<DataVector, Dim, Frame::Inertial>& normal_dot_flux_int,
-          const tnsr::I<DataVector, Dim, Frame::Inertial>& normal_dot_flux_ext,
-          const tnsr::I<DataVector, Dim, Frame::Inertial>& var_int,
-          const tnsr::I<DataVector, Dim, Frame::Inertial>& var_ext) {
-        for (size_t i = 0; i < Dim; ++i) {
+          const tnsr::I<DataVector, 3, Frame::Inertial>& normal_dot_flux_int,
+          const tnsr::I<DataVector, 3, Frame::Inertial>& normal_dot_flux_ext,
+          const tnsr::I<DataVector, 3, Frame::Inertial>& var_int,
+          const tnsr::I<DataVector, 3, Frame::Inertial>& var_ext) {
+        for (size_t i = 0; i < 3; ++i) {
           if (dg_formulation == dg::Formulation::WeakInertial) {
             correction->get(i) =
                 0.5 * (normal_dot_flux_int.get(i) - normal_dot_flux_ext.get(i));
@@ -294,18 +293,16 @@ void Rusanov<Dim, UseBackgroundMagneticField>::dg_boundary_terms(
                     divergence_cleaning_field_ext);
 }
 
-template <size_t Dim, bool UseBackgroundMagneticField>
+template <bool UseBackgroundMagneticField>
 // NOLINTNEXTLINE
-PUP::able::PUP_ID Rusanov<Dim, UseBackgroundMagneticField>::my_PUP_ID = 0;
+PUP::able::PUP_ID Rusanov<UseBackgroundMagneticField>::my_PUP_ID = 0;
 
-#define DIM(data) BOOST_PP_TUPLE_ELEM(0, data)
-#define USE_BG(data) BOOST_PP_TUPLE_ELEM(1, data)
+#define USE_BG(data) BOOST_PP_TUPLE_ELEM(0, data)
 
-#define INSTANTIATION(_, data) template class Rusanov<DIM(data), USE_BG(data)>;
+#define INSTANTIATION(_, data) template class Rusanov<USE_BG(data)>;
 
-GENERATE_INSTANTIATIONS(INSTANTIATION, (1, 2, 3), (true, false))
+GENERATE_INSTANTIATIONS(INSTANTIATION, (true, false))
 
 #undef INSTANTIATION
 #undef USE_BG
-#undef DIM
 }  // namespace NewtonianMhd::BoundaryCorrections

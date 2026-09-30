@@ -10,8 +10,8 @@
 #include "Utilities/TMPL.hpp"
 
 namespace NewtonianMhd::BoundaryCorrections {
-template <size_t Dim, bool UseBackgroundMagneticField = false>
+template <bool UseBackgroundMagneticField = false>
 using standard_boundary_corrections =
-    tmpl::list<Hll<Dim, UseBackgroundMagneticField>,
-               Rusanov<Dim, UseBackgroundMagneticField>>;
+    tmpl::list<Hll<UseBackgroundMagneticField>,
+               Rusanov<UseBackgroundMagneticField>>;
 }  // namespace NewtonianMhd::BoundaryCorrections

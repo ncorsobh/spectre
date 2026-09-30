@@ -25,37 +25,27 @@
 #include "Utilities/TMPL.hpp"
 
 namespace NewtonianMhd::fd {
-template <size_t Dim>
-MonotonisedCentralPrim<Dim>::MonotonisedCentralPrim(CkMigrateMessage* const msg)
-    : Reconstructor<Dim>(msg) {}
+MonotonisedCentralPrim::MonotonisedCentralPrim(CkMigrateMessage* const msg)
+    : Reconstructor(msg) {}
 
-template <size_t Dim>
-std::unique_ptr<Reconstructor<Dim>> MonotonisedCentralPrim<Dim>::get_clone()
-    const {
+std::unique_ptr<Reconstructor> MonotonisedCentralPrim::get_clone() const {
   return std::make_unique<MonotonisedCentralPrim>(*this);
 }
 
-template <size_t Dim>
-void MonotonisedCentralPrim<Dim>::pup(PUP::er& p) {
-  Reconstructor<Dim>::pup(p);
-}
+void MonotonisedCentralPrim::pup(PUP::er& p) { Reconstructor::pup(p); }
 
-template <size_t Dim>
 // NOLINTNEXTLINE
-PUP::able::PUP_ID MonotonisedCentralPrim<Dim>::my_PUP_ID = 0;
+PUP::able::PUP_ID MonotonisedCentralPrim::my_PUP_ID = 0;
 
-template <size_t Dim>
 template <typename TagsList>
-void MonotonisedCentralPrim<Dim>::reconstruct(
-    const gsl::not_null<std::array<Variables<TagsList>, Dim>*>
-        vars_on_lower_face,
-    const gsl::not_null<std::array<Variables<TagsList>, Dim>*>
-        vars_on_upper_face,
+void MonotonisedCentralPrim::reconstruct(
+    const gsl::not_null<std::array<Variables<TagsList>, 3>*> vars_on_lower_face,
+    const gsl::not_null<std::array<Variables<TagsList>, 3>*> vars_on_upper_face,
     const Variables<prims_tags>& volume_prims,
     const EquationsOfState::EquationOfState<false, 2>& eos,
-    const Element<Dim>& element,
-    const DirectionalIdMap<Dim, evolution::dg::subcell::GhostData>& ghost_data,
-    const Mesh<Dim>& subcell_mesh) const {
+    const Element<3>& element,
+    const DirectionalIdMap<3, evolution::dg::subcell::GhostData>& ghost_data,
+    const Mesh<3>& subcell_mesh) const {
   reconstruct_prims_work<prim_tags_for_reconstruction>(
       vars_on_lower_face, vars_on_upper_face,
       [](auto upper_face_vars_ptr, auto lower_face_vars_ptr,
@@ -69,24 +59,22 @@ void MonotonisedCentralPrim<Dim>::reconstruct(
       true);
 }
 
-template <size_t Dim>
 template <typename TagsList>
-void MonotonisedCentralPrim<Dim>::reconstruct_fd_neighbor(
+void MonotonisedCentralPrim::reconstruct_fd_neighbor(
     const gsl::not_null<Variables<TagsList>*> vars_on_face,
     const Variables<prims_tags>& subcell_volume_prims,
     const EquationsOfState::EquationOfState<false, 2>& eos,
-    const Element<Dim>& element,
-    const DirectionalIdMap<Dim, evolution::dg::subcell::GhostData>& ghost_data,
-    const Mesh<Dim>& subcell_mesh,
-    const Direction<Dim> direction_to_reconstruct) const {
+    const Element<3>& element,
+    const DirectionalIdMap<3, evolution::dg::subcell::GhostData>& ghost_data,
+    const Mesh<3>& subcell_mesh,
+    const Direction<3> direction_to_reconstruct) const {
   reconstruct_fd_neighbor_work<prim_tags_for_reconstruction>(
       vars_on_face,
       [](const auto tensor_component_on_face_ptr,
          const auto& tensor_component_volume,
-         const auto& tensor_component_neighbor,
-         const Index<Dim>& subcell_extents,
-         const Index<Dim>& ghost_data_extents,
-         const Direction<Dim>& local_direction_to_reconstruct) {
+         const auto& tensor_component_neighbor, const Index<3>& subcell_extents,
+         const Index<3>& ghost_data_extents,
+         const Direction<3>& local_direction_to_reconstruct) {
         ::fd::reconstruction::reconstruct_neighbor<
             Side::Lower,
             ::fd::reconstruction::detail::MonotonisedCentralReconstructor>(
@@ -96,10 +84,9 @@ void MonotonisedCentralPrim<Dim>::reconstruct_fd_neighbor(
       },
       [](const auto tensor_component_on_face_ptr,
          const auto& tensor_component_volume,
-         const auto& tensor_component_neighbor,
-         const Index<Dim>& subcell_extents,
-         const Index<Dim>& ghost_data_extents,
-         const Direction<Dim>& local_direction_to_reconstruct) {
+         const auto& tensor_component_neighbor, const Index<3>& subcell_extents,
+         const Index<3>& ghost_data_extents,
+         const Direction<3>& local_direction_to_reconstruct) {
         ::fd::reconstruction::reconstruct_neighbor<
             Side::Upper,
             ::fd::reconstruction::detail::MonotonisedCentralReconstructor>(
@@ -111,66 +98,58 @@ void MonotonisedCentralPrim<Dim>::reconstruct_fd_neighbor(
       direction_to_reconstruct, ghost_zone_size(), true);
 }
 
-#define DIM(data) BOOST_PP_TUPLE_ELEM(0, data)
-#define TAGS_LIST(data)                                                   \
-  tmpl::list<Tags::MassDensityCons, Tags::MomentumDensity<DIM(data)>,     \
-             Tags::EnergyDensity, Tags::MagneticFieldCons<DIM(data)>,     \
-             Tags::DivergenceCleaningFieldCons,                           \
-             hydro::Tags::RestMassDensity<DataVector>,                    \
-             hydro::Tags::SpatialVelocity<DataVector, DIM(data)>,         \
-             hydro::Tags::SpecificInternalEnergy<DataVector>,             \
-             hydro::Tags::Pressure<DataVector>,                           \
-             hydro::Tags::MagneticField<DataVector, DIM(data)>,           \
-             hydro::Tags::DivergenceCleaningField<DataVector>,            \
-             ::Tags::Flux<Tags::MassDensityCons, tmpl::size_t<DIM(data)>, \
-                          Frame::Inertial>,                               \
-             ::Tags::Flux<Tags::MomentumDensity<DIM(data)>,               \
-                          tmpl::size_t<DIM(data)>, Frame::Inertial>,      \
-             ::Tags::Flux<Tags::EnergyDensity, tmpl::size_t<DIM(data)>,   \
-                          Frame::Inertial>,                               \
-             ::Tags::Flux<Tags::MagneticFieldCons<DIM(data)>,             \
-                          tmpl::size_t<DIM(data)>, Frame::Inertial>,      \
-             ::Tags::Flux<Tags::DivergenceCleaningFieldCons,              \
-                          tmpl::size_t<DIM(data)>, Frame::Inertial>>
+#define TAGS_LIST(data)                                                        \
+  tmpl::list<                                                                  \
+      Tags::MassDensityCons, Tags::MomentumDensity<>, Tags::EnergyDensity,     \
+      Tags::MagneticFieldCons<>, Tags::DivergenceCleaningFieldCons,            \
+      hydro::Tags::RestMassDensity<DataVector>,                                \
+      hydro::Tags::SpatialVelocity<DataVector, 3>,                             \
+      hydro::Tags::SpecificInternalEnergy<DataVector>,                         \
+      hydro::Tags::Pressure<DataVector>,                                       \
+      hydro::Tags::MagneticField<DataVector, 3>,                               \
+      hydro::Tags::DivergenceCleaningField<DataVector>,                        \
+      ::Tags::Flux<Tags::MassDensityCons, tmpl::size_t<3>, Frame::Inertial>,   \
+      ::Tags::Flux<Tags::MomentumDensity<>, tmpl::size_t<3>, Frame::Inertial>, \
+      ::Tags::Flux<Tags::EnergyDensity, tmpl::size_t<3>, Frame::Inertial>,     \
+      ::Tags::Flux<Tags::MagneticFieldCons<>, tmpl::size_t<3>,                 \
+                   Frame::Inertial>,                                           \
+      ::Tags::Flux<Tags::DivergenceCleaningFieldCons, tmpl::size_t<3>,         \
+                   Frame::Inertial>>
 
 #define TAGS_LIST_BACKGROUND(data) \
-  tmpl::push_back<TAGS_LIST(data), Tags::BackgroundMagneticField<DIM(data)>>
+  tmpl::push_back<TAGS_LIST(data), Tags::BackgroundMagneticField<>>
 
-#define INSTANTIATION(r, data) template class MonotonisedCentralPrim<DIM(data)>;
-GENERATE_INSTANTIATIONS(INSTANTIATION, (1, 2, 3))
+#define INSTANTIATION(r, data) INSTANTIATION(~, ~)
 #undef INSTANTIATION
 
-#define INSTANTIATION_IMPL(TAGS, data)                                      \
-  template void MonotonisedCentralPrim<DIM(data)>::reconstruct(             \
-      gsl::not_null<std::array<Variables<TAGS>, DIM(data)>*>                \
-          vars_on_lower_face,                                               \
-      gsl::not_null<std::array<Variables<TAGS>, DIM(data)>*>                \
-          vars_on_upper_face,                                               \
-      const Variables<prims_tags>& volume_prims,                            \
-      const EquationsOfState::EquationOfState<false, 2>& eos,               \
-      const Element<DIM(data)>& element,                                    \
-      const DirectionalIdMap<DIM(data), evolution::dg::subcell::GhostData>& \
-          ghost_data,                                                       \
-      const Mesh<DIM(data)>& subcell_mesh) const;                           \
-  template void MonotonisedCentralPrim<DIM(data)>::reconstruct_fd_neighbor( \
-      gsl::not_null<Variables<TAGS>*> vars_on_face,                         \
-      const Variables<prims_tags>& subcell_volume_prims,                    \
-      const EquationsOfState::EquationOfState<false, 2>& eos,               \
-      const Element<DIM(data)>& element,                                    \
-      const DirectionalIdMap<DIM(data), evolution::dg::subcell::GhostData>& \
-          ghost_data,                                                       \
-      const Mesh<DIM(data)>& subcell_mesh,                                  \
-      const Direction<DIM(data)> direction_to_reconstruct) const;
+#define INSTANTIATION_IMPL(TAGS, data)                                   \
+  template void MonotonisedCentralPrim::reconstruct(                     \
+      gsl::not_null<std::array<Variables<TAGS>, 3>*> vars_on_lower_face, \
+      gsl::not_null<std::array<Variables<TAGS>, 3>*> vars_on_upper_face, \
+      const Variables<prims_tags>& volume_prims,                         \
+      const EquationsOfState::EquationOfState<false, 2>& eos,            \
+      const Element<3>& element,                                         \
+      const DirectionalIdMap<3, evolution::dg::subcell::GhostData>&      \
+          ghost_data,                                                    \
+      const Mesh<3>& subcell_mesh) const;                                \
+  template void MonotonisedCentralPrim::reconstruct_fd_neighbor(         \
+      gsl::not_null<Variables<TAGS>*> vars_on_face,                      \
+      const Variables<prims_tags>& subcell_volume_prims,                 \
+      const EquationsOfState::EquationOfState<false, 2>& eos,            \
+      const Element<3>& element,                                         \
+      const DirectionalIdMap<3, evolution::dg::subcell::GhostData>&      \
+          ghost_data,                                                    \
+      const Mesh<3>& subcell_mesh,                                       \
+      const Direction<3> direction_to_reconstruct) const;
 
 #define INSTANTIATION(r, data)              \
   INSTANTIATION_IMPL(TAGS_LIST(data), data) \
   INSTANTIATION_IMPL(TAGS_LIST_BACKGROUND(data), data)
 
-GENERATE_INSTANTIATIONS(INSTANTIATION, (1, 2, 3))
+INSTANTIATION(~, ~)
 
 #undef INSTANTIATION
 #undef INSTANTIATION_IMPL
 #undef TAGS_LIST
 #undef TAGS_LIST_BACKGROUND
-#undef DIM
 }  // namespace NewtonianMhd::fd

@@ -51,8 +51,8 @@ namespace NewtonianMhd::BoundaryConditions {
  * solution is driven to a clean, uniform state before the boundary is reached,
  * e.g. by a damping zone.
  */
-template <size_t Dim, bool UseBackgroundMagneticField = false>
-class DemandOutgoingCharSpeeds final : public BoundaryCondition<Dim> {
+template <bool UseBackgroundMagneticField = false>
+class DemandOutgoingCharSpeeds final : public BoundaryCondition {
  public:
   using options = tmpl::list<>;
   static constexpr Options::String help{
@@ -82,31 +82,30 @@ class DemandOutgoingCharSpeeds final : public BoundaryCondition<Dim> {
   void pup(PUP::er& p) override;
 
   using dg_interior_evolved_variables_tags =
-      tmpl::list<Tags::MagneticFieldCons<Dim>>;
+      tmpl::list<Tags::MagneticFieldCons<>>;
   using dg_interior_temporary_tags =
-      background_magnetic_field_tag_list<Tags::BackgroundMagneticField<Dim>,
+      background_magnetic_field_tag_list<Tags::BackgroundMagneticField<>,
                                          UseBackgroundMagneticField>;
   using dg_interior_primitive_variables_tags =
       tmpl::list<hydro::Tags::RestMassDensity<DataVector>,
-                 hydro::Tags::SpatialVelocity<DataVector, Dim>,
+                 hydro::Tags::SpatialVelocity<DataVector, 3>,
                  hydro::Tags::SpecificInternalEnergy<DataVector>>;
   using dg_gridless_tags = tmpl::list<hydro::Tags::EquationOfState<false, 2>>;
 
   using fd_interior_evolved_variables_tags = tmpl::list<>;
-  using fd_interior_temporary_tags =
-      tmpl::append<tmpl::list<evolution::dg::subcell::Tags::Mesh<Dim>>,
-                   background_magnetic_field_tag_list<
-                       Tags::BackgroundMagneticFieldVolume<Dim>,
-                       UseBackgroundMagneticField>>;
+  using fd_interior_temporary_tags = tmpl::append<
+      tmpl::list<evolution::dg::subcell::Tags::Mesh<3>>,
+      background_magnetic_field_tag_list<Tags::BackgroundMagneticFieldVolume<>,
+                                         UseBackgroundMagneticField>>;
   using fd_interior_primitive_variables_tags =
       tmpl::list<hydro::Tags::RestMassDensity<DataVector>,
-                 hydro::Tags::SpatialVelocity<DataVector, Dim>,
+                 hydro::Tags::SpatialVelocity<DataVector, 3>,
                  hydro::Tags::SpecificInternalEnergy<DataVector>,
                  hydro::Tags::Pressure<DataVector>,
-                 hydro::Tags::MagneticField<DataVector, Dim>,
+                 hydro::Tags::MagneticField<DataVector, 3>,
                  hydro::Tags::DivergenceCleaningField<DataVector>>;
   using fd_gridless_tags = tmpl::list<hydro::Tags::EquationOfState<false, 2>,
-                                      fd::Tags::Reconstructor<Dim>>;
+                                      fd::Tags::Reconstructor>;
 
   /// \brief Copies the outermost cells into the ghost zone, after checking
   /// that no fluid characteristic enters the domain.
@@ -118,62 +117,62 @@ class DemandOutgoingCharSpeeds final : public BoundaryCondition<Dim> {
   /// requiring otherwise would reject every boundary.
   static void fd_demand_outgoing_char_speeds(
       gsl::not_null<Scalar<DataVector>*> mass_density,
-      gsl::not_null<tnsr::I<DataVector, Dim, Frame::Inertial>*> velocity,
+      gsl::not_null<tnsr::I<DataVector, 3, Frame::Inertial>*> velocity,
       gsl::not_null<Scalar<DataVector>*> pressure,
-      gsl::not_null<tnsr::I<DataVector, Dim, Frame::Inertial>*> magnetic_field,
+      gsl::not_null<tnsr::I<DataVector, 3, Frame::Inertial>*> magnetic_field,
       gsl::not_null<Scalar<DataVector>*> divergence_cleaning_field,
 
-      const Direction<Dim>& direction,
+      const Direction<3>& direction,
 
-      const std::optional<tnsr::I<DataVector, Dim, Frame::Inertial>>&
+      const std::optional<tnsr::I<DataVector, 3, Frame::Inertial>>&
           face_mesh_velocity,
-      const tnsr::i<DataVector, Dim, Frame::Inertial>&
+      const tnsr::i<DataVector, 3, Frame::Inertial>&
           outward_directed_normal_covector,
 
       // fd_interior_temporary_tags
-      const Mesh<Dim>& subcell_mesh,
-      BackgroundMagneticFieldArgument<Dim, UseBackgroundMagneticField>
+      const Mesh<3>& subcell_mesh,
+      BackgroundMagneticFieldArgument<UseBackgroundMagneticField>
           interior_background_magnetic_field,
 
       // fd_interior_primitive_variables_tags
       const Scalar<DataVector>& interior_mass_density,
-      const tnsr::I<DataVector, Dim, Frame::Inertial>& interior_velocity,
+      const tnsr::I<DataVector, 3, Frame::Inertial>& interior_velocity,
       const Scalar<DataVector>& interior_specific_internal_energy,
       const Scalar<DataVector>& interior_pressure,
-      const tnsr::I<DataVector, Dim, Frame::Inertial>& interior_magnetic_field,
+      const tnsr::I<DataVector, 3, Frame::Inertial>& interior_magnetic_field,
       const Scalar<DataVector>& interior_divergence_cleaning_field,
 
       // fd_gridless_tags
       const EquationsOfState::EquationOfState<false, 2>& equation_of_state,
-      const fd::Reconstructor<Dim>& reconstructor);
+      const fd::Reconstructor& reconstructor);
 
   /// \brief Overload selected when the background-field splitting is
   /// disabled, where `fd_interior_temporary_tags` holds no \f$B_0\f$.
   static void fd_demand_outgoing_char_speeds(
       gsl::not_null<Scalar<DataVector>*> mass_density,
-      gsl::not_null<tnsr::I<DataVector, Dim, Frame::Inertial>*> velocity,
+      gsl::not_null<tnsr::I<DataVector, 3, Frame::Inertial>*> velocity,
       gsl::not_null<Scalar<DataVector>*> pressure,
-      gsl::not_null<tnsr::I<DataVector, Dim, Frame::Inertial>*> magnetic_field,
+      gsl::not_null<tnsr::I<DataVector, 3, Frame::Inertial>*> magnetic_field,
       gsl::not_null<Scalar<DataVector>*> divergence_cleaning_field,
 
-      const Direction<Dim>& direction,
+      const Direction<3>& direction,
 
-      const std::optional<tnsr::I<DataVector, Dim, Frame::Inertial>>&
+      const std::optional<tnsr::I<DataVector, 3, Frame::Inertial>>&
           face_mesh_velocity,
-      const tnsr::i<DataVector, Dim, Frame::Inertial>&
+      const tnsr::i<DataVector, 3, Frame::Inertial>&
           outward_directed_normal_covector,
 
-      const Mesh<Dim>& subcell_mesh,
+      const Mesh<3>& subcell_mesh,
 
       const Scalar<DataVector>& interior_mass_density,
-      const tnsr::I<DataVector, Dim, Frame::Inertial>& interior_velocity,
+      const tnsr::I<DataVector, 3, Frame::Inertial>& interior_velocity,
       const Scalar<DataVector>& interior_specific_internal_energy,
       const Scalar<DataVector>& interior_pressure,
-      const tnsr::I<DataVector, Dim, Frame::Inertial>& interior_magnetic_field,
+      const tnsr::I<DataVector, 3, Frame::Inertial>& interior_magnetic_field,
       const Scalar<DataVector>& interior_divergence_cleaning_field,
 
       const EquationsOfState::EquationOfState<false, 2>& equation_of_state,
-      const fd::Reconstructor<Dim>& reconstructor);
+      const fd::Reconstructor& reconstructor);
 
   /// @{
   /// The background-field overload is selected by
@@ -182,30 +181,30 @@ class DemandOutgoingCharSpeeds final : public BoundaryCondition<Dim> {
   /// projected onto element faces.
   template <size_t ThermodynamicDim>
   static std::optional<std::string> dg_demand_outgoing_char_speeds(
-      const std::optional<tnsr::I<DataVector, Dim, Frame::Inertial>>&
+      const std::optional<tnsr::I<DataVector, 3, Frame::Inertial>>&
           face_mesh_velocity,
-      const tnsr::i<DataVector, Dim, Frame::Inertial>&
+      const tnsr::i<DataVector, 3, Frame::Inertial>&
           outward_directed_normal_covector,
 
-      const tnsr::I<DataVector, Dim, Frame::Inertial>& magnetic_field,
+      const tnsr::I<DataVector, 3, Frame::Inertial>& magnetic_field,
       const Scalar<DataVector>& mass_density,
-      const tnsr::I<DataVector, Dim, Frame::Inertial>& velocity,
+      const tnsr::I<DataVector, 3, Frame::Inertial>& velocity,
       const Scalar<DataVector>& specific_internal_energy,
       const EquationsOfState::EquationOfState<false, ThermodynamicDim>&
           equation_of_state);
 
   template <size_t ThermodynamicDim>
   static std::optional<std::string> dg_demand_outgoing_char_speeds(
-      const std::optional<tnsr::I<DataVector, Dim, Frame::Inertial>>&
+      const std::optional<tnsr::I<DataVector, 3, Frame::Inertial>>&
           face_mesh_velocity,
-      const tnsr::i<DataVector, Dim, Frame::Inertial>&
+      const tnsr::i<DataVector, 3, Frame::Inertial>&
           outward_directed_normal_covector,
 
-      const tnsr::I<DataVector, Dim, Frame::Inertial>& magnetic_field,
+      const tnsr::I<DataVector, 3, Frame::Inertial>& magnetic_field,
       const Scalar<DataVector>& mass_density,
-      const tnsr::I<DataVector, Dim, Frame::Inertial>& velocity,
+      const tnsr::I<DataVector, 3, Frame::Inertial>& velocity,
       const Scalar<DataVector>& specific_internal_energy,
-      BackgroundMagneticFieldArgument<Dim, UseBackgroundMagneticField>
+      BackgroundMagneticFieldArgument<UseBackgroundMagneticField>
           background_magnetic_field,
       const EquationsOfState::EquationOfState<false, ThermodynamicDim>&
           equation_of_state);

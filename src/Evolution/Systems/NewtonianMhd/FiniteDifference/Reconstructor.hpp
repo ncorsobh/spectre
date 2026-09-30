@@ -11,11 +11,8 @@
 
 namespace NewtonianMhd::fd {
 /// \cond
-template <size_t Dim>
 class AoWeno53Prim;
-template <size_t Dim>
 class MonotonisedCentralPrim;
-template <size_t Dim>
 class PositivityPreservingAdaptiveOrderPrim;
 /// \endcond
 
@@ -31,7 +28,6 @@ class PositivityPreservingAdaptiveOrderPrim;
  * variables. Ideally the choice of what variables to reconstruct can be made by
  * a runtime argument to the individual reconstruction schemes.
  */
-template <size_t Dim>
 class Reconstructor : public PUP::able {
  public:
   Reconstructor() = default;
@@ -43,14 +39,13 @@ class Reconstructor : public PUP::able {
 
   /// \cond
   explicit Reconstructor(CkMigrateMessage* msg);
-  WRAPPED_PUPable_abstract(Reconstructor<Dim>);  // NOLINT
+  WRAPPED_PUPable_abstract(Reconstructor);  // NOLINT
   /// \endcond
 
-  using creatable_classes =
-      tmpl::list<AoWeno53Prim<Dim>, MonotonisedCentralPrim<Dim>,
-                 PositivityPreservingAdaptiveOrderPrim<Dim>>;
+  using creatable_classes = tmpl::list<AoWeno53Prim, MonotonisedCentralPrim,
+                                       PositivityPreservingAdaptiveOrderPrim>;
 
-  virtual std::unique_ptr<Reconstructor<Dim>> get_clone() const = 0;
+  virtual std::unique_ptr<Reconstructor> get_clone() const = 0;
 
   virtual size_t ghost_zone_size() const = 0;
 

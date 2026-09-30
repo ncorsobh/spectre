@@ -13,26 +13,25 @@
 
 namespace NewtonianMhd {
 
-template <size_t Dim>
 template <size_t ThermodynamicDim>
-void PrimitiveFromConservative<Dim>::apply(
+void PrimitiveFromConservative::apply(
     const gsl::not_null<Scalar<DataVector>*> mass_density,
-    const gsl::not_null<tnsr::I<DataVector, Dim>*> velocity,
+    const gsl::not_null<tnsr::I<DataVector, 3>*> velocity,
     const gsl::not_null<Scalar<DataVector>*> specific_internal_energy,
     const gsl::not_null<Scalar<DataVector>*> pressure,
-    const gsl::not_null<tnsr::I<DataVector, Dim>*> magnetic_field,
+    const gsl::not_null<tnsr::I<DataVector, 3>*> magnetic_field,
     const gsl::not_null<Scalar<DataVector>*> divergence_cleaning_field,
     const Scalar<DataVector>& mass_density_cons,
-    const tnsr::I<DataVector, Dim>& momentum_density,
+    const tnsr::I<DataVector, 3>& momentum_density,
     const Scalar<DataVector>& energy_density,
-    const tnsr::I<DataVector, Dim>& magnetic_field_cons,
+    const tnsr::I<DataVector, 3>& magnetic_field_cons,
     const Scalar<DataVector>& divergence_cleaning_field_cons,
     const EquationsOfState::EquationOfState<false, ThermodynamicDim>&
         equation_of_state) {
   get(*mass_density) = get(mass_density_cons);
 
   // Copy B1 and psi (identity mapping in Newtonian MHD).
-  for (size_t i = 0; i < Dim; ++i) {
+  for (size_t i = 0; i < 3; ++i) {
     magnetic_field->get(i) = magnetic_field_cons.get(i);
   }
   get(*divergence_cleaning_field) = get(divergence_cleaning_field_cons);
@@ -41,7 +40,7 @@ void PrimitiveFromConservative<Dim>::apply(
   // slot to hold inverse mass density during the loop to avoid an extra
   // allocation.
   get(*specific_internal_energy) = 1.0 / get(mass_density_cons);
-  for (size_t i = 0; i < Dim; ++i) {
+  for (size_t i = 0; i < 3; ++i) {
     velocity->get(i) = momentum_density.get(i) * get(*specific_internal_energy);
   }
 
@@ -62,36 +61,32 @@ void PrimitiveFromConservative<Dim>::apply(
 
 }  // namespace NewtonianMhd
 
-#define DIM(data) BOOST_PP_TUPLE_ELEM(0, data)
+#define INSTANTIATION(_, data)
 
-#define INSTANTIATION(_, data) \
-  template struct NewtonianMhd::PrimitiveFromConservative<DIM(data)>;
-
-GENERATE_INSTANTIATIONS(INSTANTIATION, (1, 2, 3))
+INSTANTIATION(~, ~)
 
 #undef INSTANTIATION
 
-#define THERMO_DIM(data) BOOST_PP_TUPLE_ELEM(1, data)
+#define THERMO_DIM(data) BOOST_PP_TUPLE_ELEM(0, data)
 
-#define INSTANTIATION(_, data)                                                 \
-  template void                                                                \
-  NewtonianMhd::PrimitiveFromConservative<DIM(data)>::apply<THERMO_DIM(data)>( \
-      const gsl::not_null<Scalar<DataVector>*> mass_density,                   \
-      const gsl::not_null<tnsr::I<DataVector, DIM(data)>*> velocity,           \
-      const gsl::not_null<Scalar<DataVector>*> specific_internal_energy,       \
-      const gsl::not_null<Scalar<DataVector>*> pressure,                       \
-      const gsl::not_null<tnsr::I<DataVector, DIM(data)>*> magnetic_field,     \
-      const gsl::not_null<Scalar<DataVector>*> divergence_cleaning_field,      \
-      const Scalar<DataVector>& mass_density_cons,                             \
-      const tnsr::I<DataVector, DIM(data)>& momentum_density,                  \
-      const Scalar<DataVector>& energy_density,                                \
-      const tnsr::I<DataVector, DIM(data)>& magnetic_field_cons,               \
-      const Scalar<DataVector>& divergence_cleaning_field_cons,                \
-      const EquationsOfState::EquationOfState<false, THERMO_DIM(data)>&        \
+#define INSTANTIATION(_, data)                                            \
+  template void                                                           \
+  NewtonianMhd::PrimitiveFromConservative::apply<THERMO_DIM(data)>(       \
+      const gsl::not_null<Scalar<DataVector>*> mass_density,              \
+      const gsl::not_null<tnsr::I<DataVector, 3>*> velocity,              \
+      const gsl::not_null<Scalar<DataVector>*> specific_internal_energy,  \
+      const gsl::not_null<Scalar<DataVector>*> pressure,                  \
+      const gsl::not_null<tnsr::I<DataVector, 3>*> magnetic_field,        \
+      const gsl::not_null<Scalar<DataVector>*> divergence_cleaning_field, \
+      const Scalar<DataVector>& mass_density_cons,                        \
+      const tnsr::I<DataVector, 3>& momentum_density,                     \
+      const Scalar<DataVector>& energy_density,                           \
+      const tnsr::I<DataVector, 3>& magnetic_field_cons,                  \
+      const Scalar<DataVector>& divergence_cleaning_field_cons,           \
+      const EquationsOfState::EquationOfState<false, THERMO_DIM(data)>&   \
           equation_of_state);
 
-GENERATE_INSTANTIATIONS(INSTANTIATION, (1, 2, 3), (1, 2))
+GENERATE_INSTANTIATIONS(INSTANTIATION, (1, 2))
 
 #undef INSTANTIATION
 #undef THERMO_DIM
-#undef DIM

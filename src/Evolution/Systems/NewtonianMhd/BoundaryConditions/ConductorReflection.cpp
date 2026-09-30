@@ -21,56 +21,56 @@
 #include "Utilities/Gsl.hpp"
 
 namespace NewtonianMhd::BoundaryConditions {
-template <size_t Dim, bool UseBackgroundMagneticField>
-ConductorReflection<Dim, UseBackgroundMagneticField>::ConductorReflection(
+template <bool UseBackgroundMagneticField>
+ConductorReflection<UseBackgroundMagneticField>::ConductorReflection(
     CkMigrateMessage* const msg)
-    : BoundaryCondition<Dim>(msg) {}
+    : BoundaryCondition(msg) {}
 
-template <size_t Dim, bool UseBackgroundMagneticField>
+template <bool UseBackgroundMagneticField>
 std::unique_ptr<domain::BoundaryConditions::BoundaryCondition>
-ConductorReflection<Dim, UseBackgroundMagneticField>::get_clone() const {
+ConductorReflection<UseBackgroundMagneticField>::get_clone() const {
   return std::make_unique<ConductorReflection>(*this);
 }
 
-template <size_t Dim, bool UseBackgroundMagneticField>
-void ConductorReflection<Dim, UseBackgroundMagneticField>::pup(PUP::er& p) {
-  BoundaryCondition<Dim>::pup(p);
+template <bool UseBackgroundMagneticField>
+void ConductorReflection<UseBackgroundMagneticField>::pup(PUP::er& p) {
+  BoundaryCondition::pup(p);
 }
 
-template <size_t Dim, bool UseBackgroundMagneticField>
+template <bool UseBackgroundMagneticField>
 std::optional<std::string>
-ConductorReflection<Dim, UseBackgroundMagneticField>::dg_ghost(
+ConductorReflection<UseBackgroundMagneticField>::dg_ghost(
     const gsl::not_null<Scalar<DataVector>*> mass_density_cons,
-    const gsl::not_null<tnsr::I<DataVector, Dim, Frame::Inertial>*>
+    const gsl::not_null<tnsr::I<DataVector, 3, Frame::Inertial>*>
         momentum_density,
     const gsl::not_null<Scalar<DataVector>*> energy_density,
-    const gsl::not_null<tnsr::I<DataVector, Dim, Frame::Inertial>*>
+    const gsl::not_null<tnsr::I<DataVector, 3, Frame::Inertial>*>
         magnetic_field_cons,
     const gsl::not_null<Scalar<DataVector>*> divergence_cleaning_field_cons,
 
-    const gsl::not_null<tnsr::I<DataVector, Dim, Frame::Inertial>*>
+    const gsl::not_null<tnsr::I<DataVector, 3, Frame::Inertial>*>
         flux_mass_density,
-    const gsl::not_null<tnsr::IJ<DataVector, Dim, Frame::Inertial>*>
+    const gsl::not_null<tnsr::IJ<DataVector, 3, Frame::Inertial>*>
         flux_momentum_density,
-    const gsl::not_null<tnsr::I<DataVector, Dim, Frame::Inertial>*>
+    const gsl::not_null<tnsr::I<DataVector, 3, Frame::Inertial>*>
         flux_energy_density,
-    const gsl::not_null<tnsr::IJ<DataVector, Dim, Frame::Inertial>*>
+    const gsl::not_null<tnsr::IJ<DataVector, 3, Frame::Inertial>*>
         flux_magnetic_field,
-    const gsl::not_null<tnsr::I<DataVector, Dim, Frame::Inertial>*>
+    const gsl::not_null<tnsr::I<DataVector, 3, Frame::Inertial>*>
         flux_divergence_cleaning_field,
 
-    const gsl::not_null<tnsr::I<DataVector, Dim, Frame::Inertial>*> velocity,
+    const gsl::not_null<tnsr::I<DataVector, 3, Frame::Inertial>*> velocity,
     const gsl::not_null<Scalar<DataVector>*> specific_internal_energy,
 
-    const std::optional<tnsr::I<DataVector, Dim, Frame::Inertial>>&
+    const std::optional<tnsr::I<DataVector, 3, Frame::Inertial>>&
         face_mesh_velocity,
-    const tnsr::i<DataVector, Dim, Frame::Inertial>&
+    const tnsr::i<DataVector, 3, Frame::Inertial>&
         outward_directed_normal_covector,
 
-    const tnsr::I<DataVector, Dim, Frame::Inertial>& interior_magnetic_field,
+    const tnsr::I<DataVector, 3, Frame::Inertial>& interior_magnetic_field,
     const Scalar<DataVector>& interior_divergence_cleaning_field,
     const Scalar<DataVector>& interior_mass_density,
-    const tnsr::I<DataVector, Dim, Frame::Inertial>& interior_velocity,
+    const tnsr::I<DataVector, 3, Frame::Inertial>& interior_velocity,
     const Scalar<DataVector>& interior_specific_internal_energy,
     const Scalar<DataVector>& interior_pressure,
     const double divergence_cleaning_speed) const {
@@ -95,49 +95,49 @@ ConductorReflection<Dim, UseBackgroundMagneticField>::dg_ghost(
   }
 }
 
-template <size_t Dim, bool UseBackgroundMagneticField>
+template <bool UseBackgroundMagneticField>
 std::optional<std::string>
-ConductorReflection<Dim, UseBackgroundMagneticField>::dg_ghost(
+ConductorReflection<UseBackgroundMagneticField>::dg_ghost(
     const gsl::not_null<Scalar<DataVector>*> mass_density_cons,
-    const gsl::not_null<tnsr::I<DataVector, Dim, Frame::Inertial>*>
+    const gsl::not_null<tnsr::I<DataVector, 3, Frame::Inertial>*>
         momentum_density,
     const gsl::not_null<Scalar<DataVector>*> energy_density,
-    const gsl::not_null<tnsr::I<DataVector, Dim, Frame::Inertial>*>
+    const gsl::not_null<tnsr::I<DataVector, 3, Frame::Inertial>*>
         magnetic_field_cons,
     const gsl::not_null<Scalar<DataVector>*> divergence_cleaning_field_cons,
 
-    const gsl::not_null<tnsr::I<DataVector, Dim, Frame::Inertial>*>
+    const gsl::not_null<tnsr::I<DataVector, 3, Frame::Inertial>*>
         flux_mass_density,
-    const gsl::not_null<tnsr::IJ<DataVector, Dim, Frame::Inertial>*>
+    const gsl::not_null<tnsr::IJ<DataVector, 3, Frame::Inertial>*>
         flux_momentum_density,
-    const gsl::not_null<tnsr::I<DataVector, Dim, Frame::Inertial>*>
+    const gsl::not_null<tnsr::I<DataVector, 3, Frame::Inertial>*>
         flux_energy_density,
-    const gsl::not_null<tnsr::IJ<DataVector, Dim, Frame::Inertial>*>
+    const gsl::not_null<tnsr::IJ<DataVector, 3, Frame::Inertial>*>
         flux_magnetic_field,
-    const gsl::not_null<tnsr::I<DataVector, Dim, Frame::Inertial>*>
+    const gsl::not_null<tnsr::I<DataVector, 3, Frame::Inertial>*>
         flux_divergence_cleaning_field,
 
-    const BackgroundMagneticFieldOutput<Dim, UseBackgroundMagneticField>
+    const BackgroundMagneticFieldOutput<UseBackgroundMagneticField>
         background_magnetic_field,
 
-    const gsl::not_null<tnsr::I<DataVector, Dim, Frame::Inertial>*> velocity,
+    const gsl::not_null<tnsr::I<DataVector, 3, Frame::Inertial>*> velocity,
     const gsl::not_null<Scalar<DataVector>*> specific_internal_energy,
 
-    const std::optional<tnsr::I<DataVector, Dim, Frame::Inertial>>&
+    const std::optional<tnsr::I<DataVector, 3, Frame::Inertial>>&
         face_mesh_velocity,
-    const tnsr::i<DataVector, Dim, Frame::Inertial>&
+    const tnsr::i<DataVector, 3, Frame::Inertial>&
         outward_directed_normal_covector,
 
-    const tnsr::I<DataVector, Dim, Frame::Inertial>& interior_magnetic_field,
+    const tnsr::I<DataVector, 3, Frame::Inertial>& interior_magnetic_field,
     const Scalar<DataVector>& interior_divergence_cleaning_field,
     const Scalar<DataVector>& interior_mass_density,
-    const tnsr::I<DataVector, Dim, Frame::Inertial>& interior_velocity,
+    const tnsr::I<DataVector, 3, Frame::Inertial>& interior_velocity,
     const Scalar<DataVector>& interior_specific_internal_energy,
     const Scalar<DataVector>& interior_pressure,
-    const BackgroundMagneticFieldArgument<Dim, UseBackgroundMagneticField>
+    const BackgroundMagneticFieldArgument<UseBackgroundMagneticField>
         interior_background_magnetic_field,
     const double divergence_cleaning_speed) const {
-  detail::reflection_dg_ghost<Dim, UseBackgroundMagneticField>(
+  detail::reflection_dg_ghost<UseBackgroundMagneticField>(
       mass_density_cons, momentum_density, energy_density, magnetic_field_cons,
       divergence_cleaning_field_cons, flux_mass_density, flux_momentum_density,
       flux_energy_density, flux_magnetic_field, flux_divergence_cleaning_field,
@@ -150,27 +150,27 @@ ConductorReflection<Dim, UseBackgroundMagneticField>::dg_ghost(
   return {};
 }
 
-template <size_t Dim, bool UseBackgroundMagneticField>
+template <bool UseBackgroundMagneticField>
 // NOLINTNEXTLINE
-PUP::able::PUP_ID
-    ConductorReflection<Dim, UseBackgroundMagneticField>::my_PUP_ID = 0;
+PUP::able::PUP_ID ConductorReflection<UseBackgroundMagneticField>::my_PUP_ID =
+    0;
 
-template <size_t Dim, bool UseBackgroundMagneticField>
-void ConductorReflection<Dim, UseBackgroundMagneticField>::fd_ghost(
+template <bool UseBackgroundMagneticField>
+void ConductorReflection<UseBackgroundMagneticField>::fd_ghost(
     const gsl::not_null<Scalar<DataVector>*> mass_density,
-    const gsl::not_null<tnsr::I<DataVector, Dim, Frame::Inertial>*> velocity,
+    const gsl::not_null<tnsr::I<DataVector, 3, Frame::Inertial>*> velocity,
     const gsl::not_null<Scalar<DataVector>*> pressure,
-    const gsl::not_null<tnsr::I<DataVector, Dim, Frame::Inertial>*>
+    const gsl::not_null<tnsr::I<DataVector, 3, Frame::Inertial>*>
         magnetic_field,
     const gsl::not_null<Scalar<DataVector>*> divergence_cleaning_field,
-    const Direction<Dim>& direction, const Mesh<Dim>& subcell_mesh,
+    const Direction<3>& direction, const Mesh<3>& subcell_mesh,
     const Scalar<DataVector>& interior_mass_density,
-    const tnsr::I<DataVector, Dim, Frame::Inertial>& interior_velocity,
+    const tnsr::I<DataVector, 3, Frame::Inertial>& interior_velocity,
     const Scalar<DataVector>& interior_pressure,
-    const tnsr::I<DataVector, Dim, Frame::Inertial>& interior_magnetic_field,
+    const tnsr::I<DataVector, 3, Frame::Inertial>& interior_magnetic_field,
     const Scalar<DataVector>& interior_divergence_cleaning_field,
-    const fd::Reconstructor<Dim>& reconstructor) const {
-  detail::reflection_fd_ghost<Dim>(
+    const fd::Reconstructor& reconstructor) const {
+  detail::reflection_fd_ghost(
       mass_density, velocity, pressure, magnetic_field,
       divergence_cleaning_field, direction, subcell_mesh, interior_mass_density,
       interior_velocity, interior_pressure, interior_magnetic_field,
@@ -178,15 +178,12 @@ void ConductorReflection<Dim, UseBackgroundMagneticField>::fd_ghost(
       true);
 }
 
-#define DIM(data) BOOST_PP_TUPLE_ELEM(0, data)
-#define USE_BG(data) BOOST_PP_TUPLE_ELEM(1, data)
+#define USE_BG(data) BOOST_PP_TUPLE_ELEM(0, data)
 
-#define INSTANTIATION(_, data) \
-  template class ConductorReflection<DIM(data), USE_BG(data)>;
+#define INSTANTIATION(_, data) template class ConductorReflection<USE_BG(data)>;
 
-GENERATE_INSTANTIATIONS(INSTANTIATION, (1, 2, 3), (true, false))
+GENERATE_INSTANTIATIONS(INSTANTIATION, (true, false))
 
 #undef INSTANTIATION
 #undef USE_BG
-#undef DIM
 }  // namespace NewtonianMhd::BoundaryConditions

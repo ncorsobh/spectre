@@ -22,10 +22,10 @@ namespace NewtonianMhd {
 
 /// %OptionTags for the Newtonian MHD system
 namespace OptionTags {
-template <size_t Dim, bool UseBackgroundMagneticField = false>
+template <bool UseBackgroundMagneticField = false>
 struct SourceTerm {
   using type = std::unique_ptr<
-      NewtonianMhd::Sources::Source<Dim, UseBackgroundMagneticField>>;
+      NewtonianMhd::Sources::Source<UseBackgroundMagneticField>>;
   static constexpr Options::String help = "The volume source term to be used.";
   using group = ::evolution::OptionTags::SystemGroup;
 };
@@ -54,9 +54,9 @@ struct MassDensityCons : db::SimpleTag {
 };
 
 /// The momentum density of the fluid.
-template <size_t Dim, typename Fr>
+template <typename Fr>
 struct MomentumDensity : db::SimpleTag {
-  using type = tnsr::I<DataVector, Dim, Fr>;
+  using type = tnsr::I<DataVector, 3, Fr>;
   static std::string name() { return Frame::prefix<Fr>() + "MomentumDensity"; }
 };
 
@@ -76,9 +76,9 @@ struct EnergyDensity : db::SimpleTag {
 /// The primitive counterpart is `hydro::Tags::MagneticField`; the two are
 /// numerically identical but must be distinct tags so that both can live in the
 /// DataBox.
-template <size_t Dim, typename Fr>
+template <typename Fr>
 struct MagneticFieldCons : db::SimpleTag {
-  using type = tnsr::I<DataVector, Dim, Fr>;
+  using type = tnsr::I<DataVector, 3, Fr>;
   static std::string name() {
     return Frame::prefix<Fr>() + "MagneticFieldCons";
   }
@@ -88,9 +88,9 @@ struct MagneticFieldCons : db::SimpleTag {
 ///
 /// Non-evolved; set once during initialization from an analytic function.  Zero
 /// when the background-field splitting is disabled.
-template <size_t Dim, typename Fr>
+template <typename Fr>
 struct BackgroundMagneticFieldVolume : db::SimpleTag {
-  using type = tnsr::I<DataVector, Dim, Fr>;
+  using type = tnsr::I<DataVector, 3, Fr>;
   static std::string name() {
     return Frame::prefix<Fr>() + "BackgroundMagneticFieldVolume";
   }
@@ -103,9 +103,9 @@ struct BackgroundMagneticFieldVolume : db::SimpleTag {
 /// every step.  The copy is what lets the DG machinery project \f$B_0\f$ onto
 /// element faces for the boundary corrections and boundary conditions, which
 /// can only see evolved variables, fluxes and time-derivative temporaries.
-template <size_t Dim, typename Fr>
+template <typename Fr>
 struct BackgroundMagneticField : db::SimpleTag {
-  using type = tnsr::I<DataVector, Dim, Fr>;
+  using type = tnsr::I<DataVector, 3, Fr>;
   static std::string name() {
     return Frame::prefix<Fr>() + "BackgroundMagneticField";
   }
@@ -137,18 +137,17 @@ struct ConstraintDampingParameter : db::SimpleTag {
 
 /// The characteristic speeds (9 in 3D: +/-c_h, v_n +/- c_f, v_n +/- c_A,
 /// v_n +/- c_slow, v_n).
-template <size_t Dim>
 struct CharacteristicSpeeds : db::SimpleTag {
-  using type = std::array<DataVector, (2 * Dim) + 3>;
+  using type = std::array<DataVector, (2 * 3) + 3>;
 };
 
 /// The source term in the evolution equations.
-template <size_t Dim, bool UseBackgroundMagneticField>
+template <bool UseBackgroundMagneticField>
 struct SourceTerm : db::SimpleTag {
   using type = std::unique_ptr<
-      NewtonianMhd::Sources::Source<Dim, UseBackgroundMagneticField>>;
+      NewtonianMhd::Sources::Source<UseBackgroundMagneticField>>;
   using option_tags =
-      tmpl::list<OptionTags::SourceTerm<Dim, UseBackgroundMagneticField>>;
+      tmpl::list<OptionTags::SourceTerm<UseBackgroundMagneticField>>;
   static constexpr bool pass_metavariables = false;
   static type create_from_options(const type& source_term) {
     return source_term->get_clone();

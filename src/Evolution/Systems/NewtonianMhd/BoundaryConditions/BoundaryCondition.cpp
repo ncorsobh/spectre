@@ -9,21 +9,15 @@
 #include "Utilities/GenerateInstantiations.hpp"
 
 namespace NewtonianMhd::BoundaryConditions {
-template <size_t Dim>
-BoundaryCondition<Dim>::BoundaryCondition(CkMigrateMessage* const msg)
+BoundaryCondition::BoundaryCondition(CkMigrateMessage* const msg)
     : domain::BoundaryConditions::BoundaryCondition(msg) {}
 
-template <size_t Dim>
-void BoundaryCondition<Dim>::pup(PUP::er& p) {
+void BoundaryCondition::pup(PUP::er& p) {
   domain::BoundaryConditions::BoundaryCondition::pup(p);
 }
 
-#define DIM(data) BOOST_PP_TUPLE_ELEM(0, data)
-
-#define INSTANTIATION(r, data) template class BoundaryCondition<DIM(data)>;
-
-GENERATE_INSTANTIATIONS(INSTANTIATION, (1, 2, 3))
+#define INSTANTIATION(r, data)
+INSTANTIATION(~, ~)
 
 #undef INSTANTIATION
-#undef DIM
 }  // namespace NewtonianMhd::BoundaryConditions

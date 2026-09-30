@@ -13,35 +13,34 @@
 
 namespace evolution::dg::Actions::detail {
 #define VOLUME_TERMS_INSTANTIATION(DIM, USE_BG, BACKGROUND_MAGNETIC_FIELD_ARG) \
-  template void                                                                \
-  volume_terms<::NewtonianMhd::TimeDerivativeTerms<DIM, USE_BG>>(              \
+  template void volume_terms<::NewtonianMhd::TimeDerivativeTerms<USE_BG>>(     \
       gsl::not_null<Variables<db::wrap_tags_in<                                \
           ::Tags::dt, typename ::NewtonianMhd::System<                         \
-                          DIM, USE_BG>::variables_tag::tags_list>>*>           \
+                          USE_BG>::variables_tag::tags_list>>*>                \
           dt_vars_ptr,                                                         \
       gsl::not_null<Variables<db::wrap_tags_in<                                \
           ::Tags::Flux,                                                        \
-          typename ::NewtonianMhd::System<DIM, USE_BG>::flux_variables,        \
+          typename ::NewtonianMhd::System<USE_BG>::flux_variables,             \
           tmpl::size_t<DIM>, Frame::Inertial>>*>                               \
           volume_fluxes,                                                       \
       gsl::not_null<Variables<db::wrap_tags_in<                                \
           ::Tags::deriv,                                                       \
-          typename ::NewtonianMhd::System<DIM, USE_BG>::gradient_variables,    \
+          typename ::NewtonianMhd::System<USE_BG>::gradient_variables,         \
           tmpl::size_t<DIM>, Frame::Inertial>>*>                               \
           partial_derivs,                                                      \
       gsl::not_null<Variables<typename ::NewtonianMhd::System<                 \
-          DIM,                                                                 \
           USE_BG>::compute_volume_time_derivative_terms::temporary_tags>*>     \
           temporaries,                                                         \
       gsl::not_null<Variables<db::wrap_tags_in<                                \
           ::Tags::div,                                                         \
           db::wrap_tags_in<                                                    \
               ::Tags::Flux,                                                    \
-              typename ::NewtonianMhd::System<DIM, USE_BG>::flux_variables,    \
+              typename ::NewtonianMhd::System<USE_BG>::flux_variables,         \
               tmpl::size_t<DIM>, Frame::Inertial>>>*>                          \
           div_fluxes,                                                          \
-      const Variables<typename ::NewtonianMhd::System<                         \
-          DIM, USE_BG>::variables_tag::tags_list>& evolved_vars,               \
+      const Variables<                                                         \
+          typename ::NewtonianMhd::System<USE_BG>::variables_tag::tags_list>&  \
+          evolved_vars,                                                        \
       const ::dg::Formulation dg_formulation, const Mesh<DIM>& mesh,           \
       [[maybe_unused]] const tnsr::I<DataVector, DIM, Frame::Inertial>&        \
           inertial_coordinates,                                                \
@@ -63,6 +62,6 @@ namespace evolution::dg::Actions::detail {
       const double& constraint_damping_parameter,                              \
       const EquationsOfState::EquationOfState<false, 2>& eos,                  \
       const tnsr::I<DataVector, DIM>& coords, const double& time,              \
-      const ::NewtonianMhd::Sources::Source<DIM, USE_BG>& source               \
+      const ::NewtonianMhd::Sources::Source<USE_BG>& source                    \
           BACKGROUND_MAGNETIC_FIELD_ARG);
 }  // namespace evolution::dg::Actions::detail

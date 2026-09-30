@@ -27,24 +27,23 @@ namespace NewtonianMhd::fd {
  * \brief Adaptive-order WENO reconstruction hybridizing orders 5 and 3. See
  * ::fd::reconstruction::aoweno_53() for details.
  */
-template <size_t Dim>
-class AoWeno53Prim : public Reconstructor<Dim> {
+class AoWeno53Prim : public Reconstructor {
  private:
   // Conservative vars tags
   using MassDensityCons = NewtonianMhd::Tags::MassDensityCons;
   using EnergyDensity = NewtonianMhd::Tags::EnergyDensity;
-  using MomentumDensity = NewtonianMhd::Tags::MomentumDensity<Dim>;
-  using MagneticFieldCons = NewtonianMhd::Tags::MagneticFieldCons<Dim>;
+  using MomentumDensity = NewtonianMhd::Tags::MomentumDensity<>;
+  using MagneticFieldCons = NewtonianMhd::Tags::MagneticFieldCons<>;
   using DivergenceCleaningFieldCons =
       NewtonianMhd::Tags::DivergenceCleaningFieldCons;
 
   // Primitive vars tags
   using MassDensity = hydro::Tags::RestMassDensity<DataVector>;
-  using Velocity = hydro::Tags::SpatialVelocity<DataVector, Dim>;
+  using Velocity = hydro::Tags::SpatialVelocity<DataVector, 3>;
   using SpecificInternalEnergy =
       hydro::Tags::SpecificInternalEnergy<DataVector>;
   using Pressure = hydro::Tags::Pressure<DataVector>;
-  using MagneticField = hydro::Tags::MagneticField<DataVector, Dim>;
+  using MagneticField = hydro::Tags::MagneticField<DataVector, 3>;
   using DivergenceCleaningField =
       hydro::Tags::DivergenceCleaningField<DataVector>;
 
@@ -53,7 +52,7 @@ class AoWeno53Prim : public Reconstructor<Dim> {
                  MagneticField, DivergenceCleaningField>;
   using cons_tags = tmpl::list<MassDensityCons, MomentumDensity, EnergyDensity,
                                MagneticFieldCons, DivergenceCleaningFieldCons>;
-  using flux_tags = db::wrap_tags_in<::Tags::Flux, cons_tags, tmpl::size_t<Dim>,
+  using flux_tags = db::wrap_tags_in<::Tags::Flux, cons_tags, tmpl::size_t<3>,
                                      Frame::Inertial>;
   // The background field B0 is smooth by construction and is not limited, so
   // only the evolved perturbation is reconstructed.
@@ -102,9 +101,9 @@ class AoWeno53Prim : public Reconstructor<Dim> {
 
   explicit AoWeno53Prim(CkMigrateMessage* msg);
 
-  WRAPPED_PUPable_decl_base_template(Reconstructor<Dim>, AoWeno53Prim);
+  WRAPPED_PUPable_decl_base_template(Reconstructor, AoWeno53Prim);
 
-  auto get_clone() const -> std::unique_ptr<Reconstructor<Dim>> override;
+  auto get_clone() const -> std::unique_ptr<Reconstructor> override;
 
   void pup(PUP::er& p) override;
 
@@ -113,20 +112,19 @@ class AoWeno53Prim : public Reconstructor<Dim> {
   using reconstruction_argument_tags =
       tmpl::list<::Tags::Variables<prims_tags>,
                  hydro::Tags::EquationOfState<false, 2>,
-                 domain::Tags::Element<Dim>,
-                 evolution::dg::subcell::Tags::GhostDataForReconstruction<Dim>,
-                 evolution::dg::subcell::Tags::Mesh<Dim>>;
+                 domain::Tags::Element<3>,
+                 evolution::dg::subcell::Tags::GhostDataForReconstruction<3>,
+                 evolution::dg::subcell::Tags::Mesh<3>>;
 
   template <typename TagsList>
   void reconstruct(
-      gsl::not_null<std::array<Variables<TagsList>, Dim>*> vars_on_lower_face,
-      gsl::not_null<std::array<Variables<TagsList>, Dim>*> vars_on_upper_face,
+      gsl::not_null<std::array<Variables<TagsList>, 3>*> vars_on_lower_face,
+      gsl::not_null<std::array<Variables<TagsList>, 3>*> vars_on_upper_face,
       const Variables<prims_tags>& volume_prims,
       const EquationsOfState::EquationOfState<false, 2>& eos,
-      const Element<Dim>& element,
-      const DirectionalIdMap<Dim, evolution::dg::subcell::GhostData>&
-          ghost_data,
-      const Mesh<Dim>& subcell_mesh) const;
+      const Element<3>& element,
+      const DirectionalIdMap<3, evolution::dg::subcell::GhostData>& ghost_data,
+      const Mesh<3>& subcell_mesh) const;
 
   /// Called by an element doing DG when the neighbor is doing subcell.
   template <typename TagsList>
@@ -134,42 +132,38 @@ class AoWeno53Prim : public Reconstructor<Dim> {
       gsl::not_null<Variables<TagsList>*> vars_on_face,
       const Variables<prims_tags>& subcell_volume_prims,
       const EquationsOfState::EquationOfState<false, 2>& eos,
-      const Element<Dim>& element,
-      const DirectionalIdMap<Dim, evolution::dg::subcell::GhostData>&
-          ghost_data,
-      const Mesh<Dim>& subcell_mesh,
-      const Direction<Dim> direction_to_reconstruct) const;
+      const Element<3>& element,
+      const DirectionalIdMap<3, evolution::dg::subcell::GhostData>& ghost_data,
+      const Mesh<3>& subcell_mesh,
+      const Direction<3> direction_to_reconstruct) const;
 
  private:
-  template <size_t LocalDim>
   // NOLINTNEXTLINE(readability-redundant-declaration)
-  friend bool operator==(const AoWeno53Prim<LocalDim>& lhs,
-                         const AoWeno53Prim<LocalDim>& rhs);
+  friend bool operator==(const AoWeno53Prim& lhs, const AoWeno53Prim& rhs);
 
   double gamma_hi_ = std::numeric_limits<double>::signaling_NaN();
   double gamma_lo_ = std::numeric_limits<double>::signaling_NaN();
   double epsilon_ = std::numeric_limits<double>::signaling_NaN();
   size_t nonlinear_weight_exponent_ = 0;
 
-  void (*reconstruct_)(gsl::not_null<std::array<gsl::span<double>, Dim>*>,
-                       gsl::not_null<std::array<gsl::span<double>, Dim>*>,
+  void (*reconstruct_)(gsl::not_null<std::array<gsl::span<double>, 3>*>,
+                       gsl::not_null<std::array<gsl::span<double>, 3>*>,
                        const gsl::span<const double>&,
-                       const DirectionMap<Dim, gsl::span<const double>>&,
-                       const Index<Dim>&, size_t, double, double, double);
+                       const DirectionMap<3, gsl::span<const double>>&,
+                       const Index<3>&, size_t, double, double, double);
   void (*reconstruct_lower_neighbor_)(gsl::not_null<DataVector*>,
                                       const DataVector&, const DataVector&,
-                                      const Index<Dim>&, const Index<Dim>&,
-                                      const Direction<Dim>&, const double&,
+                                      const Index<3>&, const Index<3>&,
+                                      const Direction<3>&, const double&,
                                       const double&, const double&);
   void (*reconstruct_upper_neighbor_)(gsl::not_null<DataVector*>,
                                       const DataVector&, const DataVector&,
-                                      const Index<Dim>&, const Index<Dim>&,
-                                      const Direction<Dim>&, const double&,
+                                      const Index<3>&, const Index<3>&,
+                                      const Direction<3>&, const double&,
                                       const double&, const double&);
 };
 
-template <size_t Dim>
-bool operator!=(const AoWeno53Prim<Dim>& lhs, const AoWeno53Prim<Dim>& rhs) {
+inline bool operator!=(const AoWeno53Prim& lhs, const AoWeno53Prim& rhs) {
   return not(lhs == rhs);
 }
 }  // namespace NewtonianMhd::fd

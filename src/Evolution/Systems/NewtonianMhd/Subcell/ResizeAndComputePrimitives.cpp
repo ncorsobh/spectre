@@ -17,18 +17,17 @@
 #include "Utilities/TMPL.hpp"
 
 namespace NewtonianMhd::subcell {
-template <size_t Dim>
-void ResizeAndComputePrims<Dim>::apply(
+void ResizeAndComputePrims::apply(
     const gsl::not_null<Variables<
         tmpl::list<MassDensity, Velocity, SpecificInternalEnergy, Pressure,
                    MagneticField, DivergenceCleaningField>>*>
         prim_vars,
     const evolution::dg::subcell::ActiveGrid active_grid,
-    const Mesh<Dim>& dg_mesh, const Mesh<Dim>& subcell_mesh,
+    const Mesh<3>& dg_mesh, const Mesh<3>& subcell_mesh,
     const Scalar<DataVector>& mass_density_cons,
-    const tnsr::I<DataVector, Dim>& momentum_density,
+    const tnsr::I<DataVector, 3>& momentum_density,
     const Scalar<DataVector>& energy_density,
-    const tnsr::I<DataVector, Dim>& magnetic_field_cons,
+    const tnsr::I<DataVector, 3>& magnetic_field_cons,
     const Scalar<DataVector>& divergence_cleaning_field_cons,
     const EquationsOfState::EquationOfState<false, 2>& equation_of_state) {
   const size_t num_grid_points =
@@ -37,7 +36,7 @@ void ResizeAndComputePrims<Dim>::apply(
           .number_of_grid_points();
   if (prim_vars->number_of_grid_points() != num_grid_points) {
     prim_vars->initialize(num_grid_points);
-    NewtonianMhd::PrimitiveFromConservative<Dim>::apply(
+    NewtonianMhd::PrimitiveFromConservative::apply(
         make_not_null(&get<MassDensity>(*prim_vars)),
         make_not_null(&get<Velocity>(*prim_vars)),
         make_not_null(&get<SpecificInternalEnergy>(*prim_vars)),
@@ -49,9 +48,6 @@ void ResizeAndComputePrims<Dim>::apply(
   }
 }
 
-#define DIM(data) BOOST_PP_TUPLE_ELEM(0, data)
-#define INSTANTIATION(r, data) template class ResizeAndComputePrims<DIM(data)>;
-GENERATE_INSTANTIATIONS(INSTANTIATION, (1, 2, 3))
+#define INSTANTIATION(r, data) INSTANTIATION(~, ~)
 #undef INSTANTIATION
-#undef DIM
 }  // namespace NewtonianMhd::subcell

@@ -21,8 +21,7 @@
 #include "Utilities/TMPL.hpp"
 
 namespace NewtonianMhd::subcell {
-template <size_t Dim>
-std::tuple<bool, evolution::dg::subcell::RdmpTciData> TciOnFdGrid<Dim>::apply(
+std::tuple<bool, evolution::dg::subcell::RdmpTciData> TciOnFdGrid::apply(
     const gsl::not_null<Variables<
         tmpl::list<MassDensity, Velocity, SpecificInternalEnergy, Pressure,
                    MagneticField, DivergenceCleaningField>>*>
@@ -31,14 +30,14 @@ std::tuple<bool, evolution::dg::subcell::RdmpTciData> TciOnFdGrid<Dim>::apply(
                                MagneticFieldCons, DivergenceCleaningFieldCons>>&
         subcell_vars,
     const EquationsOfState::EquationOfState<false, 2>& eos,
-    const Mesh<Dim>& dg_mesh, const Mesh<Dim>& subcell_mesh,
+    const Mesh<3>& dg_mesh, const Mesh<3>& subcell_mesh,
     const evolution::dg::subcell::RdmpTciData& past_rdmp_tci_data,
     const evolution::dg::subcell::SubcellOptions& subcell_options,
     const TciOptions& tci_options, const double persson_exponent,
     const bool need_rdmp_data_only) {
   const Scalar<DataVector>& subcell_mass_density =
       get<MassDensityCons>(subcell_vars);
-  const tnsr::I<DataVector, Dim, Frame::Inertial>& subcell_momentum_density =
+  const tnsr::I<DataVector, 3, Frame::Inertial>& subcell_momentum_density =
       get<MomentumDensity>(subcell_vars);
   const Scalar<DataVector>& subcell_energy_density =
       get<EnergyDensity>(subcell_vars);
@@ -46,11 +45,11 @@ std::tuple<bool, evolution::dg::subcell::RdmpTciData> TciOnFdGrid<Dim>::apply(
       subcell_vars, dg_mesh, subcell_mesh.extents(),
       evolution::dg::subcell::fd::ReconstructionMethod::DimByDim);
   const Scalar<DataVector>& dg_mass_density = get<MassDensityCons>(dg_vars);
-  const tnsr::I<DataVector, Dim, Frame::Inertial>& dg_momentum_density =
+  const tnsr::I<DataVector, 3, Frame::Inertial>& dg_momentum_density =
       get<MomentumDensity>(dg_vars);
   const Scalar<DataVector>& dg_energy_density = get<EnergyDensity>(dg_vars);
 
-  NewtonianMhd::PrimitiveFromConservative<Dim>::apply(
+  NewtonianMhd::PrimitiveFromConservative::apply(
       make_not_null(&get<MassDensity>(*subcell_grid_prim_vars)),
       make_not_null(&get<Velocity>(*subcell_grid_prim_vars)),
       make_not_null(&get<SpecificInternalEnergy>(*subcell_grid_prim_vars)),
@@ -63,7 +62,7 @@ std::tuple<bool, evolution::dg::subcell::RdmpTciData> TciOnFdGrid<Dim>::apply(
   Variables<tmpl::list<MassDensity, Velocity, SpecificInternalEnergy, Pressure,
                        MagneticField, DivergenceCleaningField>>
       dg_grid_prim_vars{get(dg_energy_density).size()};
-  NewtonianMhd::PrimitiveFromConservative<Dim>::apply(
+  NewtonianMhd::PrimitiveFromConservative::apply(
       make_not_null(&get<MassDensity>(dg_grid_prim_vars)),
       make_not_null(&get<Velocity>(dg_grid_prim_vars)),
       make_not_null(&get<SpecificInternalEnergy>(dg_grid_prim_vars)),
@@ -138,9 +137,6 @@ std::tuple<bool, evolution::dg::subcell::RdmpTciData> TciOnFdGrid<Dim>::apply(
   return {cell_is_troubled, std::move(rdmp_tci_data)};
 }
 
-#define DIM(data) BOOST_PP_TUPLE_ELEM(0, data)
-#define INSTANTIATION(r, data) template class TciOnFdGrid<DIM(data)>;
-GENERATE_INSTANTIATIONS(INSTANTIATION, (1, 2, 3))
+#define INSTANTIATION(r, data) INSTANTIATION(~, ~)
 #undef INSTANTIATION
-#undef DIM
 }  // namespace NewtonianMhd::subcell

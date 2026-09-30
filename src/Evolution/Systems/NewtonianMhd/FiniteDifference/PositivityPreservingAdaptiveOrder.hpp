@@ -73,22 +73,21 @@ namespace NewtonianMhd::fd {
  * divergence-cleaning field take either sign, so they use the plain
  * adaptive-order scheme.
  */
-template <size_t Dim>
-class PositivityPreservingAdaptiveOrderPrim : public Reconstructor<Dim> {
+class PositivityPreservingAdaptiveOrderPrim : public Reconstructor {
  private:
   using MassDensityCons = NewtonianMhd::Tags::MassDensityCons;
   using EnergyDensity = NewtonianMhd::Tags::EnergyDensity;
-  using MomentumDensity = NewtonianMhd::Tags::MomentumDensity<Dim>;
-  using MagneticFieldCons = NewtonianMhd::Tags::MagneticFieldCons<Dim>;
+  using MomentumDensity = NewtonianMhd::Tags::MomentumDensity<>;
+  using MagneticFieldCons = NewtonianMhd::Tags::MagneticFieldCons<>;
   using DivergenceCleaningFieldCons =
       NewtonianMhd::Tags::DivergenceCleaningFieldCons;
 
   using MassDensity = hydro::Tags::RestMassDensity<DataVector>;
-  using Velocity = hydro::Tags::SpatialVelocity<DataVector, Dim>;
+  using Velocity = hydro::Tags::SpatialVelocity<DataVector, 3>;
   using SpecificInternalEnergy =
       hydro::Tags::SpecificInternalEnergy<DataVector>;
   using Pressure = hydro::Tags::Pressure<DataVector>;
-  using MagneticField = hydro::Tags::MagneticField<DataVector, Dim>;
+  using MagneticField = hydro::Tags::MagneticField<DataVector, 3>;
   using DivergenceCleaningField =
       hydro::Tags::DivergenceCleaningField<DataVector>;
 
@@ -160,10 +159,10 @@ class PositivityPreservingAdaptiveOrderPrim : public Reconstructor<Dim> {
 
   explicit PositivityPreservingAdaptiveOrderPrim(CkMigrateMessage* msg);
 
-  WRAPPED_PUPable_decl_base_template(Reconstructor<Dim>,
+  WRAPPED_PUPable_decl_base_template(Reconstructor,
                                      PositivityPreservingAdaptiveOrderPrim);
 
-  auto get_clone() const -> std::unique_ptr<Reconstructor<Dim>> override;
+  auto get_clone() const -> std::unique_ptr<Reconstructor> override;
 
   void pup(PUP::er& p) override;
 
@@ -177,20 +176,19 @@ class PositivityPreservingAdaptiveOrderPrim : public Reconstructor<Dim> {
   using reconstruction_argument_tags =
       tmpl::list<::Tags::Variables<prims_tags>,
                  hydro::Tags::EquationOfState<false, 2>,
-                 domain::Tags::Element<Dim>,
-                 evolution::dg::subcell::Tags::GhostDataForReconstruction<Dim>,
-                 evolution::dg::subcell::Tags::Mesh<Dim>>;
+                 domain::Tags::Element<3>,
+                 evolution::dg::subcell::Tags::GhostDataForReconstruction<3>,
+                 evolution::dg::subcell::Tags::Mesh<3>>;
 
   template <typename TagsList>
   void reconstruct(
-      gsl::not_null<std::array<Variables<TagsList>, Dim>*> vars_on_lower_face,
-      gsl::not_null<std::array<Variables<TagsList>, Dim>*> vars_on_upper_face,
+      gsl::not_null<std::array<Variables<TagsList>, 3>*> vars_on_lower_face,
+      gsl::not_null<std::array<Variables<TagsList>, 3>*> vars_on_upper_face,
       const Variables<prims_tags>& volume_prims,
       const EquationsOfState::EquationOfState<false, 2>& eos,
-      const Element<Dim>& element,
-      const DirectionalIdMap<Dim, evolution::dg::subcell::GhostData>&
-          ghost_data,
-      const Mesh<Dim>& subcell_mesh) const;
+      const Element<3>& element,
+      const DirectionalIdMap<3, evolution::dg::subcell::GhostData>& ghost_data,
+      const Mesh<3>& subcell_mesh) const;
 
   /// Called by an element doing DG when the neighbor is doing subcell.
   template <typename TagsList>
@@ -198,18 +196,14 @@ class PositivityPreservingAdaptiveOrderPrim : public Reconstructor<Dim> {
       gsl::not_null<Variables<TagsList>*> vars_on_face,
       const Variables<prims_tags>& subcell_volume_prims,
       const EquationsOfState::EquationOfState<false, 2>& eos,
-      const Element<Dim>& element,
-      const DirectionalIdMap<Dim, evolution::dg::subcell::GhostData>&
-          ghost_data,
-      const Mesh<Dim>& subcell_mesh,
-      Direction<Dim> direction_to_reconstruct) const;
+      const Element<3>& element,
+      const DirectionalIdMap<3, evolution::dg::subcell::GhostData>& ghost_data,
+      const Mesh<3>& subcell_mesh, Direction<3> direction_to_reconstruct) const;
 
  private:
-  template <size_t LocalDim>
   // NOLINTNEXTLINE(readability-redundant-declaration)
-  friend bool operator==(
-      const PositivityPreservingAdaptiveOrderPrim<LocalDim>& lhs,
-      const PositivityPreservingAdaptiveOrderPrim<LocalDim>& rhs);
+  friend bool operator==(const PositivityPreservingAdaptiveOrderPrim& lhs,
+                         const PositivityPreservingAdaptiveOrderPrim& rhs);
 
   void set_function_pointers();
 
@@ -220,18 +214,18 @@ class PositivityPreservingAdaptiveOrderPrim : public Reconstructor<Dim> {
       FallbackReconstructorType::None;
 
   using PointerRecons =
-      void (*)(gsl::not_null<std::array<gsl::span<double>, Dim>*>,
-               gsl::not_null<std::array<gsl::span<double>, Dim>*>,
+      void (*)(gsl::not_null<std::array<gsl::span<double>, 3>*>,
+               gsl::not_null<std::array<gsl::span<double>, 3>*>,
                const gsl::span<const double>&,
-               const DirectionMap<Dim, gsl::span<const double>>&,
-               const Index<Dim>&, size_t, double, double, double);
+               const DirectionMap<3, gsl::span<const double>>&, const Index<3>&,
+               size_t, double, double, double);
   PointerRecons reconstruct_ = nullptr;
   PointerRecons pp_reconstruct_ = nullptr;
 
   using PointerNeighbor = void (*)(gsl::not_null<DataVector*>,
                                    const DataVector&, const DataVector&,
-                                   const Index<Dim>&, const Index<Dim>&,
-                                   const Direction<Dim>&, const double&,
+                                   const Index<3>&, const Index<3>&,
+                                   const Direction<3>&, const double&,
                                    const double&, const double&);
   PointerNeighbor reconstruct_lower_neighbor_ = nullptr;
   PointerNeighbor reconstruct_upper_neighbor_ = nullptr;
@@ -239,7 +233,6 @@ class PositivityPreservingAdaptiveOrderPrim : public Reconstructor<Dim> {
   PointerNeighbor pp_reconstruct_upper_neighbor_ = nullptr;
 };
 
-template <size_t Dim>
-bool operator!=(const PositivityPreservingAdaptiveOrderPrim<Dim>& lhs,
-                const PositivityPreservingAdaptiveOrderPrim<Dim>& rhs);
+bool operator!=(const PositivityPreservingAdaptiveOrderPrim& lhs,
+                const PositivityPreservingAdaptiveOrderPrim& rhs);
 }  // namespace NewtonianMhd::fd

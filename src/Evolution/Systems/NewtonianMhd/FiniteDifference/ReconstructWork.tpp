@@ -28,32 +28,30 @@
 
 namespace NewtonianMhd::fd {
 template <typename TagsToReconstruct, typename PrimsTags, typename TagsList,
-          size_t Dim, typename F>
+          typename F>
 void reconstruct_prims_work(
-    const gsl::not_null<std::array<Variables<TagsList>, Dim>*>
-        vars_on_lower_face,
-    const gsl::not_null<std::array<Variables<TagsList>, Dim>*>
-        vars_on_upper_face,
+    const gsl::not_null<std::array<Variables<TagsList>, 3>*> vars_on_lower_face,
+    const gsl::not_null<std::array<Variables<TagsList>, 3>*> vars_on_upper_face,
     const F& reconstruct, const Variables<PrimsTags>& volume_prims,
     const EquationsOfState::EquationOfState<false, 2>& eos,
-    const Element<Dim>& element,
-    const DirectionalIdMap<Dim, evolution::dg::subcell::GhostData>& ghost_data,
-    const Mesh<Dim>& subcell_mesh, const size_t ghost_zone_size,
+    const Element<3>& element,
+    const DirectionalIdMap<3, evolution::dg::subcell::GhostData>& ghost_data,
+    const Mesh<3>& subcell_mesh, const size_t ghost_zone_size,
     const bool compute_conservatives) {
   // Conservative vars tags
   using MassDensityCons = Tags::MassDensityCons;
   using EnergyDensity = Tags::EnergyDensity;
-  using MomentumDensity = Tags::MomentumDensity<Dim>;
-  using MagneticFieldCons = Tags::MagneticFieldCons<Dim>;
+  using MomentumDensity = Tags::MomentumDensity<>;
+  using MagneticFieldCons = Tags::MagneticFieldCons<>;
   using DivergenceCleaningFieldCons = Tags::DivergenceCleaningFieldCons;
 
   // Primitive vars tags
   using MassDensity = hydro::Tags::RestMassDensity<DataVector>;
-  using Velocity = hydro::Tags::SpatialVelocity<DataVector, Dim>;
+  using Velocity = hydro::Tags::SpatialVelocity<DataVector, 3>;
   using SpecificInternalEnergy =
       hydro::Tags::SpecificInternalEnergy<DataVector>;
   using Pressure = hydro::Tags::Pressure<DataVector>;
-  using MagneticField = hydro::Tags::MagneticField<DataVector, Dim>;
+  using MagneticField = hydro::Tags::MagneticField<DataVector, 3>;
   using DivergenceCleaningField =
       hydro::Tags::DivergenceCleaningField<DataVector>;
 
@@ -61,8 +59,8 @@ void reconstruct_prims_work(
       tmpl::list<MassDensity, Velocity, Pressure, MagneticField,
                  DivergenceCleaningField>;
 
-  ASSERT(Mesh<Dim>(subcell_mesh.extents(0), subcell_mesh.basis(0),
-                   subcell_mesh.quadrature(0)) == subcell_mesh,
+  ASSERT(Mesh<3>(subcell_mesh.extents(0), subcell_mesh.basis(0),
+                 subcell_mesh.quadrature(0)) == subcell_mesh,
          "The subcell mesh should be isotropic but got " << subcell_mesh);
   const size_t volume_num_pts = subcell_mesh.number_of_grid_points();
   const size_t reconstructed_num_pts =
@@ -71,81 +69,80 @@ void reconstruct_prims_work(
   const size_t neighbor_num_pts =
       ghost_zone_size * subcell_mesh.extents().slice_away(0).product();
   size_t vars_in_neighbor_count = 0;
-  tmpl::for_each<prim_tags_for_reconstruction>([&element, &ghost_data,
-                                                neighbor_num_pts, &reconstruct,
-                                                reconstructed_num_pts,
-                                                volume_num_pts, &volume_prims,
-                                                &vars_in_neighbor_count,
-                                                &vars_on_lower_face,
-                                                &vars_on_upper_face,
-                                                &subcell_mesh](auto tag_v) {
-    using tag = tmpl::type_from<decltype(tag_v)>;
-    auto& volume_tensor = get<tag>(volume_prims);
+  tmpl::for_each<prim_tags_for_reconstruction>(
+      [&element, &ghost_data, neighbor_num_pts, &reconstruct,
+       reconstructed_num_pts, volume_num_pts, &volume_prims,
+       &vars_in_neighbor_count, &vars_on_lower_face, &vars_on_upper_face,
+       &subcell_mesh](auto tag_v) {
+        using tag = tmpl::type_from<decltype(tag_v)>;
+        auto& volume_tensor = get<tag>(volume_prims);
 
-    const size_t number_of_components = volume_tensor.size();
-    if constexpr (not tmpl::list_contains_v<TagsToReconstruct, tag>) {
-      // Still advance the offset: the neighbour data is packed with every
-      // reconstructed tag present, whichever subset this call handles.
-      vars_in_neighbor_count += number_of_components;
-      return;
-    } else {
-      const gsl::span<const double> volume_vars = gsl::make_span(
-          volume_tensor[0].data(), number_of_components * volume_num_pts);
-      std::array<gsl::span<double>, Dim> upper_face_vars{};
-      std::array<gsl::span<double>, Dim> lower_face_vars{};
-      for (size_t i = 0; i < Dim; ++i) {
-        gsl::at(upper_face_vars, i) =
-            gsl::make_span(get<tag>(gsl::at(*vars_on_upper_face, i))[0].data(),
-                           number_of_components * reconstructed_num_pts);
-        gsl::at(lower_face_vars, i) =
-            gsl::make_span(get<tag>(gsl::at(*vars_on_lower_face, i))[0].data(),
-                           number_of_components * reconstructed_num_pts);
-      }
-
-      DirectionMap<Dim, gsl::span<const double>> ghost_cell_vars{};
-      for (const auto& direction : Direction<Dim>::all_directions()) {
-        DirectionalId<Dim> id{};
-        if (element.neighbors().contains(direction)) {
-          const auto& neighbors_in_direction =
-              element.neighbors().at(direction);
-          ASSERT(neighbors_in_direction.size() == 1,
-                 "Currently only support one neighbor in each direction, but "
-                 "got "
-                     << neighbors_in_direction.size() << " in direction "
-                     << direction);
-          id = DirectionalId<Dim>{direction, *neighbors_in_direction.begin()};
+        const size_t number_of_components = volume_tensor.size();
+        if constexpr (not tmpl::list_contains_v<TagsToReconstruct, tag>) {
+          // Still advance the offset: the neighbour data is packed with every
+          // reconstructed tag present, whichever subset this call handles.
+          vars_in_neighbor_count += number_of_components;
+          return;
         } else {
-          ASSERT(element.external_boundaries().count(direction) == 1,
-                 "Element has neither neighbor nor external boundary to "
-                 "direction: "
-                     << direction);
-          id = DirectionalId<Dim>{direction,
-                                  ElementId<Dim>::external_boundary_id()};
+          const gsl::span<const double> volume_vars = gsl::make_span(
+              volume_tensor[0].data(), number_of_components * volume_num_pts);
+          std::array<gsl::span<double>, 3> upper_face_vars{};
+          std::array<gsl::span<double>, 3> lower_face_vars{};
+          for (size_t i = 0; i < 3; ++i) {
+            gsl::at(upper_face_vars, i) = gsl::make_span(
+                get<tag>(gsl::at(*vars_on_upper_face, i))[0].data(),
+                number_of_components * reconstructed_num_pts);
+            gsl::at(lower_face_vars, i) = gsl::make_span(
+                get<tag>(gsl::at(*vars_on_lower_face, i))[0].data(),
+                number_of_components * reconstructed_num_pts);
+          }
+
+          DirectionMap<3, gsl::span<const double>> ghost_cell_vars{};
+          for (const auto& direction : Direction<3>::all_directions()) {
+            DirectionalId<3> id{};
+            if (element.neighbors().contains(direction)) {
+              const auto& neighbors_in_direction =
+                  element.neighbors().at(direction);
+              ASSERT(
+                  neighbors_in_direction.size() == 1,
+                  "Currently only support one neighbor in each direction, but "
+                  "got "
+                      << neighbors_in_direction.size() << " in direction "
+                      << direction);
+              id = DirectionalId<3>{direction, *neighbors_in_direction.begin()};
+            } else {
+              ASSERT(element.external_boundaries().count(direction) == 1,
+                     "Element has neither neighbor nor external boundary to "
+                     "direction: "
+                         << direction);
+              id = DirectionalId<3>{direction,
+                                    ElementId<3>::external_boundary_id()};
+            }
+
+            const DataVector& neighbor_data =
+                ghost_data.at(id).neighbor_ghost_data_for_reconstruction();
+
+            ASSERT(neighbor_data.size() != 0,
+                   "The neighber data is empty in direction "
+                       << direction << " on element id " << element.id());
+            ghost_cell_vars[direction] = gsl::make_span(
+                &neighbor_data[vars_in_neighbor_count * neighbor_num_pts],
+                number_of_components * neighbor_num_pts);
+          }
+
+          reconstruct(make_not_null(&upper_face_vars),
+                      make_not_null(&lower_face_vars), volume_vars,
+                      ghost_cell_vars, subcell_mesh.extents(),
+                      number_of_components);
+
+          vars_in_neighbor_count += number_of_components;
         }
-
-        const DataVector& neighbor_data =
-            ghost_data.at(id).neighbor_ghost_data_for_reconstruction();
-
-        ASSERT(neighbor_data.size() != 0,
-               "The neighber data is empty in direction "
-                   << direction << " on element id " << element.id());
-        ghost_cell_vars[direction] = gsl::make_span(
-            &neighbor_data[vars_in_neighbor_count * neighbor_num_pts],
-            number_of_components * neighbor_num_pts);
-      }
-
-      reconstruct(make_not_null(&upper_face_vars),
-                  make_not_null(&lower_face_vars), volume_vars, ghost_cell_vars,
-                  subcell_mesh.extents(), number_of_components);
-
-      vars_in_neighbor_count += number_of_components;
-    }
-  });
+      });
 
   if (not compute_conservatives) {
     return;
   }
-  for (size_t i = 0; i < Dim; ++i) {
+  for (size_t i = 0; i < 3; ++i) {
     auto& vars_upper_face = gsl::at(*vars_on_upper_face, i);
     auto& vars_lower_face = gsl::at(*vars_on_lower_face, i);
 
@@ -157,7 +154,7 @@ void reconstruct_prims_work(
             get<MassDensity>(vars_lower_face), get<Pressure>(vars_lower_face));
 
     // Compute conserved variables on faces
-    NewtonianMhd::ConservativeFromPrimitive<Dim>::apply(
+    NewtonianMhd::ConservativeFromPrimitive::apply(
         make_not_null(&get<MassDensityCons>(vars_upper_face)),
         make_not_null(&get<MomentumDensity>(vars_upper_face)),
         make_not_null(&get<EnergyDensity>(vars_upper_face)),
@@ -167,7 +164,7 @@ void reconstruct_prims_work(
         get<SpecificInternalEnergy>(vars_upper_face),
         get<MagneticField>(vars_upper_face),
         get<DivergenceCleaningField>(vars_upper_face));
-    NewtonianMhd::ConservativeFromPrimitive<Dim>::apply(
+    NewtonianMhd::ConservativeFromPrimitive::apply(
         make_not_null(&get<MassDensityCons>(vars_lower_face)),
         make_not_null(&get<MomentumDensity>(vars_lower_face)),
         make_not_null(&get<EnergyDensity>(vars_lower_face)),
@@ -181,31 +178,30 @@ void reconstruct_prims_work(
 }
 
 template <typename TagsToReconstruct, typename TagsList, typename PrimsTags,
-          size_t Dim, typename F0, typename F1>
+          typename F0, typename F1>
 void reconstruct_fd_neighbor_work(
     const gsl::not_null<Variables<TagsList>*> vars_on_face,
     const F0& reconstruct_lower_neighbor, const F1& reconstruct_upper_neighbor,
     const Variables<PrimsTags>& subcell_volume_prims,
     const EquationsOfState::EquationOfState<false, 2>& eos,
-    const Element<Dim>& element,
-    const DirectionalIdMap<Dim, evolution::dg::subcell::GhostData>& ghost_data,
-    const Mesh<Dim>& subcell_mesh,
-    const Direction<Dim>& direction_to_reconstruct,
+    const Element<3>& element,
+    const DirectionalIdMap<3, evolution::dg::subcell::GhostData>& ghost_data,
+    const Mesh<3>& subcell_mesh, const Direction<3>& direction_to_reconstruct,
     const size_t ghost_zone_size, const bool compute_conservatives) {
   // Conservative vars tags
   using MassDensityCons = Tags::MassDensityCons;
   using EnergyDensity = Tags::EnergyDensity;
-  using MomentumDensity = Tags::MomentumDensity<Dim>;
-  using MagneticFieldCons = Tags::MagneticFieldCons<Dim>;
+  using MomentumDensity = Tags::MomentumDensity<>;
+  using MagneticFieldCons = Tags::MagneticFieldCons<>;
   using DivergenceCleaningFieldCons = Tags::DivergenceCleaningFieldCons;
 
   // Primitive vars tags
   using MassDensity = hydro::Tags::RestMassDensity<DataVector>;
-  using Velocity = hydro::Tags::SpatialVelocity<DataVector, Dim>;
+  using Velocity = hydro::Tags::SpatialVelocity<DataVector, 3>;
   using SpecificInternalEnergy =
       hydro::Tags::SpecificInternalEnergy<DataVector>;
   using Pressure = hydro::Tags::Pressure<DataVector>;
-  using MagneticField = hydro::Tags::MagneticField<DataVector, Dim>;
+  using MagneticField = hydro::Tags::MagneticField<DataVector, 3>;
   using DivergenceCleaningField =
       hydro::Tags::DivergenceCleaningField<DataVector>;
 
@@ -213,12 +209,12 @@ void reconstruct_fd_neighbor_work(
       tmpl::list<MassDensity, Velocity, Pressure, MagneticField,
                  DivergenceCleaningField>;
 
-  const DirectionalId<Dim> mortar_id{
+  const DirectionalId<3> mortar_id{
       direction_to_reconstruct,
       element.neighbors().contains(direction_to_reconstruct)
           ? *element.neighbors().at(direction_to_reconstruct).begin()
-          : ElementId<Dim>::external_boundary_id()};
-  Index<Dim> ghost_data_extents = subcell_mesh.extents();
+          : ElementId<3>::external_boundary_id()};
+  Index<3> ghost_data_extents = subcell_mesh.extents();
   ghost_data_extents[direction_to_reconstruct.dimension()] = ghost_zone_size;
   Variables<prim_tags_for_reconstruction> neighbor_prims{
       ghost_data_extents.product()};
@@ -274,7 +270,7 @@ void reconstruct_fd_neighbor_work(
   get<SpecificInternalEnergy>(*vars_on_face) =
       eos.specific_internal_energy_from_density_and_pressure(
           get<MassDensity>(*vars_on_face), get<Pressure>(*vars_on_face));
-  NewtonianMhd::ConservativeFromPrimitive<Dim>::apply(
+  NewtonianMhd::ConservativeFromPrimitive::apply(
       make_not_null(&get<MassDensityCons>(*vars_on_face)),
       make_not_null(&get<MomentumDensity>(*vars_on_face)),
       make_not_null(&get<EnergyDensity>(*vars_on_face)),

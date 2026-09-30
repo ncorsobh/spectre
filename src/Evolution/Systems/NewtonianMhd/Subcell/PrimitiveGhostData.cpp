@@ -11,9 +11,8 @@
 #include "Utilities/TMPL.hpp"
 
 namespace NewtonianMhd::subcell {
-template <size_t Dim>
-DataVector PrimitiveGhostVariables<Dim>::apply(
-    const Variables<prim_tags>& prims, const size_t rdmp_size) {
+DataVector PrimitiveGhostVariables::apply(const Variables<prim_tags>& prims,
+                                          const size_t rdmp_size) {
   DataVector buffer{
       prims.number_of_grid_points() *
           Variables<
@@ -29,10 +28,6 @@ DataVector PrimitiveGhostVariables<Dim>::apply(
   return buffer;
 }
 
-#define DIM(data) BOOST_PP_TUPLE_ELEM(0, data)
-#define INSTANTIATION(r, data) \
-  template class PrimitiveGhostVariables<DIM(data)>;
-GENERATE_INSTANTIATIONS(INSTANTIATION, (1, 2, 3))
+#define INSTANTIATION(r, data) INSTANTIATION(~, ~)
 #undef INSTANTIATION
-#undef DIM
 }  // namespace NewtonianMhd::subcell

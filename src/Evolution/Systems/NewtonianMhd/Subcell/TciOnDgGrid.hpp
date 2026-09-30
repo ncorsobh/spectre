@@ -56,22 +56,21 @@ namespace NewtonianMhd::subcell {
  *   structure such as a current sheet can occur where the fluid variables are
  *   smooth, so without this check those cells would stay on DG.
  */
-template <size_t Dim>
 class TciOnDgGrid {
  private:
   using MassDensityCons = NewtonianMhd::Tags::MassDensityCons;
   using EnergyDensity = NewtonianMhd::Tags::EnergyDensity;
-  using MomentumDensity = NewtonianMhd::Tags::MomentumDensity<Dim>;
-  using MagneticFieldCons = NewtonianMhd::Tags::MagneticFieldCons<Dim>;
+  using MomentumDensity = NewtonianMhd::Tags::MomentumDensity<>;
+  using MagneticFieldCons = NewtonianMhd::Tags::MagneticFieldCons<>;
   using DivergenceCleaningFieldCons =
       NewtonianMhd::Tags::DivergenceCleaningFieldCons;
 
   using MassDensity = hydro::Tags::RestMassDensity<DataVector>;
-  using Velocity = hydro::Tags::SpatialVelocity<DataVector, Dim>;
+  using Velocity = hydro::Tags::SpatialVelocity<DataVector, 3>;
   using SpecificInternalEnergy =
       hydro::Tags::SpecificInternalEnergy<DataVector>;
   using Pressure = hydro::Tags::Pressure<DataVector>;
-  using MagneticField = hydro::Tags::MagneticField<DataVector, Dim>;
+  using MagneticField = hydro::Tags::MagneticField<DataVector, 3>;
   using DivergenceCleaningField =
       hydro::Tags::DivergenceCleaningField<DataVector>;
 
@@ -79,15 +78,15 @@ class TciOnDgGrid {
   using return_tags = tmpl::list<::Tags::Variables<
       tmpl::list<MassDensity, Velocity, SpecificInternalEnergy, Pressure,
                  MagneticField, DivergenceCleaningField>>>;
-  using argument_tags = tmpl::list<
-      ::Tags::Variables<
-          tmpl::list<MassDensityCons, MomentumDensity, EnergyDensity,
-                     MagneticFieldCons, DivergenceCleaningFieldCons>>,
-      hydro::Tags::EquationOfState<false, 2>, domain::Tags::Mesh<Dim>,
-      evolution::dg::subcell::Tags::Mesh<Dim>,
-      evolution::dg::subcell::Tags::DataForRdmpTci,
-      evolution::dg::subcell::Tags::SubcellOptions<Dim>,
-      NewtonianMhd::subcell::Tags::TciOptions>;
+  using argument_tags =
+      tmpl::list<::Tags::Variables<tmpl::list<MassDensityCons, MomentumDensity,
+                                              EnergyDensity, MagneticFieldCons,
+                                              DivergenceCleaningFieldCons>>,
+                 hydro::Tags::EquationOfState<false, 2>, domain::Tags::Mesh<3>,
+                 evolution::dg::subcell::Tags::Mesh<3>,
+                 evolution::dg::subcell::Tags::DataForRdmpTci,
+                 evolution::dg::subcell::Tags::SubcellOptions<3>,
+                 NewtonianMhd::subcell::Tags::TciOptions>;
 
   static std::tuple<bool, evolution::dg::subcell::RdmpTciData> apply(
       gsl::not_null<Variables<
@@ -98,7 +97,7 @@ class TciOnDgGrid {
           tmpl::list<MassDensityCons, MomentumDensity, EnergyDensity,
                      MagneticFieldCons, DivergenceCleaningFieldCons>>& dg_vars,
       const EquationsOfState::EquationOfState<false, 2>& eos,
-      const Mesh<Dim>& dg_mesh, const Mesh<Dim>& subcell_mesh,
+      const Mesh<3>& dg_mesh, const Mesh<3>& subcell_mesh,
       const evolution::dg::subcell::RdmpTciData& past_rdmp_tci_data,
       const evolution::dg::subcell::SubcellOptions& subcell_options,
       const TciOptions& tci_options, double persson_exponent,

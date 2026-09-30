@@ -38,7 +38,7 @@ Fluxes3D compute_fluxes(const tnsr::I<DataVector, 3>& momentum_density,
       .energy_density = tnsr::I<DataVector, 3>(num_points),
       .magnetic_field = tnsr::IJ<DataVector, 3>(num_points),
       .divergence_cleaning_field = tnsr::I<DataVector, 3>(num_points)};
-  NewtonianMhd::ComputeFluxes<3, true>::apply(
+  NewtonianMhd::ComputeFluxes<true>::apply(
       make_not_null(&result.mass_density),
       make_not_null(&result.momentum_density),
       make_not_null(&result.energy_density),

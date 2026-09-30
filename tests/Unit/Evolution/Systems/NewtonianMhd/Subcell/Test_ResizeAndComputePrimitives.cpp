@@ -31,23 +31,22 @@
 #include "PointwiseFunctions/Hydro/Tags.hpp"
 
 namespace {
-template <size_t Dim>
 void test(const gsl::not_null<std::mt19937*> gen,
           const gsl::not_null<std::uniform_real_distribution<>*> dist,
           const evolution::dg::subcell::ActiveGrid active_grid) {
   using MassDensityCons = NewtonianMhd::Tags::MassDensityCons;
   using EnergyDensity = NewtonianMhd::Tags::EnergyDensity;
-  using MomentumDensity = NewtonianMhd::Tags::MomentumDensity<Dim>;
-  using MagneticFieldCons = NewtonianMhd::Tags::MagneticFieldCons<Dim>;
+  using MomentumDensity = NewtonianMhd::Tags::MomentumDensity<>;
+  using MagneticFieldCons = NewtonianMhd::Tags::MagneticFieldCons<>;
   using DivergenceCleaningFieldCons =
       NewtonianMhd::Tags::DivergenceCleaningFieldCons;
 
   using MassDensity = hydro::Tags::RestMassDensity<DataVector>;
-  using Velocity = hydro::Tags::SpatialVelocity<DataVector, Dim>;
+  using Velocity = hydro::Tags::SpatialVelocity<DataVector, 3>;
   using SpecificInternalEnergy =
       hydro::Tags::SpecificInternalEnergy<DataVector>;
   using Pressure = hydro::Tags::Pressure<DataVector>;
-  using MagneticField = hydro::Tags::MagneticField<DataVector, Dim>;
+  using MagneticField = hydro::Tags::MagneticField<DataVector, 3>;
   using DivergenceCleaningField =
       hydro::Tags::DivergenceCleaningField<DataVector>;
 
@@ -59,9 +58,9 @@ void test(const gsl::not_null<std::mt19937*> gen,
                  MagneticField, DivergenceCleaningField>;
   using PrimVars = Variables<prim_tags>;
 
-  const Mesh<Dim> dg_mesh{5, Spectral::Basis::Legendre,
-                          Spectral::Quadrature::GaussLobatto};
-  const Mesh<Dim> subcell_mesh = evolution::dg::subcell::fd::mesh(dg_mesh);
+  const Mesh<3> dg_mesh{5, Spectral::Basis::Legendre,
+                        Spectral::Quadrature::GaussLobatto};
+  const Mesh<3> subcell_mesh = evolution::dg::subcell::fd::mesh(dg_mesh);
 
   auto cons_vars = make_with_random_values<ConsVars>(
       gen, dist,
@@ -79,19 +78,19 @@ void test(const gsl::not_null<std::mt19937*> gen,
 
   auto box = db::create<db::AddSimpleTags<
       evolution::dg::subcell::Tags::ActiveGrid, ::Tags::Variables<cons_tags>,
-      ::Tags::Variables<prim_tags>, ::domain::Tags::Mesh<Dim>,
-      evolution::dg::subcell::Tags::Mesh<Dim>,
+      ::Tags::Variables<prim_tags>, ::domain::Tags::Mesh<3>,
+      evolution::dg::subcell::Tags::Mesh<3>,
       hydro::Tags::EquationOfState<false, 2>>>(
       active_grid, cons_vars, prim_vars, dg_mesh, subcell_mesh, std::move(eos));
 
-  db::mutate_apply<NewtonianMhd::subcell::ResizeAndComputePrims<Dim>>(
+  db::mutate_apply<NewtonianMhd::subcell::ResizeAndComputePrims>(
       make_not_null(&box));
 
   REQUIRE(db::get<::Tags::Variables<prim_tags>>(box).number_of_grid_points() ==
           cons_vars.number_of_grid_points());
   if (active_grid == evolution::dg::subcell::ActiveGrid::Dg) {
     prim_vars.initialize(cons_vars.number_of_grid_points());
-    NewtonianMhd::PrimitiveFromConservative<Dim>::apply(
+    NewtonianMhd::PrimitiveFromConservative::apply(
         make_not_null(&get<MassDensity>(prim_vars)),
         make_not_null(&get<Velocity>(prim_vars)),
         make_not_null(&get<SpecificInternalEnergy>(prim_vars)),
@@ -114,8 +113,6 @@ SPECTRE_TEST_CASE(
   std::uniform_real_distribution<> dist(0.1, 1.0);
   for (const auto active_grid : {evolution::dg::subcell::ActiveGrid::Dg,
                                  evolution::dg::subcell::ActiveGrid::Subcell}) {
-    test<1>(make_not_null(&gen), make_not_null(&dist), active_grid);
-    test<2>(make_not_null(&gen), make_not_null(&dist), active_grid);
-    test<3>(make_not_null(&gen), make_not_null(&dist), active_grid);
+    test(make_not_null(&gen), make_not_null(&dist), active_grid);
   }
 }

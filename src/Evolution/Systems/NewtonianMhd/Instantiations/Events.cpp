@@ -5,15 +5,12 @@
 #include "ParallelAlgorithms/Events/ObserveTimeStep.tpp"
 #include "Utilities/GenerateInstantiations.hpp"
 
-#define DIM(data) BOOST_PP_TUPLE_ELEM(0, data)
-#define USE_BG(data) BOOST_PP_TUPLE_ELEM(1, data)
+#define USE_BG(data) BOOST_PP_TUPLE_ELEM(0, data)
 
-#define INSTANTIATION(r, data)            \
-  template class Events::ObserveTimeStep< \
-      NewtonianMhd::System<DIM(data), USE_BG(data)>>;
+#define INSTANTIATION(r, data) \
+  template class Events::ObserveTimeStep<NewtonianMhd::System<USE_BG(data)>>;
 
-GENERATE_INSTANTIATIONS(INSTANTIATION, (1, 2, 3), (true, false))
+GENERATE_INSTANTIATIONS(INSTANTIATION, (true, false))
 
 #undef INSTANTIATION
 #undef USE_BG
-#undef DIM
