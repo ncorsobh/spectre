@@ -29,7 +29,6 @@ target_link_libraries(
   ErrorHandling
   Hydro
   InitialDataUtilities
-  NewtonianMhd
   Options
   Serialization
   Utilities
