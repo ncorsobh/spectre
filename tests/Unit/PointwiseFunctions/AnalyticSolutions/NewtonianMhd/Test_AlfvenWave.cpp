@@ -270,6 +270,17 @@ void test_background_field_splits_off_the_parallel_part() {
             gsl::at(wavevector, i);
       }
       CHECK(perturbation_projection == approx(0.0));
+
+      // The evolved variable the splitting reports must be exactly what is
+      // left after removing the background.
+      const auto evolved = solution.variables(
+          point(coords), time,
+          tmpl::list<NewtonianMhd::Tags::MagneticFieldCons<>>{});
+      for (size_t i = 0; i < 3; ++i) {
+        CHECK(get<NewtonianMhd::Tags::MagneticFieldCons<>>(evolved).get(i)[0] ==
+              approx(get<MagneticField>(total).get(i)[0] -
+                     get<BackgroundField>(background).get(i)[0]));
+      }
     }
   }
 }

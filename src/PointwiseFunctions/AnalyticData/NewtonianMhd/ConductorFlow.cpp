@@ -230,6 +230,13 @@ ConductorFlow::variables(
   return {static_magnetic_field(x)};
 }
 
+tuples::TaggedTuple<NewtonianMhd::Tags::MagneticFieldCons<>>
+ConductorFlow::variables(
+    const tnsr::I<DataVector, 3, Frame::Inertial>& x,
+    tmpl::list<NewtonianMhd::Tags::MagneticFieldCons<>> /*meta*/) const {
+  return {make_with_value<tnsr::I<DataVector, 3, Frame::Inertial>>(x, 0.0)};
+}
+
 bool operator==(const ConductorFlow& lhs, const ConductorFlow& rhs) {
   return lhs.background_density_ == rhs.background_density_ and
          lhs.background_pressure_ == rhs.background_pressure_ and

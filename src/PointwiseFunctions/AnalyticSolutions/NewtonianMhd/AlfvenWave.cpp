@@ -206,6 +206,26 @@ AlfvenWave::variables(
   return {std::move(background)};
 }
 
+tuples::TaggedTuple<NewtonianMhd::Tags::MagneticFieldCons<>>
+AlfvenWave::variables(
+    const tnsr::I<DataVector, 3, Frame::Inertial>& x, const double t,
+    tmpl::list<NewtonianMhd::Tags::MagneticFieldCons<>> /*meta*/) const {
+  const DataVector wave_phase = phase(x, t);
+  const DataVector cos_phase = cos(wave_phase);
+  const DataVector sin_phase = sin(wave_phase);
+  const double transverse_amplitude = amplitude_ * parallel_magnetic_field_;
+
+  auto perturbation =
+      make_with_value<tnsr::I<DataVector, 3, Frame::Inertial>>(x, 0.0);
+  for (size_t i = 0; i < 3; ++i) {
+    perturbation.get(i) =
+        transverse_amplitude *
+        ((cos_phase * gsl::at(first_transverse_direction_, i)) +
+         (sin_phase * gsl::at(second_transverse_direction_, i)));
+  }
+  return {std::move(perturbation)};
+}
+
 tuples::TaggedTuple<hydro::Tags::DivergenceCleaningField<DataVector>>
 AlfvenWave::variables(
     const tnsr::I<DataVector, 3, Frame::Inertial>& x, const double /*t*/,

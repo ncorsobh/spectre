@@ -168,16 +168,31 @@ struct NewtonianMhdMetavars {
 
   using equation_of_state_tag = hydro::Tags::EquationOfState<false, 2>;
 
+  // The primitive magnetic field is the evolved perturbation when the
+  // background is split off, so comparing it against a solution's total field
+  // would report |B_0|. The evolved variable is compared instead, and
+  // background-capable initial data supply the perturbation under that tag.
+  // Names the variables that `SetVariables` takes from the initial data, so
+  // this must stay the primitive list.
   using analytic_variables_tags =
       typename system::primitive_variables_tag::tags_list;
 
-  // Note that with background-field splitting the evolved magnetic field is
-  // the perturbation, so its error against an analytic solution's total field
-  // is not meaningful.
+  // What the error is measured against. The primitive magnetic field is the
+  // evolved perturbation once the background is split off, so comparing it to
+  // a solution's total field would report |B_0|; the evolved variable is used
+  // instead, and background-capable initial data supply the perturbation under
+  // that tag.
+  using error_variables_tags = tmpl::conditional_t<
+      UseBackgroundMagneticField,
+      tmpl::replace<analytic_variables_tags,
+                    hydro::Tags::MagneticField<DataVector, volume_dim>,
+                    NewtonianMhd::Tags::MagneticFieldCons<>>,
+      analytic_variables_tags>;
+
   using analytic_compute = evolution::Tags::AnalyticSolutionsCompute<
-      volume_dim, analytic_variables_tags, use_dg_subcell, initial_data_list>;
-  using error_compute = Tags::ErrorsCompute<analytic_variables_tags>;
-  using error_tags = db::wrap_tags_in<Tags::Error, analytic_variables_tags>;
+      volume_dim, error_variables_tags, use_dg_subcell, initial_data_list>;
+  using error_compute = Tags::ErrorsCompute<error_variables_tags>;
+  using error_tags = db::wrap_tags_in<Tags::Error, error_variables_tags>;
 
   using observe_fields = tmpl::push_back<
       tmpl::append<
@@ -365,9 +380,15 @@ struct NewtonianMhdMetavars {
       VariableFixing::Actions::FixVariables<NewtonianMhd::FixConservatives>,
       tmpl::conditional_t<
           use_dg_subcell,
-          // The primitive variables are computed as part of the TCI.
+          // The TCI computes the primitive variables as a side effect, but it
+          // does not run for blocks excluded by `OnlyDgBlocksAndGroups`, so
+          // they are recomputed here as well. Without this the primitives, and
+          // every diagnostic derived from them, keep their values from the
+          // last step on which the TCI ran.
           tmpl::list<evolution::dg::subcell::Actions::TciAndRollback<
                          NewtonianMhd::subcell::TciOnDgGrid>,
+                     Actions::MutateApply<
+                         typename system::primitive_from_conservative>,
                      background_magnetic_field_update>,
           Actions::MutateApply<typename system::primitive_from_conservative>>,
       Actions::MutateApply<CleanHistory<system>>,

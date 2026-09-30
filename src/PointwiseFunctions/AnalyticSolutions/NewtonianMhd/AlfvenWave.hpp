@@ -188,6 +188,12 @@ class AlfvenWave : public evolution::initial_data::InitialData,
       const tnsr::I<DataVector, 3, Frame::Inertial>& x, double t,
       tmpl::list<NewtonianMhd::Tags::BackgroundMagneticFieldVolume<>> /*meta*/)
       const;
+
+  /// The transverse part that such an evolution actually evolves, so that an
+  /// error against it is meaningful when the background is split off.
+  tuples::TaggedTuple<NewtonianMhd::Tags::MagneticFieldCons<>> variables(
+      const tnsr::I<DataVector, 3, Frame::Inertial>& x, double t,
+      tmpl::list<NewtonianMhd::Tags::MagneticFieldCons<>> /*meta*/) const;
   /// @}
 
  private:
