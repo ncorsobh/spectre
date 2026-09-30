@@ -21,7 +21,7 @@
 #include "Utilities/TMPL.hpp"
 
 namespace NewtonianMhd::subcell {
-std::tuple<bool, evolution::dg::subcell::RdmpTciData> TciOnFdGrid::apply(
+std::tuple<int, evolution::dg::subcell::RdmpTciData> TciOnFdGrid::apply(
     const gsl::not_null<Variables<
         tmpl::list<MassDensity, Velocity, SpecificInternalEnergy, Pressure,
                    MagneticField, DivergenceCleaningField>>*>
@@ -87,54 +87,65 @@ std::tuple<bool, evolution::dg::subcell::RdmpTciData> TciOnFdGrid::apply(
            min(get(dg_energy_density)))}};
 
   if (need_rdmp_data_only) {
-    return {false, rdmp_tci_data};
+    return {0, rdmp_tci_data};
+  }
+
+  if (min(min(get(subcell_mass_density)), min(get(dg_mass_density))) <
+      tci_options.minimum_density) {
+    return {+1, std::move(rdmp_tci_data)};
+  }
+  if (min(min(get(get<Pressure>(*subcell_grid_prim_vars))),
+          min(get(get<Pressure>(dg_grid_prim_vars)))) <
+      tci_options.minimum_pressure) {
+    return {+2, std::move(rdmp_tci_data)};
   }
 
   // The internal energy recovered from the conserved variables is
   // (e - |B|^2/2)/rho - v^2/2, so a cell whose magnetic energy approaches the
   // total energy is about to produce a negative internal energy.
-  const Scalar<DataVector> subcell_magnetic_field_squared =
-      dot_product(get<MagneticFieldCons>(subcell_vars),
-                  get<MagneticFieldCons>(subcell_vars));
-  const bool magnetic_energy_too_large =
-      max(get(subcell_magnetic_field_squared) -
+  if (max(get(dot_product(get<MagneticFieldCons>(subcell_vars),
+                          get<MagneticFieldCons>(subcell_vars))) -
           2.0 * (1.0 - tci_options.safety_factor_for_magnetic_field) *
-              get(subcell_energy_density)) > 0.0;
+              get(subcell_energy_density)) > 0.0) {
+    return {+3, std::move(rdmp_tci_data)};
+  }
 
-  bool cell_is_troubled =
-      evolution::dg::subcell::rdmp_tci(
+  if (evolution::dg::subcell::persson_tci(
+          dg_mass_density, dg_mesh, persson_exponent,
+          subcell_options.persson_num_highest_modes())) {
+    return {+4, std::move(rdmp_tci_data)};
+  }
+  if (evolution::dg::subcell::persson_tci(
+          dg_energy_density, dg_mesh, persson_exponent,
+          subcell_options.persson_num_highest_modes())) {
+    return {+5, std::move(rdmp_tci_data)};
+  }
+
+  // An element may only return to DG if the reconstructed magnetic field is
+  // smooth there too, so |B| is checked on the DG grid as it is above.
+  if (tci_options.magnetic_field_cutoff.has_value()) {
+    const Scalar<DataVector> dg_magnetic_field_magnitude{sqrt(get(dot_product(
+        get<MagneticFieldCons>(dg_vars), get<MagneticFieldCons>(dg_vars))))};
+    if (max(get(dg_magnetic_field_magnitude)) >
+            tci_options.magnetic_field_cutoff.value() and
+        evolution::dg::subcell::persson_tci(
+            dg_magnetic_field_magnitude, dg_mesh, persson_exponent,
+            subcell_options.persson_num_highest_modes())) {
+      return {+6, std::move(rdmp_tci_data)};
+    }
+  }
+
+  if (const int rdmp_tci_status = evolution::dg::subcell::rdmp_tci(
           rdmp_tci_data_for_check.max_variables_values,
           rdmp_tci_data_for_check.min_variables_values,
           past_rdmp_tci_data.max_variables_values,
           past_rdmp_tci_data.min_variables_values,
-          subcell_options.rdmp_delta0(), subcell_options.rdmp_epsilon()) or
-      min(min(get(subcell_mass_density)), min(get(dg_mass_density))) <
-          tci_options.minimum_density or
-      min(min(get(get<Pressure>(*subcell_grid_prim_vars))),
-          min(get(get<Pressure>(dg_grid_prim_vars)))) <
-          tci_options.minimum_pressure or
-      magnetic_energy_too_large or
-      evolution::dg::subcell::persson_tci(
-          dg_mass_density, dg_mesh, persson_exponent,
-          subcell_options.persson_num_highest_modes()) or
-      evolution::dg::subcell::persson_tci(
-          dg_energy_density, dg_mesh, persson_exponent,
-          subcell_options.persson_num_highest_modes());
-
-  // An element may only return to DG if the reconstructed magnetic field is
-  // smooth there too, so |B| is checked on the DG grid as it is above.
-  if (not cell_is_troubled and tci_options.magnetic_field_cutoff.has_value()) {
-    const Scalar<DataVector> dg_magnetic_field_magnitude{sqrt(get(dot_product(
-        get<MagneticFieldCons>(dg_vars), get<MagneticFieldCons>(dg_vars))))};
-    cell_is_troubled =
-        max(get(dg_magnetic_field_magnitude)) >
-            tci_options.magnetic_field_cutoff.value() and
-        evolution::dg::subcell::persson_tci(
-            dg_magnetic_field_magnitude, dg_mesh, persson_exponent,
-            subcell_options.persson_num_highest_modes());
+          subcell_options.rdmp_delta0(), subcell_options.rdmp_epsilon());
+      rdmp_tci_status != 0) {
+    return {+(6 + rdmp_tci_status), std::move(rdmp_tci_data)};
   }
 
-  return {cell_is_troubled, std::move(rdmp_tci_data)};
+  return {0, std::move(rdmp_tci_data)};
 }
 
 #define INSTANTIATION(r, data) INSTANTIATION(~, ~)

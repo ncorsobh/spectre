@@ -34,26 +34,22 @@ class Variables;
 
 namespace NewtonianMhd::subcell {
 /*!
- * \brief Troubled-cell indicator applied to the finite difference subcell
- * solution to check if the corresponding DG solution is admissible.
+ * \brief Troubled-cell indicator applied to the FD solution, deciding whether
+ * the element may return to DG.
  *
- * Computes the primitive variables on the DG and subcell grids, mutating the
- * subcell/active primitive variables in the DataBox. Then,
- * - apply RDMP TCI to the mass and energy density
- * - if the minimum density or pressure on either the DG or subcell mesh are
- *   below \f$10^{-18}\f$, marks the element as troubled and returns. We check
- *   both the FD and DG grids since when a discontinuity is inside the element
- *   oscillations in the DG solution can result in negative values that aren't
- *   present in the FD solution.
- * - runs the Persson TCI on the mass and energy density on the DG grid. The
- *   reason for applying the Persson TCI to both the mass and energy density is
- *   to flag cells at contact discontinuities. The Persson TCI only works with
- *   spectral-type methods and is a direct check of whether or not the DG
- *   solution is a good representation of the underlying data.
+ * Reconstructs the conserved variables to the DG grid, computes the primitive
+ * variables on both grids, and returns which check, if any, flagged the
+ * element. The checks run in the order below and the first to fire returns:
  *
- * Please note that the TCI is run after the subcell solution has been
- * reconstructed to the DG grid, and so `Inactive<Tag>` is the updated DG
- * solution.
+ * - `+1` the minimum mass density fell below
+ *   `TciOptions::MinimumValueOfDensity`
+ * - `+2` the minimum pressure fell below `TciOptions::MinimumValueOfPressure`
+ * - `+3` \f$|B|^2 > 2(1 - \epsilon_B)e\f$ somewhere
+ * - `+4` the Persson TCI flagged the reconstructed mass density
+ * - `+5` the Persson TCI flagged the reconstructed energy density
+ * - `+6` the Persson TCI flagged the reconstructed \f$|B|\f$
+ * - `+(6 + n)` the RDMP TCI flagged variable `n`
+ * - `0` the element may return to DG
  */
 class TciOnFdGrid {
  private:
@@ -87,7 +83,7 @@ class TciOnFdGrid {
                  evolution::dg::subcell::Tags::SubcellOptions<3>,
                  NewtonianMhd::subcell::Tags::TciOptions>;
 
-  static std::tuple<bool, evolution::dg::subcell::RdmpTciData> apply(
+  static std::tuple<int, evolution::dg::subcell::RdmpTciData> apply(
       gsl::not_null<Variables<
           tmpl::list<MassDensity, Velocity, SpecificInternalEnergy, Pressure,
                      MagneticField, DivergenceCleaningField>>*>

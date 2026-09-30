@@ -181,7 +181,7 @@ void test(const TestThis test_this) {
       make_not_null(&box));
 
   const bool element_stays_on_dg = false;
-  const std::tuple<bool, evolution::dg::subcell::RdmpTciData> result =
+  const std::tuple<int, evolution::dg::subcell::RdmpTciData> result =
       db::mutate_apply<NewtonianMhd::subcell::TciOnDgGrid>(
           make_not_null(&box), persson_exponent, element_stays_on_dg);
 
@@ -189,11 +189,32 @@ void test(const TestThis test_this) {
                         expected_rdmp_tci_data.max_variables_values);
   CHECK_ITERABLE_APPROX(get<1>(result).min_variables_values,
                         expected_rdmp_tci_data.min_variables_values);
-  if (test_this == TestThis::AllGood) {
-    CHECK_FALSE(std::get<0>(result));
-  } else {
-    CHECK(std::get<0>(result));
-  }
+  // The status code says which check fired, so each case pins its own.
+  const int expected_status = [&test_this]() {
+    switch (test_this) {
+      case TestThis::AllGood:
+        return 0;
+      case TestThis::SmallDensity:
+        return -1;
+      case TestThis::SmallPressure:
+        return -2;
+      case TestThis::MagneticEnergyTooLarge:
+        return -3;
+      case TestThis::PerssonDensity:
+        return -4;
+      case TestThis::PerssonEnergyDensity:
+        return -5;
+      case TestThis::PerssonMagneticField:
+        return -6;
+      case TestThis::RdmpMassDensity:
+        return -7;
+      case TestThis::RdmpEnergyDensity:
+        return -8;
+      default:
+        ERROR("Unhandled TestThis");
+    }
+  }();
+  CHECK(std::get<0>(result) == expected_status);
 }
 }  // namespace
 

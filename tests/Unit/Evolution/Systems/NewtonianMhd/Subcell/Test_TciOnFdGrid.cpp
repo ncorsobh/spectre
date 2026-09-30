@@ -91,8 +91,13 @@ void test(const TestThis test_this) {
       1};
 
   if (test_this == TestThis::PerssonEnergyDensity) {
+    // A modest spike on a healthy background: a large one would undershoot
+    // below the density or pressure floor once reconstructed to the DG grid,
+    // and those checks run first.
+    get(get<MassDensity>(subcell_prim)) = 1.0;
+    get(get<Pressure>(subcell_prim)) = 1.0;
     get(get<Pressure>(subcell_prim))[subcell_mesh.number_of_grid_points() / 2] =
-        1.0;
+        1.5;
   } else if (test_this == TestThis::SmallDensitySubcell) {
     get(get<MassDensity>(
         subcell_prim))[subcell_mesh.number_of_grid_points() / 2] =
@@ -101,8 +106,10 @@ void test(const TestThis test_this) {
     get(get<Pressure>(subcell_prim))[subcell_mesh.number_of_grid_points() / 2] =
         0.1 * 1.0e-18;
   } else if (test_this == TestThis::PerssonDensity) {
-    get(get<MassDensity>(subcell_prim))[dg_mesh.number_of_grid_points() / 2] =
-        1.0e-6;
+    get(get<MassDensity>(subcell_prim)) = 1.0;
+    get(get<Pressure>(subcell_prim)) = 1.0;
+    get(get<MassDensity>(
+        subcell_prim))[subcell_mesh.number_of_grid_points() / 2] = 1.5;
   } else if (test_this == TestThis::PerssonMagneticField) {
     // A current sheet: |B| is sharp but the gas pressure compensates so that
     // the total energy density stays uniform. The mass and energy density
@@ -196,11 +203,32 @@ void test(const TestThis test_this) {
       make_not_null(&box), persson_exponent, false);
   CHECK(get<1>(result) == expected_rdmp_tci_data);
 
-  if (test_this == TestThis::AllGood) {
-    CHECK_FALSE(std::get<0>(result));
-  } else {
-    CHECK(std::get<0>(result));
-  }
+  // The status code says which check fired, so each case pins its own.
+  const int expected_status = [&test_this]() {
+    switch (test_this) {
+      case TestThis::AllGood:
+        return 0;
+      case TestThis::SmallDensitySubcell:
+        return 1;
+      case TestThis::SmallPressureSubcell:
+        return 2;
+      case TestThis::MagneticEnergyTooLarge:
+        return 3;
+      case TestThis::PerssonDensity:
+        return 4;
+      case TestThis::PerssonEnergyDensity:
+        return 5;
+      case TestThis::PerssonMagneticField:
+        return 6;
+      case TestThis::RdmpMassDensity:
+        return 7;
+      case TestThis::RdmpEnergyDensity:
+        return 8;
+      default:
+        ERROR("Unhandled TestThis");
+    }
+  }();
+  CHECK(std::get<0>(result) == expected_status);
 }
 }  // namespace
 

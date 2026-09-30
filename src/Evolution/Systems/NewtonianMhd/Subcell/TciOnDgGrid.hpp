@@ -40,21 +40,23 @@ namespace NewtonianMhd::subcell {
  * \brief Troubled-cell indicator applied to the DG solution.
  *
  * Computes the primitive variables on the DG grid, mutating them in the
- * DataBox. Then,
- * - apply RDMP TCI to the mass and energy density
- * - if the minimum density or pressure fall below
- *   `TciOptions::MinimumValueOfDensity` or
- *   `TciOptions::MinimumValueOfPressure`, marks the element as troubled
- * - if \f$|B|^2 > 2(1 - \epsilon_B)e\f$ anywhere, marks the element as
- *   troubled: the internal energy recovered from the conserved variables is
- *   about to go negative there
- * - runs the Persson TCI on the mass and energy density. The reason for
- *   applying the Persson TCI to both the mass and energy density is to flag
- *   cells at contact discontinuities.
- * - runs the Persson TCI on \f$|B|\f$, unless the largest \f$|B|\f$ in the
- *   element is below `TciOptions::MagneticFieldCutoff`. Sharp magnetic
- *   structure such as a current sheet can occur where the fluid variables are
- *   smooth, so without this check those cells would stay on DG.
+ * DataBox, and returns which check, if any, flagged the element. The checks
+ * run in the order below and the first to fire returns:
+ *
+ * - `-1` the minimum mass density fell below
+ *   `TciOptions::MinimumValueOfDensity`
+ * - `-2` the minimum pressure fell below `TciOptions::MinimumValueOfPressure`
+ * - `-3` \f$|B|^2 > 2(1 - \epsilon_B)e\f$ somewhere, so the internal energy
+ *   recovered from the conserved variables is about to go negative
+ * - `-4` the Persson TCI flagged the mass density
+ * - `-5` the Persson TCI flagged the energy density. Applying it to both
+ *   densities is what flags contact discontinuities.
+ * - `-6` the Persson TCI flagged \f$|B|\f$. Sharp magnetic structure such as
+ *   a current sheet can occur where the fluid variables are smooth, so it gets
+ *   its own check; the element is skipped when the largest \f$|B|\f$ is below
+ *   `TciOptions::MagneticFieldCutoff`, where the field is noise-dominated.
+ * - `-(6 + n)` the RDMP TCI flagged variable `n`
+ * - `0` the element is not troubled
  */
 class TciOnDgGrid {
  private:
@@ -88,7 +90,7 @@ class TciOnDgGrid {
                  evolution::dg::subcell::Tags::SubcellOptions<3>,
                  NewtonianMhd::subcell::Tags::TciOptions>;
 
-  static std::tuple<bool, evolution::dg::subcell::RdmpTciData> apply(
+  static std::tuple<int, evolution::dg::subcell::RdmpTciData> apply(
       gsl::not_null<Variables<
           tmpl::list<MassDensity, Velocity, SpecificInternalEnergy, Pressure,
                      MagneticField, DivergenceCleaningField>>*>
