@@ -11,8 +11,8 @@
 namespace {
 template <size_t Dim>
 void test() {
-  TestHelpers::db::test_simple_tag<
-      NewtonianMhd::fd::Tags::Reconstructor<Dim>>("Reconstructor");
+  TestHelpers::db::test_simple_tag<NewtonianMhd::fd::Tags::Reconstructor<Dim>>(
+      "Reconstructor");
 }
 }  // namespace
 

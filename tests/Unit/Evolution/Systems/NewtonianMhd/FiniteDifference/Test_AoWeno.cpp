@@ -16,7 +16,7 @@ template <size_t Dim>
 void test() {
   namespace helpers = TestHelpers::NewtonianMhd::fd;
   const NewtonianMhd::fd::AoWeno53Prim<Dim> aoweno_recons{0.85, 0.8, 1.0e-12,
-                                                            8};
+                                                          8};
   helpers::test_prim_reconstructor<Dim>(5, aoweno_recons);
 
   const auto aoweno_from_options_base = TestHelpers::test_factory_creation<

@@ -102,7 +102,7 @@ void time_derivative_impl(
       double constraint_damping_parameter,                                   \
       const EquationsOfState::EquationOfState<false, 2>& eos,                \
       const tnsr::I<DataVector, DIM(data)>& coords, double time,             \
-      const NewtonianMhd::Sources::Source<DIM(data), USE_BG(data)>& source,                \
+      const NewtonianMhd::Sources::Source<DIM(data), USE_BG(data)>& source,  \
       NewtonianMhd::BackgroundMagneticFieldArgument<DIM(data), USE_BG(data)> \
           background_magnetic_field);
 

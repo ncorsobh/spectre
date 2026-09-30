@@ -52,8 +52,7 @@ void test_sets_the_background_from_the_initial_data() {
       std::unique_ptr<evolution::initial_data::InitialData>{
           initial_data.get_clone()});
 
-  db::mutate_apply<
-      NewtonianMhd::Initialization::BackgroundMagneticField<Dim>>(
+  db::mutate_apply<NewtonianMhd::Initialization::BackgroundMagneticField<Dim>>(
       make_not_null(&box));
 
   const auto expected = get<BackgroundField>(
@@ -76,9 +75,9 @@ void test_subtracts_the_background_from_the_primitives() {
   get<2>(total_field) = DataVector{1.1, 0.4, -0.8};
   const auto expected_total_field = total_field;
 
-  auto box = db::create<
-      db::AddSimpleTags<primitive_variables_tag, BackgroundField>>(prims,
-                                                                   background);
+  auto box =
+      db::create<db::AddSimpleTags<primitive_variables_tag, BackgroundField>>(
+          prims, background);
   db::mutate_apply<
       NewtonianMhd::Initialization::SubtractBackgroundMagneticField<Dim>>(
       make_not_null(&box));

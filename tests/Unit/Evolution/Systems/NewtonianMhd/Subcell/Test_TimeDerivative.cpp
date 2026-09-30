@@ -110,11 +110,10 @@ struct MetaVars {
   using system = NewtonianMhd::System<Dim, UseBackgroundMagneticField>;
   struct factory_creation
       : tt::ConformsTo<Options::protocols::FactoryCreation> {
-    using factory_classes =
-        tmpl::map<tmpl::pair<evolution::BoundaryCorrection,
-                             NewtonianMhd::BoundaryCorrections::
-                                 standard_boundary_corrections<
-                                     Dim, UseBackgroundMagneticField>>>;
+    using factory_classes = tmpl::map<tmpl::pair<
+        evolution::BoundaryCorrection,
+        NewtonianMhd::BoundaryCorrections::standard_boundary_corrections<
+            Dim, UseBackgroundMagneticField>>>;
   };
 };
 
@@ -127,13 +126,13 @@ tnsr::I<DataVector, Dim, Frame::Inertial> uniform_background_field(
   return field;
 }
 
-using prim_tags_list = tmpl::list<
-    hydro::Tags::RestMassDensity<DataVector>,
-    hydro::Tags::SpatialVelocity<DataVector, Dim>,
-    hydro::Tags::SpecificInternalEnergy<DataVector>,
-    hydro::Tags::Pressure<DataVector>,
-    hydro::Tags::MagneticField<DataVector, Dim>,
-    hydro::Tags::DivergenceCleaningField<DataVector>>;
+using prim_tags_list =
+    tmpl::list<hydro::Tags::RestMassDensity<DataVector>,
+               hydro::Tags::SpatialVelocity<DataVector, Dim>,
+               hydro::Tags::SpecificInternalEnergy<DataVector>,
+               hydro::Tags::Pressure<DataVector>,
+               hydro::Tags::MagneticField<DataVector, Dim>,
+               hydro::Tags::DivergenceCleaningField<DataVector>>;
 
 using prims_to_reconstruct_tags =
     tmpl::list<hydro::Tags::RestMassDensity<DataVector>,
@@ -143,9 +142,9 @@ using prims_to_reconstruct_tags =
                hydro::Tags::DivergenceCleaningField<DataVector>>;
 
 // Evaluates the time derivative on the finite-difference grid for the state
-// produced by `set_prims(coords, vars)`. With the splitting enabled the caller's
-// magnetic field is the total one, and the uniform background is subtracted
-// here so that both settings describe the same physical state.
+// produced by `set_prims(coords, vars)`. With the splitting enabled the
+// caller's magnetic field is the total one, and the uniform background is
+// subtracted here so that both settings describe the same physical state.
 template <bool UseBackgroundMagneticField, typename SetPrims>
 Variables<typename db::add_tag_prefix<
     ::Tags::dt, typename NewtonianMhd::System<
@@ -157,8 +156,7 @@ compute_time_derivative(const size_t num_dg_pts, const SetPrims& set_prims) {
   using MagneticField = hydro::Tags::MagneticField<DataVector, Dim>;
 
   const auto element = make_element();
-  const ElementMap<Dim, Frame::Grid> element_map{element.id(),
-                                                 make_grid_map()};
+  const ElementMap<Dim, Frame::Grid> element_map{element.id(), make_grid_map()};
   const auto grid_to_inertial_map =
       domain::make_coordinate_map_base<Frame::Grid, Frame::Inertial>(
           domain::CoordinateMaps::Identity<Dim>{});
@@ -168,8 +166,8 @@ compute_time_derivative(const size_t num_dg_pts, const SetPrims& set_prims) {
   const Mesh<Dim> subcell_mesh = evolution::dg::subcell::fd::mesh(dg_mesh);
   const size_t num_subcell_pts = subcell_mesh.number_of_grid_points();
 
-  const auto prims_at = [&set_prims, &element_map, &grid_to_inertial_map](
-                            const auto& logical_coords) {
+  const auto prims_at = [&set_prims, &element_map,
+                         &grid_to_inertial_map](const auto& logical_coords) {
     const auto coords =
         (*grid_to_inertial_map)(element_map(logical_coords), 0.0, {});
     Variables<prim_tags_list> vars{get<0>(coords).size()};
@@ -246,8 +244,8 @@ compute_time_derivative(const size_t num_dg_pts, const SetPrims& set_prims) {
                     Dim, Frame::ElementLogical>,
                 evolution::dg::subcell::Tags::Coordinates>,
             evolution::dg::subcell::Tags::InertialCoordinatesCompute<
-                ::domain::CoordinateMaps::Tags::CoordinateMap<
-                    Dim, Frame::Grid, Frame::Inertial>>,
+                ::domain::CoordinateMaps::Tags::CoordinateMap<Dim, Frame::Grid,
+                                                              Frame::Inertial>>,
             evolution::dg::subcell::fd::Tags::
                 InverseJacobianLogicalToGridCompute<
                     ::domain::Tags::ElementMap<Dim, Frame::Grid>, Dim>,
@@ -268,15 +266,15 @@ compute_time_derivative(const size_t num_dg_pts, const SetPrims& set_prims) {
             NewtonianMhd::Sources::Source<Dim, UseBackgroundMagneticField>>{
             std::make_unique<NewtonianMhd::Sources::NoSource<
                 Dim, UseBackgroundMagneticField>>()},
-        element,
-        ElementMap<Dim, Frame::Grid>{element.id(), make_grid_map()},
+        element, ElementMap<Dim, Frame::Grid>{element.id(), make_grid_map()},
         subcell_mesh,
         std::unique_ptr<NewtonianMhd::fd::Reconstructor<Dim>>{
             std::make_unique<NewtonianMhd::fd::MonotonisedCentralPrim<Dim>>()},
         std::unique_ptr<evolution::BoundaryCorrection>{
             std::make_unique<NewtonianMhd::BoundaryCorrections::Hll<
                 Dim, UseBackgroundMagneticField>>()},
-        EquationsOfState::IdealFluid<false>{adiabatic_index}.promote_to_2d_eos(),
+        EquationsOfState::IdealFluid<false>{adiabatic_index}
+            .promote_to_2d_eos(),
         cell_centered_prim_vars,
         Variables<typename dt_variables_tag::tags_list>{num_subcell_pts},
         typename variables_tag::type{}, neighbor_data,
@@ -361,9 +359,9 @@ void test_uniform_state(const double divergence_cleaning_field) {
         zero);
   }
   // The only non-zero term is the GLM constraint damping.
-  const DataVector expected_dt_psi =
-      zero - constraint_damping_parameter * divergence_cleaning_speed *
-                 divergence_cleaning_field;
+  const DataVector expected_dt_psi = zero - constraint_damping_parameter *
+                                                divergence_cleaning_speed *
+                                                divergence_cleaning_field;
   CHECK_ITERABLE_APPROX(
       get(get<::Tags::dt<NewtonianMhd::Tags::DivergenceCleaningFieldCons>>(
           dt_vars)),
@@ -411,8 +409,7 @@ void test_background_field_splitting(const SetPrims& set_prims) {
 
   const auto& dt_split_b =
       get<::Tags::dt<NewtonianMhd::Tags::MagneticFieldCons<Dim>>>(split);
-  const auto background =
-      uniform_background_field(get<0>(dt_split_b).size());
+  const auto background = uniform_background_field(get<0>(dt_split_b).size());
   DataVector expected_dt_energy =
       get(get<::Tags::dt<NewtonianMhd::Tags::EnergyDensity>>(unsplit));
   for (size_t i = 0; i < Dim; ++i) {

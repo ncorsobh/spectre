@@ -255,7 +255,8 @@ struct TimeDerivative {
             Tags::ConstraintDampingParameter,
             hydro::Tags::EquationOfState<false, 2>,
             evolution::dg::subcell::Tags::Coordinates<Dim, Frame::Inertial>,
-            ::Tags::Time, NewtonianMhd::Tags::SourceTerm<Dim, use_background_magnetic_field>>,
+            ::Tags::Time,
+            NewtonianMhd::Tags::SourceTerm<Dim, use_background_magnetic_field>>,
         background_magnetic_field_tag_list<
             Tags::BackgroundMagneticFieldVolume<Dim>,
             use_background_magnetic_field>>;

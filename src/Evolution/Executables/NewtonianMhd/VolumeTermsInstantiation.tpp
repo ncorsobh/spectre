@@ -63,6 +63,6 @@ namespace evolution::dg::Actions::detail {
       const double& constraint_damping_parameter,                              \
       const EquationsOfState::EquationOfState<false, 2>& eos,                  \
       const tnsr::I<DataVector, DIM>& coords, const double& time,              \
-      const ::NewtonianMhd::Sources::Source<DIM, USE_BG>& source              \
+      const ::NewtonianMhd::Sources::Source<DIM, USE_BG>& source               \
           BACKGROUND_MAGNETIC_FIELD_ARG);
 }  // namespace evolution::dg::Actions::detail

@@ -224,11 +224,10 @@ struct NewtonianMhdMetavars {
     using factory_classes = tmpl::map<
         tmpl::pair<DenseTrigger, DenseTriggers::standard_dense_triggers>,
         tmpl::pair<DomainCreator<volume_dim>, domain_creators<volume_dim>>,
-        tmpl::pair<
-            NewtonianMhd::Sources::Source<volume_dim,
-                                          UseBackgroundMagneticField>,
-            NewtonianMhd::Sources::all_sources<volume_dim,
-                                               UseBackgroundMagneticField>>,
+        tmpl::pair<NewtonianMhd::Sources::Source<volume_dim,
+                                                 UseBackgroundMagneticField>,
+                   NewtonianMhd::Sources::all_sources<
+                       volume_dim, UseBackgroundMagneticField>>,
         tmpl::pair<evolution::initial_data::InitialData, initial_data_list>,
         tmpl::pair<Event,
                    tmpl::flatten<tmpl::list<
@@ -371,8 +370,8 @@ struct NewtonianMhdMetavars {
           Actions::MutateApply<typename system::primitive_from_conservative>>,
       Actions::MutateApply<CleanHistory<system>>,
       Actions::MutateApply<evolution::dg::CleanMortarHistory<volume_dim>>,
-      dg::Actions::SpectralFilter<
-          volume_dim, typename system::variables_tag::tags_list>>>;
+      dg::Actions::SpectralFilter<volume_dim,
+                                  typename system::variables_tag::tags_list>>>;
 
   struct SubcellOptions {
     static constexpr bool subcell_enabled = use_dg_subcell;

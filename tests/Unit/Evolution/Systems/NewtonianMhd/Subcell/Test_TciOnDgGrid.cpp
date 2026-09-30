@@ -58,9 +58,8 @@ void test(const TestThis test_this) {
                           Spectral::Quadrature::GaussLobatto};
   const Mesh<Dim> subcell_mesh = evolution::dg::subcell::fd::mesh(dg_mesh);
 
-  using cons_tags =
-      tmpl::list<MassDensityCons, MomentumDensity, EnergyDensity,
-                 MagneticFieldCons, DivergenceCleaningFieldCons>;
+  using cons_tags = tmpl::list<MassDensityCons, MomentumDensity, EnergyDensity,
+                               MagneticFieldCons, DivergenceCleaningFieldCons>;
   using ConsVars = Variables<cons_tags>;
   using prim_tags =
       tmpl::list<MassDensity, Velocity, SpecificInternalEnergy, Pressure,

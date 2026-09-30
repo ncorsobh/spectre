@@ -71,7 +71,7 @@ void test(const DataType& used_for_size) {
       get(eos_1d.kappa_times_p_over_rho_squared_from_density(mass_density));
   CHECK(sound_speed_squared ==
         NewtonianMhd::sound_speed_squared(mass_density,
-                                            specific_internal_energy, eos_1d));
+                                          specific_internal_energy, eos_1d));
 
   test_in_databox(mass_density, specific_internal_energy, eos_1d);
 
@@ -84,13 +84,12 @@ void test(const DataType& used_for_size) {
           mass_density, specific_internal_energy));
   CHECK(sound_speed_squared ==
         NewtonianMhd::sound_speed_squared(mass_density,
-                                            specific_internal_energy, eos_2d));
+                                          specific_internal_energy, eos_2d));
   test_in_databox(mass_density, specific_internal_energy, eos_2d);
 }
 }  // namespace
 
-SPECTRE_TEST_CASE("Unit.NewtonianMhd.SoundSpeedSquared",
-                  "[Unit][Evolution]") {
+SPECTRE_TEST_CASE("Unit.NewtonianMhd.SoundSpeedSquared", "[Unit][Evolution]") {
   GENERATE_UNINITIALIZED_DOUBLE_AND_DATAVECTOR;
   test(d);
   test(dv);

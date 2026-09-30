@@ -57,9 +57,8 @@ void test(const TestThis test_this) {
                           Spectral::Quadrature::GaussLobatto};
   const Mesh<Dim> subcell_mesh = evolution::dg::subcell::fd::mesh(dg_mesh);
 
-  using cons_tags =
-      tmpl::list<MassDensityCons, MomentumDensity, EnergyDensity,
-                 MagneticFieldCons, DivergenceCleaningFieldCons>;
+  using cons_tags = tmpl::list<MassDensityCons, MomentumDensity, EnergyDensity,
+                               MagneticFieldCons, DivergenceCleaningFieldCons>;
   using ConsVars = Variables<cons_tags>;
   using prim_tags =
       tmpl::list<MassDensity, Velocity, SpecificInternalEnergy, Pressure,
@@ -164,9 +163,8 @@ void test(const TestThis test_this) {
       },
       make_not_null(&box));
 
-  const auto result =
-      db::mutate_apply<NewtonianMhd::subcell::TciOnFdGrid<Dim>>(
-          make_not_null(&box), persson_exponent, false);
+  const auto result = db::mutate_apply<NewtonianMhd::subcell::TciOnFdGrid<Dim>>(
+      make_not_null(&box), persson_exponent, false);
   CHECK(get<1>(result) == expected_rdmp_tci_data);
 
   if (test_this == TestThis::AllGood) {

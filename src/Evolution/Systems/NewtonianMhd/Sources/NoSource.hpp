@@ -54,7 +54,8 @@ class NoSource : public Source<Dim, UseBackgroundMagneticField> {
   // NOLINTNEXTLINE(google-runtime-references)
   void pup(PUP::er& p) override;
 
-  auto get_clone() const -> std::unique_ptr<Source<Dim, UseBackgroundMagneticField>> override;
+  auto get_clone() const
+      -> std::unique_ptr<Source<Dim, UseBackgroundMagneticField>> override;
 
   void operator()(
       gsl::not_null<Scalar<DataVector>*> source_mass_density_cons,

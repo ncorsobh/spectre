@@ -113,10 +113,11 @@ tnsr::I<DataVector, Dim, Frame::Inertial> uniform_background_field(
 // Returns the packaged data on each mortar, and the evolved variables sliced to
 // the corresponding face.
 template <bool UseBackgroundMagneticField>
-std::pair<DirectionalIdMap<Dim, DataVector>,
-          DirectionalIdMap<Dim, Variables<typename NewtonianMhd::System<
-                                    Dim, UseBackgroundMagneticField>::
-                                              variables_tag::tags_list>>>
+std::pair<
+    DirectionalIdMap<Dim, DataVector>,
+    DirectionalIdMap<
+        Dim, Variables<typename NewtonianMhd::System<
+                 Dim, UseBackgroundMagneticField>::variables_tag::tags_list>>>
 compute_packaged_data(const size_t num_dg_pts) {
   using solution = NewtonianMhd::Solutions::AlfvenWave;
   using system = NewtonianMhd::System<Dim, UseBackgroundMagneticField>;
@@ -231,7 +232,8 @@ compute_packaged_data(const size_t num_dg_pts) {
             hydro::Tags::EquationOfState<false, 2>,
             typename system::primitive_variables_tag, variables_tag,
             evolution::dg::subcell::Tags::GhostDataForReconstruction<Dim>,
-            evolution::dg::Tags::MortarData<Dim>, domain::Tags::MeshVelocity<Dim>,
+            evolution::dg::Tags::MortarData<Dim>,
+            domain::Tags::MeshVelocity<Dim>,
             evolution::dg::Tags::NormalCovectorAndMagnitude<Dim>,
             evolution::dg::subcell::Tags::SubcellOptions<Dim>,
             NewtonianMhd::Tags::DivergenceCleaningSpeed,
@@ -278,9 +280,8 @@ compute_packaged_data(const size_t num_dg_pts) {
         DirectionalId<Dim>{direction, *neighbors.begin()});
   }
 
-  auto all_packaged_data =
-      NewtonianMhd::subcell::NeighborPackagedData<
-          UseBackgroundMagneticField>::apply(box, mortars_to_reconstruct_to);
+  auto all_packaged_data = NewtonianMhd::subcell::NeighborPackagedData<
+      UseBackgroundMagneticField>::apply(box, mortars_to_reconstruct_to);
 
   DirectionalIdMap<Dim, Variables<typename variables_tag::tags_list>>
       sliced_evolved_vars{};
@@ -338,10 +339,10 @@ double reconstruction_error(const size_t num_dg_pts) {
 // the shift applied to the evolved field exactly. This is what checks that the
 // background reaches the flux computation on the correct face.
 void test_background_field_splitting(const size_t num_dg_pts) {
-  const auto [unsplit_data, unsplit_sliced] = compute_packaged_data<false>(
-      num_dg_pts);
-  const auto [split_data, split_sliced] = compute_packaged_data<true>(
-      num_dg_pts);
+  const auto [unsplit_data, unsplit_sliced] =
+      compute_packaged_data<false>(num_dg_pts);
+  const auto [split_data, split_sliced] =
+      compute_packaged_data<true>(num_dg_pts);
   REQUIRE(unsplit_data.size() == split_data.size());
 
   const Mesh<Dim> dg_mesh{num_dg_pts, Spectral::Basis::Legendre,

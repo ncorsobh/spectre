@@ -12,7 +12,8 @@
 
 namespace NewtonianMhd::Sources {
 template <size_t Dim, bool UseBackgroundMagneticField>
-NoSource<Dim, UseBackgroundMagneticField>::NoSource(CkMigrateMessage* msg) : Source<Dim, UseBackgroundMagneticField>{msg} {}
+NoSource<Dim, UseBackgroundMagneticField>::NoSource(CkMigrateMessage* msg)
+    : Source<Dim, UseBackgroundMagneticField>{msg} {}
 
 template <size_t Dim, bool UseBackgroundMagneticField>
 void NoSource<Dim, UseBackgroundMagneticField>::pup(PUP::er& p) {
@@ -20,7 +21,8 @@ void NoSource<Dim, UseBackgroundMagneticField>::pup(PUP::er& p) {
 }
 
 template <size_t Dim, bool UseBackgroundMagneticField>
-auto NoSource<Dim, UseBackgroundMagneticField>::get_clone() const -> std::unique_ptr<Source<Dim, UseBackgroundMagneticField>> {
+auto NoSource<Dim, UseBackgroundMagneticField>::get_clone() const
+    -> std::unique_ptr<Source<Dim, UseBackgroundMagneticField>> {
   return std::make_unique<NoSource<Dim, UseBackgroundMagneticField>>(*this);
 }
 
@@ -51,8 +53,7 @@ PUP::able::PUP_ID NoSource<Dim, UseBackgroundMagneticField>::my_PUP_ID = 0;
 #define DIM(data) BOOST_PP_TUPLE_ELEM(0, data)
 
 #define USE_BG(data) BOOST_PP_TUPLE_ELEM(1, data)
-#define INSTANTIATION(r, data) \
-  template class NoSource<DIM(data), USE_BG(data)>;
+#define INSTANTIATION(r, data) template class NoSource<DIM(data), USE_BG(data)>;
 
 GENERATE_INSTANTIATIONS(INSTANTIATION, (1, 2, 3), (true, false))
 

@@ -51,9 +51,8 @@ void test(const gsl::not_null<std::mt19937*> gen,
   using DivergenceCleaningField =
       hydro::Tags::DivergenceCleaningField<DataVector>;
 
-  using cons_tags =
-      tmpl::list<MassDensityCons, MomentumDensity, EnergyDensity,
-                 MagneticFieldCons, DivergenceCleaningFieldCons>;
+  using cons_tags = tmpl::list<MassDensityCons, MomentumDensity, EnergyDensity,
+                               MagneticFieldCons, DivergenceCleaningFieldCons>;
   using ConsVars = Variables<cons_tags>;
   using prim_tags =
       tmpl::list<MassDensity, Velocity, SpecificInternalEnergy, Pressure,

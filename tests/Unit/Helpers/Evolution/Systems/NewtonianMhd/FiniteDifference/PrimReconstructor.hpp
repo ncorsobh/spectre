@@ -105,9 +105,8 @@ void test_prim_reconstructor_impl(
   using prims_tags =
       tmpl::list<MassDensity, Velocity, SpecificInternalEnergy, Pressure,
                  MagneticField, DivergenceCleaningField>;
-  using cons_tags =
-      tmpl::list<MassDensityCons, MomentumDensity, EnergyDensity,
-                 MagneticFieldCons, DivergenceCleaningFieldCons>;
+  using cons_tags = tmpl::list<MassDensityCons, MomentumDensity, EnergyDensity,
+                               MagneticFieldCons, DivergenceCleaningFieldCons>;
   using flux_tags = db::wrap_tags_in<::Tags::Flux, cons_tags, tmpl::size_t<Dim>,
                                      Frame::Inertial>;
   using prim_tags_for_reconstruction =
@@ -199,8 +198,7 @@ void test_prim_reconstructor_impl(
         make_not_null(&get<MomentumDensity>(expected_face_values)),
         make_not_null(&get<EnergyDensity>(expected_face_values)),
         make_not_null(&get<MagneticFieldCons>(expected_face_values)),
-        make_not_null(
-            &get<DivergenceCleaningFieldCons>(expected_face_values)),
+        make_not_null(&get<DivergenceCleaningFieldCons>(expected_face_values)),
         get<MassDensity>(expected_face_values),
         get<Velocity>(expected_face_values),
         get<SpecificInternalEnergy>(expected_face_values),

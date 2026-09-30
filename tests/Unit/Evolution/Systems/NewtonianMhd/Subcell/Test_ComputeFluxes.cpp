@@ -30,37 +30,36 @@ void test(const gsl::not_null<std::mt19937*> gen,
 
   // The cleaning speed is an argument tag but a double rather than a field, so
   // the variables are listed explicitly instead of taken from argument_tags.
-  using field_tags = tmpl::append<
-      typename Fluxes::return_tags,
-      tmpl::list<NewtonianMhd::Tags::MomentumDensity<Dim>,
-                 NewtonianMhd::Tags::EnergyDensity,
-                 NewtonianMhd::Tags::MagneticFieldCons<Dim>,
-                 NewtonianMhd::Tags::DivergenceCleaningFieldCons,
-                 hydro::Tags::SpatialVelocity<DataVector, Dim>,
-                 hydro::Tags::Pressure<DataVector>>,
-      NewtonianMhd::background_magnetic_field_tag_list<
-          NewtonianMhd::Tags::BackgroundMagneticField<Dim>,
-          UseBackgroundMagneticField>>;
+  using field_tags =
+      tmpl::append<typename Fluxes::return_tags,
+                   tmpl::list<NewtonianMhd::Tags::MomentumDensity<Dim>,
+                              NewtonianMhd::Tags::EnergyDensity,
+                              NewtonianMhd::Tags::MagneticFieldCons<Dim>,
+                              NewtonianMhd::Tags::DivergenceCleaningFieldCons,
+                              hydro::Tags::SpatialVelocity<DataVector, Dim>,
+                              hydro::Tags::Pressure<DataVector>>,
+                   NewtonianMhd::background_magnetic_field_tag_list<
+                       NewtonianMhd::Tags::BackgroundMagneticField<Dim>,
+                       UseBackgroundMagneticField>>;
 
   auto vars =
       make_with_random_values<Variables<field_tags>>(gen, dist, num_pts);
 
   Variables<typename Fluxes::return_tags> expected_fluxes{num_pts};
-  const auto apply_fluxes = [&expected_fluxes, &vars, &divergence_cleaning_speed](
+  const auto apply_fluxes = [&expected_fluxes, &vars,
+                             &divergence_cleaning_speed](
                                 const auto&... background_magnetic_field) {
     Fluxes::apply(
-        make_not_null(
-            &get<::Tags::Flux<NewtonianMhd::Tags::MassDensityCons,
-                              tmpl::size_t<Dim>, Frame::Inertial>>(
-                expected_fluxes)),
+        make_not_null(&get<::Tags::Flux<NewtonianMhd::Tags::MassDensityCons,
+                                        tmpl::size_t<Dim>, Frame::Inertial>>(
+            expected_fluxes)),
         make_not_null(
             &get<::Tags::Flux<NewtonianMhd::Tags::MomentumDensity<Dim>,
                               tmpl::size_t<Dim>, Frame::Inertial>>(
                 expected_fluxes)),
-        make_not_null(
-            &get<::Tags::Flux<NewtonianMhd::Tags::EnergyDensity,
-                              tmpl::size_t<Dim>, Frame::Inertial>>(
-                expected_fluxes)),
+        make_not_null(&get<::Tags::Flux<NewtonianMhd::Tags::EnergyDensity,
+                                        tmpl::size_t<Dim>, Frame::Inertial>>(
+            expected_fluxes)),
         make_not_null(
             &get<::Tags::Flux<NewtonianMhd::Tags::MagneticFieldCons<Dim>,
                               tmpl::size_t<Dim>, Frame::Inertial>>(
