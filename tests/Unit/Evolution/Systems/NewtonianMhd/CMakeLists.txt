@@ -24,6 +24,7 @@ set(LIBRARY_SOURCES
   Subcell/Test_TimeDerivative.cpp
   Test_Characteristics.cpp
   Test_ConservativeFromPrimitive.cpp
+  Test_FixConservatives.cpp
   Test_Fluxes.cpp
   Test_SoundSpeedSquared.cpp
   Test_System.cpp

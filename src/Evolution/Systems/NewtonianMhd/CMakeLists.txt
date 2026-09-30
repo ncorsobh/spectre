@@ -10,6 +10,7 @@ spectre_target_sources(
   PRIVATE
   Characteristics.cpp
   ConservativeFromPrimitive.cpp
+  FixConservatives.cpp
   Fluxes.cpp
   PrimitiveFromConservative.cpp
   SoundSpeedSquared.cpp
@@ -25,6 +26,7 @@ spectre_target_headers(
   OptionalBackgroundMagneticField.hpp
   Characteristics.hpp
   ConservativeFromPrimitive.hpp
+  FixConservatives.hpp
   Fluxes.hpp
   PrimitiveFromConservative.hpp
   SoundSpeedSquared.hpp

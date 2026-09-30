@@ -92,6 +92,14 @@ SpatialDiscretization:
     Reconstructor:
       MonotonisedCentralPrim:
 
+VariableFixing:
+  FixConservatives:
+    Enable: true
+    CutoffDensity: 1.0e-12
+    MinimumValueOfDensity: 1.0e-12
+    SafetyFactorForB: 1.0e-12
+    SafetyFactorForS: 1.0e-12
+
 EvolutionSystem:
   DivergenceCleaningSpeed: 2.0
   ConstraintDampingParameter: 0.1

@@ -51,6 +51,7 @@
 #include "Evolution/Systems/NewtonianMhd/Characteristics.hpp"
 #include "Evolution/Systems/NewtonianMhd/FiniteDifference/Factory.hpp"
 #include "Evolution/Systems/NewtonianMhd/FiniteDifference/Tag.hpp"
+#include "Evolution/Systems/NewtonianMhd/FixConservatives.hpp"
 #include "Evolution/Systems/NewtonianMhd/Initialization/BackgroundMagneticField.hpp"
 #include "Evolution/Systems/NewtonianMhd/OptionalBackgroundMagneticField.hpp"
 #include "Evolution/Systems/NewtonianMhd/SoundSpeedSquared.hpp"
@@ -67,6 +68,8 @@
 #include "Evolution/Systems/NewtonianMhd/Subcell/TimeDerivative.hpp"
 #include "Evolution/Systems/NewtonianMhd/System.hpp"
 #include "Evolution/Systems/NewtonianMhd/Tags.hpp"
+#include "Evolution/VariableFixing/Actions.hpp"
+#include "Evolution/VariableFixing/Tags.hpp"
 #include "IO/Observer/Actions/RegisterEvents.hpp"
 #include "IO/Observer/Helpers.hpp"
 #include "IO/Observer/ObserverComponent.hpp"
@@ -366,6 +369,8 @@ struct NewtonianMhdMetavars {
       evolution::dg::Actions::ApplyLtsBoundaryCorrections<
           volume_dim, use_dg_element_collection>,
       Actions::MutateApply<ChangeTimeStepperOrder<system>>,
+      VariableFixing::Actions::FixVariables<
+          NewtonianMhd::FixConservatives<volume_dim>>,
       tmpl::conditional_t<
           use_dg_subcell,
           // The primitive variables are computed as part of the TCI.
@@ -425,6 +430,8 @@ struct NewtonianMhdMetavars {
       Actions::MutateApply<UpdateU<system>>,
       Actions::MutateApply<CleanHistory<system>>,
       Actions::MutateApply<evolution::dg::CleanMortarHistory<volume_dim>>,
+      VariableFixing::Actions::FixVariables<
+          NewtonianMhd::FixConservatives<volume_dim>>,
       Actions::MutateApply<typename system::primitive_from_conservative>,
       evolution::dg::subcell::Actions::TciAndSwitchToDg<
           NewtonianMhd::subcell::TciOnFdGrid<volume_dim>>,
@@ -493,7 +500,8 @@ struct NewtonianMhdMetavars {
       initial_data_tag, equation_of_state_tag,
       NewtonianMhd::Tags::SourceTerm<volume_dim, UseBackgroundMagneticField>,
       NewtonianMhd::Tags::DivergenceCleaningSpeed,
-      NewtonianMhd::Tags::ConstraintDampingParameter>;
+      NewtonianMhd::Tags::ConstraintDampingParameter,
+      ::Tags::VariableFixer<NewtonianMhd::FixConservatives<volume_dim>>>;
 
   static constexpr Options::String help{
       "Evolve the Newtonian MHD system in conservative form.\n\n"};
