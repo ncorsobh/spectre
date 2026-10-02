@@ -118,11 +118,11 @@ void test_prim_reconstructor_impl(
   auto logical_coords = logical_coordinates(subcell_mesh);
   // Make the logical coordinates different in each direction
   for (size_t i = 1; i < 3; ++i) {
-    logical_coords.get(i) += 4.0 * i;
+    logical_coords.get(i) += 4.0 * static_cast<double>(i);
   }
 
   DirectionMap<3, Neighbors<3>> neighbors{};
-  for (size_t i = 0; i < 2 * 3; ++i) {
+  for (size_t i = 0; i < 2_st * 3; ++i) {
     neighbors[gsl::at(Direction<3>::all_directions(), i)] = Neighbors<3>{
         {ElementId<3>{i + 1, {}}}, OrientationMap<3>::create_aligned()};
   }
@@ -142,8 +142,10 @@ void test_prim_reconstructor_impl(
     get(get<Pressure>(vars)) += 30.0;
     get(get<DivergenceCleaningField>(vars)) += 0.3;
     for (size_t j = 0; j < 3; ++j) {
-      get<Velocity>(vars).get(j) += 1.0e-2 * (j + 2.0) + 10.0;
-      get<MagneticField>(vars).get(j) += 1.0e-2 * (j + 3.0) + 1.0;
+      get<Velocity>(vars).get(j) +=
+          1.0e-2 * (static_cast<double>(j) + 2.0) + 10.0;
+      get<MagneticField>(vars).get(j) +=
+          1.0e-2 * (static_cast<double>(j) + 3.0) + 1.0;
     }
     return vars;
   };
@@ -182,7 +184,7 @@ void test_prim_reconstructor_impl(
     auto logical_coords_face_centered = logical_coordinates(face_centered_mesh);
     for (size_t i = 1; i < 3; ++i) {
       logical_coords_face_centered.get(i) =
-          logical_coords_face_centered.get(i) + 4.0 * i;
+          logical_coords_face_centered.get(i) + 4.0 * static_cast<double>(i);
     }
     Variables<dg_package_data_argument_tags> expected_face_values{
         face_centered_mesh.number_of_grid_points()};

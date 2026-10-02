@@ -52,7 +52,7 @@ void test_in_databox(const Scalar<DataType>& mass_density,
 template <typename DataType>
 void test(const DataType& used_for_size) {
   MAKE_GENERATOR(generator);
-  std::uniform_real_distribution<> distribution(-1.0, 1.0);
+  std::uniform_real_distribution<> const distribution(-1.0, 1.0);
   std::uniform_real_distribution<> positive_distribution(0.0, 1.0);
   const auto nn_generator = make_not_null(&generator);
   const auto nn_positive_distribution = make_not_null(&positive_distribution);
@@ -65,7 +65,7 @@ void test(const DataType& used_for_size) {
   Scalar<DataType> sound_speed_squared{};
 
   // check with representative equation of state of one independent variable
-  EquationsOfState::PolytropicFluid<false> eos_1d(0.003, 4.0 / 3.0);
+  EquationsOfState::PolytropicFluid<false> const eos_1d(0.003, 4.0 / 3.0);
   get(sound_speed_squared) =
       get(eos_1d.chi_from_density(mass_density)) +
       get(eos_1d.kappa_times_p_over_rho_squared_from_density(mass_density));
@@ -76,7 +76,7 @@ void test(const DataType& used_for_size) {
   test_in_databox(mass_density, specific_internal_energy, eos_1d);
 
   // check with representative equation of state of two independent variables
-  EquationsOfState::IdealFluid<false> eos_2d(5.0 / 3.0);
+  EquationsOfState::IdealFluid<false> const eos_2d(5.0 / 3.0);
   get(sound_speed_squared) =
       get(eos_2d.chi_from_density_and_energy(mass_density,
                                              specific_internal_energy)) +

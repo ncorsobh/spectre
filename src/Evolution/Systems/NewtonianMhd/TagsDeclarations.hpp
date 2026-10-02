@@ -8,8 +8,7 @@
 #include "DataStructures/Tensor/IndexType.hpp"
 
 /// \cond
-namespace NewtonianMhd {
-namespace Tags {
+namespace NewtonianMhd::Tags {
 
 struct MassDensityCons;
 template <typename Fr = Frame::Inertial>
@@ -32,6 +31,5 @@ struct CharacteristicSpeeds;
 
 template <bool UseBackgroundMagneticField>
 struct SourceTerm;
-}  // namespace Tags
-}  // namespace NewtonianMhd
+}  // namespace NewtonianMhd::Tags
 /// \endcond

@@ -87,7 +87,7 @@ void test_background_field_is_harmonic() {
 
     const double divergence =
         derivative[0][0] + derivative[1][1] + derivative[2][2];
-    Approx custom_approx = Approx::custom().epsilon(1.0e-8).scale(1.0);
+    const Approx custom_approx = Approx::custom().epsilon(1.0e-8).scale(1.0);
     CHECK(divergence == custom_approx(0.0));
     for (size_t i = 0; i < 3; ++i) {
       for (size_t j = 0; j < i; ++j) {
@@ -140,7 +140,7 @@ void test_velocity_profiles() {
   for (const auto& solution : {stokes, potential}) {
     const auto velocity = get<Velocity>(all_variables(solution, far_point));
     // The Stokes profile approaches the uniform wind only as R_0 / r.
-    Approx custom_approx = Approx::custom().epsilon(1.0e-6).scale(1.0);
+    const Approx custom_approx = Approx::custom().epsilon(1.0e-6).scale(1.0);
     CHECK(get<0>(velocity)[0] == custom_approx(0.0));
     CHECK(get<1>(velocity)[0] == custom_approx(0.0));
     CHECK(get<2>(velocity)[0] == custom_approx(asymptotic_velocity));
@@ -161,13 +161,13 @@ void test_velocity_profiles() {
     for (size_t i = 0; i < 3; ++i) {
       radial_velocity += velocity.get(i)[0] * gsl::at(direction, i);
     }
-    Approx custom_approx = Approx::custom().epsilon(1.0e-10).scale(1.0);
+    const Approx custom_approx = Approx::custom().epsilon(1.0e-10).scale(1.0);
     CHECK(radial_velocity == custom_approx(0.0));
   }
   const auto stokes_velocity =
       get<Velocity>(all_variables(stokes, surface_point));
   for (size_t i = 0; i < 3; ++i) {
-    Approx custom_approx = Approx::custom().epsilon(1.0e-10).scale(1.0);
+    const Approx custom_approx = Approx::custom().epsilon(1.0e-10).scale(1.0);
     CHECK(stokes_velocity.get(i)[0] == custom_approx(0.0));
   }
 }

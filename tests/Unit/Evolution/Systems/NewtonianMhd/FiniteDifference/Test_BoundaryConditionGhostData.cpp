@@ -142,7 +142,7 @@ void test(const BoundaryConditionType& boundary_condition,
     for (size_t side = 0; side < 2; ++side) {
       gsl::at(gsl::at(face_conditions, d), side) =
           (d == direction.dimension() and
-           side == (direction.side() == Side::Upper ? 1 : 0))
+           side == (direction.side() == Side::Upper ? 1_st : 0_st))
               ? boundary_condition.get_clone()
               : NewtonianMhd::BoundaryConditions::Reflection<false>{}
                     .get_clone();
@@ -184,8 +184,8 @@ void test(const BoundaryConditionType& boundary_condition,
           get<hydro::Tags::Pressure<DataVector>>(volume_prims));
 
   const double time = 0.0;
-  std::unordered_map<std::string,
-                     std::unique_ptr<domain::FunctionsOfTime::FunctionOfTime>>
+  const std::unordered_map<
+      std::string, std::unique_ptr<domain::FunctionsOfTime::FunctionOfTime>>
       functions_of_time{};
   const ElementMap<3, Frame::Grid> logical_to_grid_map(
       ElementId<3>{0},

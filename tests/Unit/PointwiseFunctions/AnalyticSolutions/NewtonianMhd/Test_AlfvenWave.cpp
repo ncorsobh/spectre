@@ -152,7 +152,7 @@ void test_satisfies_evolution_equations() {
     // The individual terms are O(10) here, so the residual is a part in 1e7 or
     // better; the floor is set by the O(h^2) truncation error of the central
     // differences, which is a few times 1e-8 for this wavevector.
-    Approx custom_approx = Approx::custom().epsilon(1.0e-6).scale(1.0);
+    const Approx custom_approx = Approx::custom().epsilon(1.0e-6).scale(1.0);
     for (size_t variable = 0; variable < 9; ++variable) {
       const double time_derivative =
           (gsl::at(forward_in_time.conservative, variable) -

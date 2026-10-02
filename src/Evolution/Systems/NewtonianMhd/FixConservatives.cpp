@@ -68,7 +68,7 @@ bool FixConservatives::operator()(
   const size_t num_points = get(*mass_density_cons).size();
   for (size_t point = 0; point < num_points; ++point) {
     double& density = get(*mass_density_cons)[point];
-    double& energy = get(*energy_density)[point];
+    const double& energy = get(*energy_density)[point];
 
     if (density < cutoff_density_) {
       density = minimum_density_;

@@ -212,8 +212,8 @@ compute_time_derivative(const size_t num_dg_pts, const SetPrims& set_prims) {
         neighbor_data_in_direction;
   }
 
-  std::unordered_map<std::string,
-                     std::unique_ptr<domain::FunctionsOfTime::FunctionOfTime>>
+  const std::unordered_map<
+      std::string, std::unique_ptr<domain::FunctionsOfTime::FunctionOfTime>>
       dummy_functions_of_time{};
 
   const auto make_box = [&](auto... background_tags) {
@@ -379,7 +379,7 @@ void test_background_field_splitting(const SetPrims& set_prims) {
 
   // The two formulations group the same sums differently, so they agree only to
   // the cancellation error between the background and the perturbation.
-  Approx custom_approx = Approx::custom().epsilon(1.0e-10).scale(1.0);
+  const Approx custom_approx = Approx::custom().epsilon(1.0e-10).scale(1.0);
 
   CHECK_ITERABLE_CUSTOM_APPROX(
       get(get<::Tags::dt<NewtonianMhd::Tags::MassDensityCons>>(unsplit)),

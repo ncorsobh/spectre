@@ -76,15 +76,20 @@ std::tuple<int, evolution::dg::subcell::RdmpTciData> TciOnFdGrid::apply(
   using std::max;
   using std::min;
   evolution::dg::subcell::RdmpTciData rdmp_tci_data{
-      {max(get(subcell_mass_density)), max(get(subcell_energy_density))},
-      {min(get(subcell_mass_density)), min(get(subcell_energy_density))}};
+      .max_variables_values = {max(get(subcell_mass_density)),
+                               max(get(subcell_energy_density))},
+      .min_variables_values = {min(get(subcell_mass_density)),
+                               min(get(subcell_energy_density))}};
 
   const evolution::dg::subcell::RdmpTciData rdmp_tci_data_for_check{
-      {max(rdmp_tci_data.max_variables_values[0], max(get(dg_mass_density))),
-       max(rdmp_tci_data.max_variables_values[1], max(get(dg_energy_density)))},
-      {min(rdmp_tci_data.min_variables_values[0], min(get(dg_mass_density))),
-       min(rdmp_tci_data.min_variables_values[1],
-           min(get(dg_energy_density)))}};
+      .max_variables_values = {max(rdmp_tci_data.max_variables_values[0],
+                                   max(get(dg_mass_density))),
+                               max(rdmp_tci_data.max_variables_values[1],
+                                   max(get(dg_energy_density)))},
+      .min_variables_values = {
+          min(rdmp_tci_data.min_variables_values[0], min(get(dg_mass_density))),
+          min(rdmp_tci_data.min_variables_values[1],
+              min(get(dg_energy_density)))}};
 
   if (need_rdmp_data_only) {
     return {0, rdmp_tci_data};

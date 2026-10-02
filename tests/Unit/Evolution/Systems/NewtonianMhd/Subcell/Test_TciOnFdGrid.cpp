@@ -4,6 +4,7 @@
 #include "Framework/TestingFramework.hpp"
 
 #include <cstddef>
+#include <cstdint>
 #include <memory>
 
 #include "DataStructures/DataBox/DataBox.hpp"
@@ -25,7 +26,7 @@
 #include "PointwiseFunctions/Hydro/Tags.hpp"
 
 namespace {
-enum class TestThis {
+enum class TestThis : uint8_t {
   AllGood,
   SmallDensitySubcell,
   SmallPressureSubcell,

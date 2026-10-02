@@ -3,6 +3,7 @@
 
 #include "Framework/TestingFramework.hpp"
 
+#include <algorithm>
 #include <array>
 #include <cstddef>
 #include <memory>
@@ -272,8 +273,7 @@ compute_packaged_data(const size_t num_dg_pts) {
 
   std::vector<DirectionalId<3>> mortars_to_reconstruct_to{};
   for (const auto& [direction, neighbors] : element.neighbors()) {
-    mortars_to_reconstruct_to.emplace_back(
-        DirectionalId<3>{direction, *neighbors.begin()});
+    mortars_to_reconstruct_to.emplace_back(direction, *neighbors.begin());
   }
 
   auto all_packaged_data = NewtonianMhd::subcell::NeighborPackagedData<
@@ -310,7 +310,7 @@ double reconstruction_error(const size_t num_dg_pts) {
     const Mesh<3 - 1> face_mesh = dg_mesh.slice_away(direction.dimension());
     Variables<dg_package_field_tags> packaged_data{
         face_mesh.number_of_grid_points()};
-    std::copy(data.begin(), data.end(), packaged_data.data());
+    std::ranges::copy(data, packaged_data.data());
 
     tmpl::for_each<typename variables_tag::type::tags_list>(
         [&sliced_vars = sliced_evolved_vars.at(directional_id), &max_abs_error,
@@ -354,9 +354,9 @@ void test_background_field_splitting(const size_t num_dg_pts) {
         dg_mesh.slice_away(directional_id.direction().dimension());
     Variables<unsplit_fields> unsplit{face_mesh.number_of_grid_points()};
     Variables<split_fields> split{face_mesh.number_of_grid_points()};
-    std::copy(data.begin(), data.end(), unsplit.data());
+    std::ranges::copy(data, unsplit.data());
     const auto& split_raw = split_data.at(directional_id);
-    std::copy(split_raw.begin(), split_raw.end(), split.data());
+    std::ranges::copy(split_raw, split.data());
 
     CHECK_ITERABLE_APPROX(
         get<typename UnsplitHll::LargestOutgoingCharSpeed>(unsplit),

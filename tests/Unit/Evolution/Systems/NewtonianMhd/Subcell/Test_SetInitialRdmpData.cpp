@@ -49,18 +49,23 @@ void test() {
       make_not_null(&rdmp_data), dg_vars,
       evolution::dg::subcell::ActiveGrid::Dg, dg_mesh, subcell_mesh);
   const evolution::dg::subcell::RdmpTciData expected_dg_rdmp_data{
-      {max(max(get(dg_mass_density)), max(subcell_mass_density)),
-       max(max(get(dg_energy_density)), max(subcell_energy_density))},
-      {min(min(get(dg_mass_density)), min(subcell_mass_density)),
-       min(min(get(dg_energy_density)), min(subcell_energy_density))}};
+      .max_variables_values = {max(max(get(dg_mass_density)),
+                                   max(subcell_mass_density)),
+                               max(max(get(dg_energy_density)),
+                                   max(subcell_energy_density))},
+      .min_variables_values = {
+          min(min(get(dg_mass_density)), min(subcell_mass_density)),
+          min(min(get(dg_energy_density)), min(subcell_energy_density))}};
   CHECK(rdmp_data == expected_dg_rdmp_data);
 
   NewtonianMhd::subcell::SetInitialRdmpData::apply(
       make_not_null(&rdmp_data), dg_vars,
       evolution::dg::subcell::ActiveGrid::Subcell, dg_mesh, subcell_mesh);
   const evolution::dg::subcell::RdmpTciData expected_subcell_rdmp_data{
-      {max(get(dg_mass_density)), max(get(dg_energy_density))},
-      {min(get(dg_mass_density)), min(get(dg_energy_density))}};
+      .max_variables_values = {max(get(dg_mass_density)),
+                               max(get(dg_energy_density))},
+      .min_variables_values = {min(get(dg_mass_density)),
+                               min(get(dg_energy_density))}};
   CHECK(rdmp_data == expected_subcell_rdmp_data);
 }
 }  // namespace

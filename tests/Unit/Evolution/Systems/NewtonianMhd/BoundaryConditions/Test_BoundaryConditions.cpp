@@ -104,7 +104,7 @@ void test_ghost_condition(const std::string& python_module,
           "flux_mass_density", "flux_momentum_density", "flux_energy_density",
           "flux_magnetic_field", "flux_divergence_cleaning_field",
           "background_magnetic_field", "velocity", "specific_internal_energy"},
-      option_string, Index<3 - 1>{3 == 1 ? 1 : 5},
+      option_string, Index<2>{5},
       db::create<
           db::AddSimpleTags<NewtonianMhd::Tags::DivergenceCleaningSpeed>>(1.5),
       positive_ranges());
@@ -123,7 +123,7 @@ void test_demand_outgoing_char_speeds() {
       "DemandOutgoingCharSpeeds",
       tuples::TaggedTuple<helpers::Tags::PythonFunctionForErrorMessage<>>{
           "error"},
-      "DemandOutgoingCharSpeeds:\n", Index<3 - 1>{3 == 1 ? 1 : 5},
+      "DemandOutgoingCharSpeeds:\n", Index<2>{5},
       db::create<db::AddSimpleTags<hydro::Tags::EquationOfState<false, 2>>>(
           EquationsOfState::IdealFluid<false>{1.3}.get_clone()),
       positive_ranges());
@@ -208,7 +208,7 @@ void test_reflection_requires_tangent_background_field() {
 }  // namespace
 
 SPECTRE_TEST_CASE("Unit.NewtonianMhd.BoundaryConditions", "[Unit][Evolution]") {
-  pypp::SetupLocalPythonEnvironment local_python_env{""};
+  const pypp::SetupLocalPythonEnvironment local_python_env{""};
   test_ghost_condition<
       NewtonianMhd::BoundaryConditions::ConductorReflection<true>>(
       "Evolution.Systems.NewtonianMhd.BoundaryConditions.ConductorReflection",

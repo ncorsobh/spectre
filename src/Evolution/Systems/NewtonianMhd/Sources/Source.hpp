@@ -24,9 +24,8 @@ class EquationOfState;
 }  // namespace EquationsOfState
 /// \endcond
 
-namespace NewtonianMhd {
 /// Volume-source terms for the Newtonian MHD system.
-namespace Sources {
+namespace NewtonianMhd::Sources {
 
 /// \brief Base class for a NewtonianMhd volume source term.
 ///
@@ -67,5 +66,4 @@ class Source : public PUP::able {
       const EquationsOfState::EquationOfState<false, 2>& eos,
       const tnsr::I<DataVector, 3>& coords, double time) const = 0;
 };
-}  // namespace Sources
-}  // namespace NewtonianMhd
+}  // namespace NewtonianMhd::Sources

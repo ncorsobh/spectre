@@ -134,8 +134,7 @@ class AoWeno53Prim : public Reconstructor {
       const EquationsOfState::EquationOfState<false, 2>& eos,
       const Element<3>& element,
       const DirectionalIdMap<3, evolution::dg::subcell::GhostData>& ghost_data,
-      const Mesh<3>& subcell_mesh,
-      const Direction<3> direction_to_reconstruct) const;
+      const Mesh<3>& subcell_mesh, Direction<3> direction_to_reconstruct) const;
 
  private:
   // NOLINTNEXTLINE(readability-redundant-declaration)
@@ -150,17 +149,18 @@ class AoWeno53Prim : public Reconstructor {
                        gsl::not_null<std::array<gsl::span<double>, 3>*>,
                        const gsl::span<const double>&,
                        const DirectionMap<3, gsl::span<const double>>&,
-                       const Index<3>&, size_t, double, double, double);
+                       const Index<3>&, size_t, double, double,
+                       double) = nullptr;
   void (*reconstruct_lower_neighbor_)(gsl::not_null<DataVector*>,
                                       const DataVector&, const DataVector&,
                                       const Index<3>&, const Index<3>&,
                                       const Direction<3>&, const double&,
-                                      const double&, const double&);
+                                      const double&, const double&) = nullptr;
   void (*reconstruct_upper_neighbor_)(gsl::not_null<DataVector*>,
                                       const DataVector&, const DataVector&,
                                       const Index<3>&, const Index<3>&,
                                       const Direction<3>&, const double&,
-                                      const double&, const double&);
+                                      const double&, const double&) = nullptr;
 };
 
 inline bool operator!=(const AoWeno53Prim& lhs, const AoWeno53Prim& rhs) {

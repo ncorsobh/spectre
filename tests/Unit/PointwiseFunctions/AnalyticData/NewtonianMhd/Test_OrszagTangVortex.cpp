@@ -99,7 +99,7 @@ void test_fields_are_divergence_free() {
                                          get<1>(get<MagneticField>(minus_y))) /
                                         (2.0 * delta);
 
-  Approx finite_difference = Approx::custom().epsilon(1.0e-8).scale(1.0);
+  const Approx finite_difference = Approx::custom().epsilon(1.0e-8).scale(1.0);
   const DataVector zero{sample_x.size(), 0.0};
   CHECK_ITERABLE_CUSTOM_APPROX(div_velocity, zero, finite_difference);
   CHECK_ITERABLE_CUSTOM_APPROX(div_magnetic_field, zero, finite_difference);

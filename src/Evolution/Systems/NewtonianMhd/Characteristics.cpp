@@ -75,19 +75,16 @@ void characteristic_speeds(
   speeds[num_speeds - 1] = divergence_cleaning_speed;
   speeds[1] -= get(fast_speed);
   speeds[num_speeds - 2] += get(fast_speed);
-  if constexpr (3 >= 2) {
-    speeds[2] -= normal_alfven_speed;
-    speeds[num_speeds - 3] += normal_alfven_speed;
-  }
-  if constexpr (3 >= 3) {
-    // The slow magnetosonic speed is bounded above by both the sound speed and
-    // the normal Alfven speed; this bound is exact in the limits of parallel
-    // and perpendicular propagation.
-    const DataVector slow_speed =
-        blaze::min(sqrt(get(sound_speed_squared)), normal_alfven_speed);
-    speeds[3] -= slow_speed;
-    speeds[num_speeds - 4] += slow_speed;
-  }
+  speeds[2] -= normal_alfven_speed;
+  speeds[num_speeds - 3] += normal_alfven_speed;
+
+  // The slow magnetosonic speed is bounded above by both the sound speed and
+  // the normal Alfven speed; this bound is exact in the limits of parallel
+  // and perpendicular propagation.
+  const DataVector slow_speed =
+      blaze::min(sqrt(get(sound_speed_squared)), normal_alfven_speed);
+  speeds[3] -= slow_speed;
+  speeds[num_speeds - 4] += slow_speed;
 }
 
 template <bool UseBackgroundMagneticField>

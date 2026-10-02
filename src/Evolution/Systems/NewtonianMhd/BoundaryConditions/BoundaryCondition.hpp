@@ -8,9 +8,8 @@
 
 #include "Domain/BoundaryConditions/BoundaryCondition.hpp"
 
-namespace NewtonianMhd {
 /// \brief Boundary conditions for the Newtonian MHD system
-namespace BoundaryConditions {
+namespace NewtonianMhd::BoundaryConditions {
 /// \brief The base class off of which all NewtonianMhd boundary conditions
 /// must inherit.
 class BoundaryCondition : public domain::BoundaryConditions::BoundaryCondition {
@@ -25,5 +24,4 @@ class BoundaryCondition : public domain::BoundaryConditions::BoundaryCondition {
 
   void pup(PUP::er& p) override;
 };
-}  // namespace BoundaryConditions
-}  // namespace NewtonianMhd
+}  // namespace NewtonianMhd::BoundaryConditions

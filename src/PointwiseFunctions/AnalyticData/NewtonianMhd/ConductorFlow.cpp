@@ -233,7 +233,7 @@ ConductorFlow::variables(
 tuples::TaggedTuple<NewtonianMhd::Tags::MagneticFieldCons<>>
 ConductorFlow::variables(
     const tnsr::I<DataVector, 3, Frame::Inertial>& x,
-    tmpl::list<NewtonianMhd::Tags::MagneticFieldCons<>> /*meta*/) const {
+    tmpl::list<NewtonianMhd::Tags::MagneticFieldCons<>> /*meta*/) {
   return {make_with_value<tnsr::I<DataVector, 3, Frame::Inertial>>(x, 0.0)};
 }
 

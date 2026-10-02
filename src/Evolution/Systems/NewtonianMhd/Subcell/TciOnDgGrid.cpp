@@ -52,10 +52,13 @@ std::tuple<int, evolution::dg::subcell::RdmpTciData> TciOnDgGrid::apply(
   using std::max;
   using std::min;
   evolution::dg::subcell::RdmpTciData rdmp_tci_data{
-      {max(max(get(mass_density)), max(get(subcell_mass_density))),
-       max(max(get(energy_density)), max(get(subcell_energy_density)))},
-      {min(min(get(mass_density)), min(get(subcell_mass_density))),
-       min(min(get(energy_density)), min(get(subcell_energy_density)))}};
+      .max_variables_values = {max(max(get(mass_density)),
+                                   max(get(subcell_mass_density))),
+                               max(max(get(energy_density)),
+                                   max(get(subcell_energy_density)))},
+      .min_variables_values = {
+          min(min(get(mass_density)), min(get(subcell_mass_density))),
+          min(min(get(energy_density)), min(get(subcell_energy_density)))}};
 
   NewtonianMhd::PrimitiveFromConservative::apply(
       make_not_null(&get<MassDensity>(*dg_prim_vars)),

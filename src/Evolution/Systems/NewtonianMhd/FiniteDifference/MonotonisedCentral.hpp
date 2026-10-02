@@ -136,8 +136,7 @@ class MonotonisedCentralPrim : public Reconstructor {
       const EquationsOfState::EquationOfState<false, 2>& eos,
       const Element<3>& element,
       const DirectionalIdMap<3, evolution::dg::subcell::GhostData>& ghost_data,
-      const Mesh<3>& subcell_mesh,
-      const Direction<3> direction_to_reconstruct) const;
+      const Mesh<3>& subcell_mesh, Direction<3> direction_to_reconstruct) const;
 };
 
 inline bool operator==(const MonotonisedCentralPrim& /*lhs*/,

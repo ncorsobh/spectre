@@ -223,9 +223,9 @@ class ConductorFlow : public evolution::initial_data::InitialData,
 
   /// The field is entirely background, so an evolution that splits it off
   /// evolves a vanishing perturbation.
-  tuples::TaggedTuple<NewtonianMhd::Tags::MagneticFieldCons<>> variables(
+  static tuples::TaggedTuple<NewtonianMhd::Tags::MagneticFieldCons<>> variables(
       const tnsr::I<DataVector, 3, Frame::Inertial>& x,
-      tmpl::list<NewtonianMhd::Tags::MagneticFieldCons<>> /*meta*/) const;
+      tmpl::list<NewtonianMhd::Tags::MagneticFieldCons<>> /*meta*/);
 
   /// @}
 

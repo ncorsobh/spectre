@@ -3,7 +3,5 @@
 
 #pragma once
 
-namespace NewtonianMhd {
 /// \brief Code required by the DG-subcell/FD hybrid solver.
-namespace subcell {}
-}  // namespace NewtonianMhd
+namespace NewtonianMhd::subcell {}

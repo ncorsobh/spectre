@@ -113,7 +113,7 @@ void reflection_dg_ghost(
                                   2.0 * get(normal_dot_magnetic_field) *
                                       outward_directed_normal_covector.get(i);
   }
-  Scalar<DataVector> ghost_divergence_cleaning_field{
+  const Scalar<DataVector> ghost_divergence_cleaning_field{
       -get(interior_divergence_cleaning_field)};
 
   *specific_internal_energy = interior_specific_internal_energy;

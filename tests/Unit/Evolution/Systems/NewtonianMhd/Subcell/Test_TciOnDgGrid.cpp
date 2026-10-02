@@ -4,6 +4,7 @@
 #include "Framework/TestingFramework.hpp"
 
 #include <cstddef>
+#include <cstdint>
 #include <memory>
 
 #include "DataStructures/DataBox/DataBox.hpp"
@@ -28,7 +29,7 @@
 #include "PointwiseFunctions/Hydro/Tags.hpp"
 
 namespace {
-enum class TestThis {
+enum class TestThis : uint8_t {
   AllGood,
   SmallDensity,
   SmallPressure,
@@ -146,22 +147,22 @@ void test(const TestThis test_this) {
   using std::max;
   using std::min;
   evolution::dg::subcell::RdmpTciData past_rdmp_tci_data{
-      {max(max(get(get<MassDensityCons>(box))),
-           max(evolution::dg::subcell::fd::project(
-               get(get<MassDensityCons>(box)), dg_mesh,
-               subcell_mesh.extents()))),
-       max(max(get(get<EnergyDensity>(box))),
-           max(evolution::dg::subcell::fd::project(get(get<EnergyDensity>(box)),
-                                                   dg_mesh,
-                                                   subcell_mesh.extents())))},
-      {min(min(get(get<MassDensityCons>(box))),
-           min(evolution::dg::subcell::fd::project(
-               get(get<MassDensityCons>(box)), dg_mesh,
-               subcell_mesh.extents()))),
-       min(min(get(get<EnergyDensity>(box))),
-           min(evolution::dg::subcell::fd::project(get(get<EnergyDensity>(box)),
-                                                   dg_mesh,
-                                                   subcell_mesh.extents())))}};
+      .max_variables_values = {max(max(get(get<MassDensityCons>(box))),
+                                   max(evolution::dg::subcell::fd::project(
+                                       get(get<MassDensityCons>(box)), dg_mesh,
+                                       subcell_mesh.extents()))),
+                               max(max(get(get<EnergyDensity>(box))),
+                                   max(evolution::dg::subcell::fd::project(
+                                       get(get<EnergyDensity>(box)), dg_mesh,
+                                       subcell_mesh.extents())))},
+      .min_variables_values = {min(min(get(get<MassDensityCons>(box))),
+                                   min(evolution::dg::subcell::fd::project(
+                                       get(get<MassDensityCons>(box)), dg_mesh,
+                                       subcell_mesh.extents()))),
+                               min(min(get(get<EnergyDensity>(box))),
+                                   min(evolution::dg::subcell::fd::project(
+                                       get(get<EnergyDensity>(box)), dg_mesh,
+                                       subcell_mesh.extents())))}};
 
   const evolution::dg::subcell::RdmpTciData expected_rdmp_tci_data =
       past_rdmp_tci_data;

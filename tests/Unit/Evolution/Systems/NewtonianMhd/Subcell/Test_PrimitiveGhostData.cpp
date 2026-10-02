@@ -103,7 +103,7 @@ void test_dg(const gsl::not_null<std::mt19937*> gen,
   const ReconsPrimVars prims_to_reconstruct{
       prims_to_reconstruct_rdmp.data(), prims_to_reconstruct_rdmp.size() - 2};
 
-  const PrimVars expected_prims = prims;
+  const PrimVars& expected_prims = prims;
   tmpl::for_each<prims_to_reconstruct_tags>(
       [&prims_to_reconstruct, &expected_prims](auto tag_v) {
         using tag = tmpl::type_from<decltype(tag_v)>;

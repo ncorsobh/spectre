@@ -3,7 +3,5 @@
 
 #pragma once
 
-namespace NewtonianMhd {
-/// Finite difference functionality for Newtonian Euler
-namespace fd {}
-}  // namespace NewtonianMhd
+/// Finite difference functionality for Newtonian MHD
+namespace NewtonianMhd::fd {}

@@ -3,6 +3,7 @@
 
 #include "Evolution/Systems/NewtonianMhd/Subcell/NeighborPackagedData.hpp"
 
+#include <algorithm>
 #include <cstddef>
 #include <optional>
 #include <type_traits>
@@ -173,15 +174,13 @@ NeighborPackagedData<UseBackgroundMagneticField>::apply(
         for (auto& t : normal_covector) {
           t *= -1.0;
         }
-        if constexpr (3 > 1) {
-          const auto dg_normal_covector = normal_covector;
-          for (size_t i = 0; i < 3; ++i) {
-            normal_covector.get(i) = evolution::dg::subcell::fd::project(
-                dg_normal_covector.get(i),
-                dg_mesh.slice_away(mortar_id.direction().dimension()),
-                subcell_mesh.extents().slice_away(
-                    mortar_id.direction().dimension()));
-          }
+        const auto dg_normal_covector = normal_covector;
+        for (size_t i = 0; i < 3; ++i) {
+          normal_covector.get(i) = evolution::dg::subcell::fd::project(
+              dg_normal_covector.get(i),
+              dg_mesh.slice_away(mortar_id.direction().dimension()),
+              subcell_mesh.extents().slice_away(
+                  mortar_id.direction().dimension()));
         }
 
         // Compute the packaged data
@@ -196,34 +195,22 @@ NeighborPackagedData<UseBackgroundMagneticField>::apply(
             typename DerivedCorrection::dg_package_data_volume_tags{},
             dg_package_data_projected_tags{});
 
-        if constexpr (3 == 1) {
-          (void)dg_mesh;
-          (void)subcell_options;
-          // Make a view so we can use iterators with std::copy
-          DataVector packaged_data_view{packaged_data.data(),
-                                        packaged_data.size()};
-          neighbor_package_data[mortar_id] = DataVector{packaged_data.size()};
-          std::copy(packaged_data_view.begin(), packaged_data_view.end(),
-                    neighbor_package_data[mortar_id].begin());
-        } else {
-          // Reconstruct the DG solution.
-          // Really we should be solving the boundary correction and
-          // then reconstructing, but away from a shock this doesn't
-          // matter.
-          auto dg_packaged_data = evolution::dg::subcell::fd::reconstruct(
-              packaged_data,
-              dg_mesh.slice_away(mortar_id.direction().dimension()),
-              subcell_mesh.extents().slice_away(
-                  mortar_id.direction().dimension()),
-              subcell_options.reconstruction_method());
-          // Make a view so we can use iterators with std::copy
-          DataVector dg_packaged_data_view{dg_packaged_data.data(),
-                                           dg_packaged_data.size()};
-          neighbor_package_data[mortar_id] =
-              DataVector{dg_packaged_data.size()};
-          std::copy(dg_packaged_data_view.begin(), dg_packaged_data_view.end(),
-                    neighbor_package_data[mortar_id].begin());
-        }
+        // Reconstruct the DG solution.
+        // Really we should be solving the boundary correction and
+        // then reconstructing, but away from a shock this doesn't
+        // matter.
+        auto dg_packaged_data = evolution::dg::subcell::fd::reconstruct(
+            packaged_data,
+            dg_mesh.slice_away(mortar_id.direction().dimension()),
+            subcell_mesh.extents().slice_away(
+                mortar_id.direction().dimension()),
+            subcell_options.reconstruction_method());
+        // Make a view so we can use iterators with std::copy
+        DataVector dg_packaged_data_view{dg_packaged_data.data(),
+                                         dg_packaged_data.size()};
+        neighbor_package_data[mortar_id] = DataVector{dg_packaged_data.size()};
+        std::ranges::copy(dg_packaged_data_view,
+                          neighbor_package_data[mortar_id].begin());
       }
     }
   });

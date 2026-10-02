@@ -72,16 +72,14 @@ void test(const gsl::not_null<std::mt19937*> gen,
     prim_vars.initialize(subcell_mesh.number_of_grid_points(), 1.0);
   }
 
-  std::unique_ptr<EquationsOfState::EquationOfState<false, 2>> eos =
-      EquationsOfState::PolytropicFluid<false>{1.4, 5.0 / 3.0}
-          .promote_to_2d_eos();
-
   auto box = db::create<db::AddSimpleTags<
       evolution::dg::subcell::Tags::ActiveGrid, ::Tags::Variables<cons_tags>,
       ::Tags::Variables<prim_tags>, ::domain::Tags::Mesh<3>,
       evolution::dg::subcell::Tags::Mesh<3>,
       hydro::Tags::EquationOfState<false, 2>>>(
-      active_grid, cons_vars, prim_vars, dg_mesh, subcell_mesh, std::move(eos));
+      active_grid, cons_vars, prim_vars, dg_mesh, subcell_mesh,
+      EquationsOfState::PolytropicFluid<false>{1.4, 5.0 / 3.0}
+          .promote_to_2d_eos());
 
   db::mutate_apply<NewtonianMhd::subcell::ResizeAndComputePrims>(
       make_not_null(&box));
