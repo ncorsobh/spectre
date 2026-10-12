@@ -227,6 +227,16 @@ double integration_weight(const Index<Dim>& extents, const Index<Dim>& index) {
   return result;
 }
 
+// The measure of one subcell on the reference cell [-1, 1]^Dim.
+template <size_t Dim>
+double subcell_measure(const Index<Dim>& extents) {
+  double result = 1.0;
+  for (size_t d = 0; d < Dim; ++d) {
+    result *= 2.0 / static_cast<double>(extents[d]);
+  }
+  return result;
+}
+
 template <Spectral::Quadrature QuadratureType, size_t Dim>
 Matrix reconstruction_matrix_cache_impl_helper(
     const Index<Dim>& dg_extents, const Index<Dim>& subcell_extents) {
@@ -734,11 +744,34 @@ const Matrix& projection_matrix(const Mesh<1>& dg_mesh,
                         dg_mesh.quadrature(0), side);
 }
 
+template <size_t Dim>
+double cell_integral(const DataVector& integrand,
+                     const Mesh<Dim>& subcell_mesh) {
+  ASSERT(subcell_mesh == Mesh<Dim>(subcell_mesh.extents().indices(),
+                                   Spectral::Basis::FiniteDifference,
+                                   Spectral::Quadrature::CellCentered),
+         "The cell integral is defined for a cell-centered finite-difference "
+         "mesh, got "
+             << subcell_mesh);
+  ASSERT(integrand.size() == subcell_mesh.number_of_grid_points(),
+         "The integrand has " << integrand.size()
+                              << " points but the subcell mesh has "
+                              << subcell_mesh.number_of_grid_points());
+  const Index<Dim> extents = subcell_mesh.extents();
+  double result = 0.0;
+  for (IndexIterator<Dim> it(extents); it; ++it) {
+    result +=
+        integration_weight(extents, *it) * integrand[it.collapsed_index()];
+  }
+  return subcell_measure(extents) * result;
+}
+
 #define GET_DIM(data) BOOST_PP_TUPLE_ELEM(0, data)
 
-#define INSTANTIATION(r, data)                                             \
-  template const Matrix& reconstruction_matrix(const Mesh<GET_DIM(data)>&, \
-                                               const Index<GET_DIM(data)>&);
+#define INSTANTIATION(r, data)                                               \
+  template const Matrix& reconstruction_matrix(const Mesh<GET_DIM(data)>&,   \
+                                               const Index<GET_DIM(data)>&); \
+  template double cell_integral(const DataVector&, const Mesh<GET_DIM(data)>&);
 
 GENERATE_INSTANTIATIONS(INSTANTIATION, (1, 2, 3))
 

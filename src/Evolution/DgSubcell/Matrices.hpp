@@ -87,6 +87,32 @@ const Matrix& reconstruction_matrix(const Mesh<Dim>& dg_mesh,
 
 /*!
  * \ingroup DgSubcellGroup
+ * \brief The definite integral of \p integrand over the cell, using the
+ * subcell integration rule that `reconstruction_matrix` conserves.
+ *
+ * This is the 6th-order rule on a uniform mesh, i.e. the weights
+ * \f$\vec{\underline{w}}\f$ of `reconstruction_matrix`. It is **not** the rule
+ * that `definite_integral` applies to a cell-centered finite-difference mesh:
+ * that one is the midpoint rule, and the two disagree. Reconstruction preserves
+ * the integral in the sense
+ *
+ * \f{align*}{
+ *   \int_{\Omega} \mathcal{R}(\underline{u}) \,d^D\xi
+ *   = \texttt{cell\_integral}(\underline{u}),
+ * \f}
+ *
+ * with the left-hand side the ordinary DG quadrature of the reconstructed
+ * solution.
+ *
+ * \p subcell_mesh must be a cell-centered finite-difference mesh on
+ * \f$[-1,1]^D\f$.
+ */
+template <size_t Dim>
+double cell_integral(const DataVector& integrand,
+                     const Mesh<Dim>& subcell_mesh);
+
+/*!
+ * \ingroup DgSubcellGroup
  * \brief Computes the 1D reconstruction matrix for a ZernikeB1 DG mesh.
  *
  * Uses the same constrained least-squares formula as the Legendre overload,
