@@ -79,7 +79,55 @@ const Matrix& projection_matrix(const Mesh<1>& dg_mesh, size_t subcell_extents,
  * \f$\mathbf{w}=w_{\breve{l}}\delta_{\breve{l}\breve{\jmath}}\f$, and
  * \f$\vec{\underline{w}}\f$ is the vector of integration weights over the
  * subcells. The integration weights \f$\vec{\underline{w}}\f$ on the subcells
- * are those for 6th-order integration on a uniform mesh.
+ * are those for 6th-order integration on a uniform mesh, which `cell_integral`
+ * applies.
+ *
+ * Writing \f$A=2\mathcal{P}^{\mathsf{T}}\mathcal{P}\f$, the matrix is
+ * assembled from one-dimensional factors rather than formed at full size.
+ * Interpolation acts one direction at a time, so
+ * \f$\mathcal{P}=\bigotimes_d\mathcal{P}_d\f$ (here \f$\bigotimes\f$ is a
+ * genuine tensor product, unlike the \f$\otimes\f$ written above). Setting
+ * \f$A_d=\mathcal{P}_d^{\mathsf{T}}\mathcal{P}_d\f$, so that
+ * \f$A=2\bigotimes_d A_d\f$, and
+ *
+ * \f{align*}{
+ *   B_d = A_d^{-1}\mathcal{P}_d^{\mathsf{T}}, \quad
+ *   \vec{y}_d = A_d^{-1}\vec{w}_d, \quad
+ *   s_d = \vec{w}_d^{\mathsf{T}}\vec{y}_d, \quad
+ *   \vec{\underline{z}}_d = \mathcal{P}_d\vec{y}_d,
+ * \f}
+ *
+ * each piece above factors as
+ *
+ * \f{align*}{
+ *   A^{-1}2\mathcal{P}^{\mathsf{T}} &= \bigotimes_d B_d, \\
+ *   A^{-1}\vec{w}\left[\vec{w}^{\mathsf{T}}A^{-1}\vec{w}\right]^{-1}
+ *     &= \frac{\bigotimes_d \vec{y}_d}{\prod_d s_d}, \\
+ *   \vec{w}^{\mathsf{T}}A^{-1}2\mathcal{P}^{\mathsf{T}}
+ *     &= \bigotimes_d \vec{\underline{z}}_d^{\mathsf{T}},
+ * \f}
+ *
+ * so that
+ *
+ * \f{align*}{
+ *   R = \bigotimes_d B_d + \frac{\bigotimes_d \vec{y}_d}{\prod_d s_d}
+ *   \left(\bigotimes_d \vec{\underline{w}}_d
+ *       - \bigotimes_d \vec{\underline{z}}_d\right)^{\mathsf{T}}.
+ * \f}
+ *
+ * The constraint contributes a single rank-one correction, whose subcell
+ * factor is the amount by which the unconstrained least-squares fit misses the
+ * required cell integral. The factor of two in \f$A\f$ appears separately in
+ * \f$A^{-1}\vec{w}=\frac{1}{2}\bigotimes_d\vec{y}_d\f$ and
+ * \f$\vec{w}^{\mathsf{T}}A^{-1}\vec{w}=\frac{1}{2}\prod_d s_d\f$ and cancels in
+ * their ratio, which is why none survives in the expressions above. Only
+ * \f$D\f$ inversions of size \f$n_d\f$ are needed rather than one of size
+ * \f$\prod_d n_d\f$.
+ *
+ * \note \p subcell_extents must be \f$2n-1\f$ of the DG extents in every
+ * dimension, as produced by `fd::mesh`. The matrices are cached on the DG
+ * extents alone and the subcell extents are derived from them, so this is a
+ * precondition rather than a free parameter; it is checked by an `ASSERT`.
  */
 template <size_t Dim>
 const Matrix& reconstruction_matrix(const Mesh<Dim>& dg_mesh,

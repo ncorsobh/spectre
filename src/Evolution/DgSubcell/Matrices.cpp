@@ -215,9 +215,6 @@ double get_sixth_order_integration_coefficient(const size_t num_pts,
         << num_pts << "' points. We need at least 5 points.");
 }
 
-// Function to get the 1d integration coefficient from the 1, 2, or 3d spatial
-// location. The 1d coefficient is a product of the 3 coefficients in each
-// direction.
 template <size_t Dim>
 double integration_weight(const Index<Dim>& extents, const Index<Dim>& index) {
   double result = get_sixth_order_integration_coefficient(extents[0], index[0]);
@@ -240,154 +237,142 @@ double subcell_measure(const Index<Dim>& extents) {
 template <Spectral::Quadrature QuadratureType, size_t Dim>
 Matrix reconstruction_matrix_cache_impl_helper(
     const Index<Dim>& dg_extents, const Index<Dim>& subcell_extents) {
-  if constexpr (QuadratureType == Spectral::Quadrature::SphericalSymmetry or
-                QuadratureType == Spectral::Quadrature::AxialSymmetry) {
-    ASSERT(Dim == 1,
-           "Cartoon basis should never be the first basis: only a mesh slice "
-           "should get here, got Dim = "
-               << Dim);
-    return Matrix{1, 1, 1.0};
-  } else {
-    // The reconstruction matrix solves a least-squares fit of the subcell data
-    // by the DG basis, constrained to preserve the integral over the cell. In
-    // block form the system is
-    //
-    //   M = [[A, -w], [w^T, 0]],   A = 2 P^T P,
-    //
-    // with P the projection from the DG grid to the subcell grid and w the DG
-    // quadrature weights. Every ingredient is a tensor product of
-    // one-dimensional factors: P = (x) P_d, so A^-1 = (1/2) (x) (P_d^T P_d)^-1,
-    // and w, the integration weights and the cell widths all factor per
-    // dimension. Only the single conservation constraint does not, but a
-    // bordered system has a closed-form inverse in terms of A^-1, u = A^-1 w
-    // and s = w^T u, so the whole matrix can be assembled from the 1d factors
-    // plus one rank-one correction. That avoids inverting the (n+1) x (n+1)
-    // system, whose cost grows like the cube of the total number of DG points.
-    const size_t num_pts = dg_extents.product();
-    const size_t num_subcells = subcell_extents.product();
+  // Notation follows the documentation of `reconstruction_matrix`, which
+  // writes the bordered system in terms of A = 2 P^T P, the DG integration
+  // weights w, and the subcell integration weights w_sub. Per dimension d,
+  // with A_d = P_d^T P_d so that A = 2 (x)_d A_d:
+  //
+  //   B_d = A_d^-1 P_d^T,  y_d = A_d^-1 w_d,  s_d = w_d^T y_d,  z_d = P_d y_d
+  //
+  // The factor 2 appears in A^-1 = (1/2) (x)_d A_d^-1 and so in two places
+  // separately: A^-1 w = (1/2) (x)_d y_d and w^T A^-1 w = (1/2) prod_d s_d.
+  // It cancels in the ratio A^-1 w [w^T A^-1 w]^-1 = ((x)_d y_d) / prod_d s_d
+  // and in A^-1 2 P^T = (x)_d B_d, which is why no factor of 2 survives below.
+  // Mistaking that cancellation for an error and "restoring" a 1/2 here would
+  // silently break conservation.
+  const size_t num_pts = dg_extents.product();
+  const size_t num_subcells = subcell_extents.product();
 
-    // Per dimension: the least-squares reconstruction B_d = (P_d^T P_d)^-1
-    // P_d^T, the weight image y_d = (P_d^T P_d)^-1 w_d, its norm s_d =
-    // w_d^T y_d, the subcell image z_d = P_d y_d, and the integration weights
-    // v_d of the constraint row.
-    std::array<Matrix, Dim> one_d_reconstruction{};
-    std::array<DataVector, Dim> weight_image{};
-    std::array<DataVector, Dim> subcell_image{};
-    std::array<DataVector, Dim> constraint_row{};
-    std::array<double, Dim> weight_norm{};
+  std::array<Matrix, Dim> one_d_reconstruction{};
+  std::array<DataVector, Dim> weight_image{};
+  std::array<DataVector, Dim> subcell_image{};
+  std::array<DataVector, Dim> subcell_weights{};
+  std::array<double, Dim> weight_inner_product{};
 
-    for (size_t d = 0; d < Dim; ++d) {
-      const size_t n_d = dg_extents[d];
-      const size_t m_d = subcell_extents[d];
-      const Matrix p_d =
-          Spectral::interpolation_matrix<Spectral::Basis::Legendre,
-                                         QuadratureType>(
-              n_d,
-              Spectral::collocation_points<Spectral::Basis::FiniteDifference,
-                                           Spectral::Quadrature::CellCentered>(
-                  m_d));
+  for (size_t d = 0; d < Dim; ++d) {
+    const size_t num_dg_points = dg_extents[d];
+    const size_t num_subcell_points = subcell_extents[d];
+    const Matrix projection_1d =
+        Spectral::interpolation_matrix<Spectral::Basis::Legendre,
+                                       QuadratureType>(
+            num_dg_points,
+            Spectral::collocation_points<Spectral::Basis::FiniteDifference,
+                                         Spectral::Quadrature::CellCentered>(
+                num_subcell_points));
 
-      Matrix gram(n_d, n_d, 0.0);
-      for (size_t i = 0; i < n_d; ++i) {
-        for (size_t j = 0; j < n_d; ++j) {
-          double sum = 0.0;
-          for (size_t k = 0; k < m_d; ++k) {
-            sum += p_d(k, i) * p_d(k, j);
-          }
-          gram(i, j) = sum;
-        }
-      }
-      const Matrix inv_gram = inv(gram);
-
-      Matrix b_d(n_d, m_d, 0.0);
-      for (size_t i = 0; i < n_d; ++i) {
-        for (size_t k = 0; k < m_d; ++k) {
-          double sum = 0.0;
-          for (size_t j = 0; j < n_d; ++j) {
-            sum += inv_gram(i, j) * p_d(k, j);
-          }
-          b_d(i, k) = sum;
-        }
-      }
-      gsl::at(one_d_reconstruction, d) = std::move(b_d);
-
-      const DataVector& w_d =
-          Spectral::quadrature_weights<Spectral::Basis::Legendre,
-                                       QuadratureType>(n_d);
-      DataVector y_d(n_d, 0.0);
-      for (size_t i = 0; i < n_d; ++i) {
+    Matrix gram(num_dg_points, num_dg_points, 0.0);
+    for (size_t i = 0; i < num_dg_points; ++i) {
+      for (size_t j = 0; j < num_dg_points; ++j) {
         double sum = 0.0;
-        for (size_t j = 0; j < n_d; ++j) {
-          sum += inv_gram(i, j) * w_d[j];
+        for (size_t k = 0; k < num_subcell_points; ++k) {
+          sum += projection_1d(k, i) * projection_1d(k, j);
         }
-        y_d[i] = sum;
+        gram(i, j) = sum;
       }
-      double s_d = 0.0;
-      for (size_t i = 0; i < n_d; ++i) {
-        s_d += w_d[i] * y_d[i];
-      }
-      gsl::at(weight_norm, d) = s_d;
+    }
+    const Matrix inv_gram = inv(gram);
 
-      DataVector z_d(m_d, 0.0);
-      for (size_t k = 0; k < m_d; ++k) {
+    Matrix reconstruction_1d(num_dg_points, num_subcell_points, 0.0);
+    for (size_t i = 0; i < num_dg_points; ++i) {
+      for (size_t k = 0; k < num_subcell_points; ++k) {
         double sum = 0.0;
-        for (size_t i = 0; i < n_d; ++i) {
-          sum += p_d(k, i) * y_d[i];
+        for (size_t j = 0; j < num_dg_points; ++j) {
+          sum += inv_gram(i, j) * projection_1d(k, j);
         }
-        z_d[k] = sum;
+        reconstruction_1d(i, k) = sum;
       }
-      gsl::at(subcell_image, d) = std::move(z_d);
-      gsl::at(weight_image, d) = std::move(y_d);
-
-      DataVector v_d(m_d, 0.0);
-      for (size_t k = 0; k < m_d; ++k) {
-        v_d[k] = 2.0 / static_cast<double>(m_d) *
-                 get_sixth_order_integration_coefficient(m_d, k);
-      }
-      gsl::at(constraint_row, d) = std::move(v_d);
     }
+    gsl::at(one_d_reconstruction, d) = std::move(reconstruction_1d);
 
-    double s_total = 1.0;
+    const DataVector& dg_weights =
+        Spectral::quadrature_weights<Spectral::Basis::Legendre, QuadratureType>(
+            num_dg_points);
+    DataVector weight_image_1d(num_dg_points, 0.0);
+    for (size_t i = 0; i < num_dg_points; ++i) {
+      double sum = 0.0;
+      for (size_t j = 0; j < num_dg_points; ++j) {
+        sum += inv_gram(i, j) * dg_weights[j];
+      }
+      weight_image_1d[i] = sum;
+    }
+    double weight_inner_product_1d = 0.0;
+    for (size_t i = 0; i < num_dg_points; ++i) {
+      weight_inner_product_1d += dg_weights[i] * weight_image_1d[i];
+    }
+    gsl::at(weight_inner_product, d) = weight_inner_product_1d;
+
+    DataVector subcell_image_1d(num_subcell_points, 0.0);
+    for (size_t k = 0; k < num_subcell_points; ++k) {
+      double sum = 0.0;
+      for (size_t i = 0; i < num_dg_points; ++i) {
+        sum += projection_1d(k, i) * weight_image_1d[i];
+      }
+      subcell_image_1d[k] = sum;
+    }
+    gsl::at(subcell_image, d) = std::move(subcell_image_1d);
+    gsl::at(weight_image, d) = std::move(weight_image_1d);
+
+    DataVector subcell_weights_1d(num_subcell_points, 0.0);
+    for (size_t k = 0; k < num_subcell_points; ++k) {
+      subcell_weights_1d[k] =
+          2.0 / static_cast<double>(num_subcell_points) *
+          get_sixth_order_integration_coefficient(num_subcell_points, k);
+    }
+    gsl::at(subcell_weights, d) = std::move(subcell_weights_1d);
+  }
+
+  double weight_inner_product_total = 1.0;
+  for (size_t d = 0; d < Dim; ++d) {
+    weight_inner_product_total *= gsl::at(weight_inner_product, d);
+  }
+
+  // The rank-one correction depends on the subcell index only through
+  // `w_sub - z`, so build that once.
+  DataVector constraint_defect(num_subcells, 0.0);
+  for (IndexIterator<Dim> subcell_it(subcell_extents); subcell_it;
+       ++subcell_it) {
+    double subcell_weight_product = 1.0;
+    double subcell_image_product = 1.0;
     for (size_t d = 0; d < Dim; ++d) {
-      s_total *= gsl::at(weight_norm, d);
+      subcell_weight_product *= gsl::at(subcell_weights, d)[subcell_it()[d]];
+      subcell_image_product *= gsl::at(subcell_image, d)[subcell_it()[d]];
     }
+    constraint_defect[subcell_it.collapsed_index()] =
+        (subcell_weight_product - subcell_image_product) /
+        weight_inner_product_total;
+  }
 
-    // The rank-one correction only depends on the subcell index through
-    // `v - z`, so build that once.
-    DataVector constraint_defect(num_subcells, 0.0);
+  Matrix reduced_recons_matrix(num_pts, num_subcells);
+  for (IndexIterator<Dim> dg_it(dg_extents); dg_it; ++dg_it) {
+    double weight_image_product = 1.0;
+    for (size_t d = 0; d < Dim; ++d) {
+      weight_image_product *= gsl::at(weight_image, d)[dg_it()[d]];
+    }
+    const size_t dg_index = dg_it.collapsed_index();
     for (IndexIterator<Dim> subcell_it(subcell_extents); subcell_it;
          ++subcell_it) {
-      double v_product = 1.0;
-      double z_product = 1.0;
+      double reconstruction_product = 1.0;
       for (size_t d = 0; d < Dim; ++d) {
-        v_product *= gsl::at(constraint_row, d)[subcell_it()[d]];
-        z_product *= gsl::at(subcell_image, d)[subcell_it()[d]];
+        reconstruction_product *=
+            gsl::at(one_d_reconstruction, d)(dg_it()[d], subcell_it()[d]);
       }
-      constraint_defect[subcell_it.collapsed_index()] =
-          (v_product - z_product) / s_total;
+      const size_t subcell_index = subcell_it.collapsed_index();
+      reduced_recons_matrix(dg_index, subcell_index) =
+          reconstruction_product +
+          weight_image_product * constraint_defect[subcell_index];
     }
-
-    Matrix reduced_recons_matrix(num_pts, num_subcells);
-    for (IndexIterator<Dim> dg_it(dg_extents); dg_it; ++dg_it) {
-      double y_product = 1.0;
-      for (size_t d = 0; d < Dim; ++d) {
-        y_product *= gsl::at(weight_image, d)[dg_it()[d]];
-      }
-      const size_t dg_index = dg_it.collapsed_index();
-      for (IndexIterator<Dim> subcell_it(subcell_extents); subcell_it;
-           ++subcell_it) {
-        double b_product = 1.0;
-        for (size_t d = 0; d < Dim; ++d) {
-          b_product *=
-              gsl::at(one_d_reconstruction, d)(dg_it()[d], subcell_it()[d]);
-        }
-        const size_t subcell_index = subcell_it.collapsed_index();
-        reduced_recons_matrix(dg_index, subcell_index) =
-            b_product + y_product * constraint_defect[subcell_index];
-      }
-    }
-    return reduced_recons_matrix;
   }
+  return reduced_recons_matrix;
 }
 
 // The subcell extents are `2 n - 1` of the DG extents in each dimension (see
