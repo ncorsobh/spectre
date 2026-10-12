@@ -51,6 +51,22 @@ void test_tags() {
   TestHelpers::db::test_simple_tag<NewtonianEuler::Tags::SourceTerm<Dim>>(
       "SourceTerm");
 }
+
+// The magnetic field has three components in any spatial dimension, so these
+// tags are not templated on Dim.
+void test_magnetic_tags() {
+  TestHelpers::db::test_simple_tag<
+      NewtonianEuler::Tags::MagneticFieldCons<Frame::Grid>>(
+      "Grid_MagneticFieldCons");
+  TestHelpers::db::test_simple_tag<
+      NewtonianEuler::Tags::DivergenceCleaningFieldCons>(
+      "DivergenceCleaningFieldCons");
+  TestHelpers::db::test_simple_tag<
+      NewtonianEuler::Tags::DivergenceCleaningSpeed>("DivergenceCleaningSpeed");
+  TestHelpers::db::test_simple_tag<
+      NewtonianEuler::Tags::ConstraintDampingParameter>(
+      "ConstraintDampingParameter");
+}
 }  // namespace
 
 SPECTRE_TEST_CASE("Unit.Evolution.Systems.NewtonianEuler.Tags",
@@ -58,4 +74,5 @@ SPECTRE_TEST_CASE("Unit.Evolution.Systems.NewtonianEuler.Tags",
   test_tags<1>();
   test_tags<2>();
   test_tags<3>();
+  test_magnetic_tags();
 }
