@@ -228,14 +228,6 @@ double integration_weight(const Index<Dim>& extents, const Index<Dim>& index) {
 template <Spectral::Quadrature QuadratureType, size_t Dim>
 Matrix reconstruction_matrix_cache_impl_helper(
     const Index<Dim>& dg_extents, const Index<Dim>& subcell_extents) {
-  if constexpr (QuadratureType == Spectral::Quadrature::SphericalSymmetry or
-                QuadratureType == Spectral::Quadrature::AxialSymmetry) {
-    ASSERT(Dim == 1,
-           "Cartoon basis should never be the first basis: only a mesh slice "
-           "should get here, got Dim = "
-               << Dim);
-    return Matrix{1, 1, 1.0};
-  }
   const size_t num_pts = dg_extents.product();
   const size_t num_subcells = subcell_extents.product();
 
@@ -365,29 +357,37 @@ Matrix reconstruction_matrix_cache_impl_helper(
 // at compile time would instantiate the generator thousands of times.
 template <Spectral::Quadrature QuadratureType, size_t Dim>
 const Matrix& reconstruction_matrix_impl(const Mesh<Dim>& dg_mesh) {
-  constexpr size_t max_pts =
-      Spectral::maximum_number_of_points<Spectral::Basis::Legendre,
-                                         QuadratureType> +
-      1;
-  const auto generator = [](const auto... dg_extents_1d) {
-    return reconstruction_matrix_cache_impl_helper<QuadratureType>(
-        Index<Dim>{dg_extents_1d...}, Index<Dim>{(2 * dg_extents_1d - 1)...});
-  };
-  if constexpr (Dim == 1) {
-    const static auto cache =
-        make_runtime_cache<CacheRange<1_st, max_pts>>(generator);
-    return cache(dg_mesh.extents(0));
-  } else if constexpr (Dim == 2) {
-    const static auto cache =
-        make_runtime_cache<CacheRange<1_st, max_pts>,
-                           CacheRange<1_st, max_pts>>(generator);
-    return cache(dg_mesh.extents(0), dg_mesh.extents(1));
+  if constexpr (QuadratureType == Spectral::Quadrature::SphericalSymmetry or
+                QuadratureType == Spectral::Quadrature::AxialSymmetry) {
+    // Returned before the cache so that a Cartoon quadrature does not reserve
+    // a table per dimension holding copies of one 1x1 matrix.
+    static const Matrix cartoon_matrix{1, 1, 1.0};
+    return cartoon_matrix;
   } else {
-    const static auto cache =
-        make_runtime_cache<CacheRange<1_st, max_pts>,
-                           CacheRange<1_st, max_pts>,
-                           CacheRange<1_st, max_pts>>(generator);
-    return cache(dg_mesh.extents(0), dg_mesh.extents(1), dg_mesh.extents(2));
+    constexpr size_t max_pts =
+        Spectral::maximum_number_of_points<Spectral::Basis::Legendre,
+                                           QuadratureType> +
+        1;
+    const auto generator = [](const auto... dg_extents_1d) {
+      return reconstruction_matrix_cache_impl_helper<QuadratureType>(
+          Index<Dim>{dg_extents_1d...}, Index<Dim>{(2 * dg_extents_1d - 1)...});
+    };
+    if constexpr (Dim == 1) {
+      const static auto cache =
+          make_runtime_cache<CacheRange<1_st, max_pts>>(generator);
+      return cache(dg_mesh.extents(0));
+    } else if constexpr (Dim == 2) {
+      const static auto cache =
+          make_runtime_cache<CacheRange<1_st, max_pts>,
+                             CacheRange<1_st, max_pts>>(generator);
+      return cache(dg_mesh.extents(0), dg_mesh.extents(1));
+    } else {
+      const static auto cache =
+          make_runtime_cache<CacheRange<1_st, max_pts>,
+                             CacheRange<1_st, max_pts>,
+                             CacheRange<1_st, max_pts>>(generator);
+      return cache(dg_mesh.extents(0), dg_mesh.extents(1), dg_mesh.extents(2));
+    }
   }
 }
 }  // namespace
