@@ -14,7 +14,9 @@
 #include "DataStructures/Tensor/Tensor.hpp"
 #include "Domain/Structure/Side.hpp"
 #include "Evolution/DgSubcell/Matrices.hpp"
+#include "Evolution/DgSubcell/Mesh.hpp"
 #include "Helpers/Evolution/DgSubcell/ProjectionTestHelpers.hpp"
+#include "NumericalAlgorithms/LinearOperators/DefiniteIntegral.hpp"
 #include "NumericalAlgorithms/Spectral/Basis.hpp"
 #include "NumericalAlgorithms/Spectral/BasisFunctionValue.hpp"
 #include "NumericalAlgorithms/Spectral/LogicalCoordinates.hpp"
@@ -276,6 +278,71 @@ void test_non_isotropic_reconstruction_matrix(
 
   CHECK_ITERABLE_CUSTOM_APPROX(expected_nodal_coeffs,
                                reconstructed_nodal_coeffs, local_approx);
+}
+
+// The tests above all use a polynomial the subcell rule integrates exactly, so
+// the conservation correction vanishes and deleting it leaves them passing.
+
+// w^T R = w_sub^T holds for any data, so no test function is needed.
+template <size_t Dim, Spectral::Quadrature QuadratureType>
+void test_reconstruction_is_conservative(
+    const std::array<size_t, Dim>& dg_extents) {
+  CAPTURE(Dim);
+  CAPTURE(QuadratureType);
+  CAPTURE(dg_extents);
+  const Mesh<Dim> dg_mesh{dg_extents, Spectral::Basis::Legendre,
+                          QuadratureType};
+  const Mesh<Dim> subcell_mesh{fd::mesh(dg_mesh)};
+  const Matrix& recons =
+      subcell::fd::reconstruction_matrix(dg_mesh, subcell_mesh.extents());
+
+  // The reconstruction of a unit impulse on subcell point k integrates to
+  // column k of w^T R.
+  DataVector impulse(subcell_mesh.number_of_grid_points(), 0.0);
+  DataVector reconstructed(dg_mesh.number_of_grid_points(), 0.0);
+  for (size_t k = 0; k < subcell_mesh.number_of_grid_points(); ++k) {
+    impulse = 0.0;
+    impulse[k] = 1.0;
+    dgemv_('N', recons.rows(), recons.columns(), 1.0, recons.data(),
+           recons.spacing(), impulse.data(), 1, 0.0, reconstructed.data(), 1);
+    CHECK(definite_integral(reconstructed, dg_mesh) ==
+          approx(subcell::fd::cell_integral(impulse, subcell_mesh)));
+  }
+}
+
+// The same property on data the subcell rule does not integrate exactly. The
+// defect is checked to be non-zero so that a later change to `degree` cannot
+// silently return this to the degenerate case.
+template <size_t Dim, Spectral::Quadrature QuadratureType>
+void test_conservation_with_nonzero_defect(
+    const std::array<size_t, Dim>& dg_extents, const size_t degree) {
+  CAPTURE(Dim);
+  CAPTURE(QuadratureType);
+  CAPTURE(dg_extents);
+  CAPTURE(degree);
+  const Mesh<Dim> dg_mesh{dg_extents, Spectral::Basis::Legendre,
+                          QuadratureType};
+  const Mesh<Dim> subcell_mesh{fd::mesh(dg_mesh)};
+
+  const DataVector subcell_values =
+      TestHelpers::evolution::dg::subcell::cell_values(
+          degree + 1, logical_coordinates(subcell_mesh));
+  const DataVector dg_values = TestHelpers::evolution::dg::subcell::cell_values(
+      degree + 1, logical_coordinates(dg_mesh));
+
+  const double defect =
+      subcell::fd::cell_integral(subcell_values, subcell_mesh) -
+      definite_integral(dg_values, dg_mesh);
+  CHECK(abs(defect) > 1.0e-10);
+
+  const Matrix& recons =
+      subcell::fd::reconstruction_matrix(dg_mesh, subcell_mesh.extents());
+  DataVector reconstructed(dg_mesh.number_of_grid_points(), 0.0);
+  dgemv_('N', recons.rows(), recons.columns(), 1.0, recons.data(),
+         recons.spacing(), subcell_values.data(), 1, 0.0, reconstructed.data(),
+         1);
+  CHECK(definite_integral(reconstructed, dg_mesh) ==
+        approx(subcell::fd::cell_integral(subcell_values, subcell_mesh)));
 }
 
 void test_cartoon_matrices() {
@@ -743,6 +810,26 @@ SPECTRE_TEST_CASE("Unit.Evolution.Subcell.Fd.ReconstructionMatrix",
   test_non_isotropic_reconstruction_matrix<3, Spectral::Basis::Legendre,
                                            Spectral::Quadrature::GaussLobatto>(
       {{4, 6, 5}}, 1.0e-11);
+
+  test_reconstruction_is_conservative<1, Spectral::Quadrature::GaussLobatto>(
+      {{6}});
+  test_reconstruction_is_conservative<1, Spectral::Quadrature::Gauss>({{6}});
+  test_reconstruction_is_conservative<2, Spectral::Quadrature::GaussLobatto>(
+      {{5, 6}});
+  test_reconstruction_is_conservative<2, Spectral::Quadrature::Gauss>({{5, 6}});
+  test_reconstruction_is_conservative<3, Spectral::Quadrature::GaussLobatto>(
+      {{4, 5, 6}});
+  test_reconstruction_is_conservative<3, Spectral::Quadrature::Gauss>(
+      {{4, 5, 6}});
+
+  // Degree 6 is above the subcell rule's exactness and at most
+  // min(dg_extents) - 1, so it is still exact on the DG grid.
+  test_conservation_with_nonzero_defect<1, Spectral::Quadrature::GaussLobatto>(
+      {{8}}, 6);
+  test_conservation_with_nonzero_defect<2, Spectral::Quadrature::GaussLobatto>(
+      {{7, 8}}, 6);
+  test_conservation_with_nonzero_defect<3, Spectral::Quadrature::GaussLobatto>(
+      {{7, 8, 9}}, 6);
 
   test_zernike_b1_reconstruction_matrix();
 }
