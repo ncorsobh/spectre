@@ -4,6 +4,7 @@
 #include "Evolution/DgSubcell/Matrices.hpp"
 
 #include <array>
+#include <cstddef>
 #include <ostream>
 #include <utility>
 
@@ -127,45 +128,6 @@ const Matrix& projection_matrix(const Mesh<1>& dg_mesh,
 }
 
 namespace {
-template <Spectral::Quadrature QuadratureType, size_t NumDgGridPoints1d,
-          size_t Dim>
-Matrix projection_matrix_all_dimensions(const Index<Dim>& subcell_extents) {
-  // We currently require all dimensions to have the same number of grid
-  // points, but this is checked in the calling function.
-  const Index<Dim> dg_extents{NumDgGridPoints1d};
-  const size_t num_subcells = subcell_extents.product();
-  const size_t num_pts = dg_extents.product();
-
-  const size_t num_rows = num_subcells;
-  const size_t num_columns = num_pts;
-  Matrix proj_matrix(num_rows, num_columns);
-
-  std::array<Matrix, Dim> interpolation_matrices{};
-  for (size_t d = 0; d < Dim; ++d) {
-    gsl::at(interpolation_matrices, d) =
-        Spectral::interpolation_matrix<Spectral::Basis::Legendre,
-                                       QuadratureType>(
-            dg_extents[d],
-            Spectral::collocation_points<Spectral::Basis::FiniteDifference,
-                                         Spectral::Quadrature::CellCentered>(
-                subcell_extents[d]));
-  }
-
-  for (IndexIterator<Dim> subcell_it(subcell_extents); subcell_it;
-       ++subcell_it) {
-    for (IndexIterator<Dim> basis_it(dg_extents); basis_it; ++basis_it) {
-      proj_matrix(subcell_it.collapsed_index(), basis_it.collapsed_index()) =
-          interpolation_matrices[0](subcell_it()[0], basis_it()[0]);
-      for (size_t d = 1; d < Dim; ++d) {
-        proj_matrix(subcell_it.collapsed_index(), basis_it.collapsed_index()) *=
-            gsl::at(interpolation_matrices, d)(subcell_it()[d], basis_it()[d]);
-      }
-    }
-  }
-
-  return proj_matrix;
-}
-
 double get_sixth_order_integration_coefficient(const size_t num_pts,
                                                const size_t index) {
   if (num_pts == 3) {
@@ -253,9 +215,6 @@ double get_sixth_order_integration_coefficient(const size_t num_pts,
         << num_pts << "' points. We need at least 5 points.");
 }
 
-// Function to get the 1d integration coefficient from the 1, 2, or 3d spatial
-// location. The 1d coefficient is a product of the 3 coefficients in each
-// direction.
 template <size_t Dim>
 double integration_weight(const Index<Dim>& extents, const Index<Dim>& index) {
   double result = get_sixth_order_integration_coefficient(extents[0], index[0]);
@@ -265,10 +224,10 @@ double integration_weight(const Index<Dim>& extents, const Index<Dim>& index) {
   return result;
 }
 
-template <Spectral::Quadrature QuadratureType, size_t NumDgGridPoints1d,
-          size_t Dim>
+
+template <Spectral::Quadrature QuadratureType, size_t Dim>
 Matrix reconstruction_matrix_cache_impl_helper(
-    const Index<Dim>& subcell_extents) {
+    const Index<Dim>& dg_extents, const Index<Dim>& subcell_extents) {
   if constexpr (QuadratureType == Spectral::Quadrature::SphericalSymmetry or
                 QuadratureType == Spectral::Quadrature::AxialSymmetry) {
     ASSERT(Dim == 1,
@@ -276,138 +235,199 @@ Matrix reconstruction_matrix_cache_impl_helper(
            "should get here, got Dim = "
                << Dim);
     return Matrix{1, 1, 1.0};
-  } else {
-    // We currently require all dimensions to have the same number of grid
-    // points.
-    const Index<Dim> dg_extents{NumDgGridPoints1d};
-    const Matrix& proj_matrix =
-        projection_matrix_all_dimensions<QuadratureType, NumDgGridPoints1d>(
-            subcell_extents);
-    const size_t num_pts = dg_extents.product();
-    const size_t num_subcells = subcell_extents.product();
-
-    const size_t reconstruction_rows_and_cols = num_pts + 1;
-    Matrix lhs_recons_matrix(reconstruction_rows_and_cols,
-                             reconstruction_rows_and_cols, 0.0);
-    // We use rhs_recons_matrix here as a temp buffer, we will fill it later.
-    Matrix rhs_recons_matrix(num_pts + 1, num_subcells);
-    dgemm_<true>('T', 'N', proj_matrix.columns(), proj_matrix.columns(),
-                 proj_matrix.rows(), 2.0, proj_matrix.data(),
-                 proj_matrix.spacing(), proj_matrix.data(),
-                 proj_matrix.spacing(), 0.0, rhs_recons_matrix.data(),
-                 rhs_recons_matrix.spacing());
-
-    for (size_t l = 0; l < num_pts; ++l) {
-      for (size_t j = 0; j < num_pts; ++j) {
-        lhs_recons_matrix(l, j) = rhs_recons_matrix(j, l);
-      }
-    }
-
-    std::array<const DataVector*, Dim> weights{};
-    for (size_t d = 0; d < Dim; ++d) {
-      gsl::at(weights, d) =
-          &Spectral::quadrature_weights<Spectral::Basis::Legendre,
-                                        QuadratureType>(dg_extents[d]);
-    }
-    for (IndexIterator<Dim> dg_it(dg_extents); dg_it; ++dg_it) {
-      lhs_recons_matrix(dg_it.collapsed_index(), num_pts) =
-          -(*weights[0])[dg_it()[0]];
-      lhs_recons_matrix(num_pts, dg_it.collapsed_index()) =
-          (*weights[0])[dg_it()[0]];
-      for (size_t i = 1; i < Dim; ++i) {
-        lhs_recons_matrix(dg_it.collapsed_index(), num_pts) *=
-            (*gsl::at(weights, i))[dg_it()[i]];
-        lhs_recons_matrix(num_pts, dg_it.collapsed_index()) *=
-            (*gsl::at(weights, i))[dg_it()[i]];
-      }
-    }
-
-    for (size_t k = 0; k < num_subcells; ++k) {
-      for (size_t l = 0; l < num_pts; ++l) {
-        rhs_recons_matrix(l, k) = 2.0 * proj_matrix(k, l);
-      }
-    }
-
-    double deltas = 2.0 / subcell_extents[0];
-    for (size_t d = 1; d < Dim; ++d) {
-      deltas *= 2.0 / subcell_extents[d];
-    }
-    for (size_t i = 0; i < num_subcells; ++i) {
-      rhs_recons_matrix(num_pts, i) = deltas;
-    }
-    for (IndexIterator<Dim> it(subcell_extents); it; ++it) {
-      rhs_recons_matrix(num_pts, it.collapsed_index()) *=
-          integration_weight(subcell_extents, *it);
-    }
-
-    const Matrix inv_lhs_recons_matrix = inv(lhs_recons_matrix);
-    Matrix full_recons_matrix(inv_lhs_recons_matrix.rows(),
-                              rhs_recons_matrix.columns());
-    // Do matrix multipy with dgemm_ directly because that seems to be faster
-    // than Blaze.
-    dgemm_<true>('N', 'N', inv_lhs_recons_matrix.rows(),
-                 rhs_recons_matrix.columns(), inv_lhs_recons_matrix.columns(),
-                 1.0, inv_lhs_recons_matrix.data(),
-                 inv_lhs_recons_matrix.spacing(), rhs_recons_matrix.data(),
-                 rhs_recons_matrix.spacing(), 0.0, full_recons_matrix.data(),
-                 full_recons_matrix.spacing());
-    // exclude bottom row for Lagrange multiplier.
-    Matrix reduced_recons_matrix(num_pts, num_subcells);
-    for (size_t i = 0; i < num_pts; ++i) {
-      for (size_t j = 0; j < num_subcells; ++j) {
-        reduced_recons_matrix(i, j) = full_recons_matrix(i, j);
-      }
-    }
-    return reduced_recons_matrix;
   }
+  const size_t num_pts = dg_extents.product();
+  const size_t num_subcells = subcell_extents.product();
+
+  std::array<Matrix, Dim> one_d_reconstruction{};
+  std::array<DataVector, Dim> weight_image{};
+  std::array<DataVector, Dim> subcell_image{};
+  std::array<DataVector, Dim> subcell_weights{};
+  std::array<double, Dim> weight_inner_product{};
+
+  for (size_t d = 0; d < Dim; ++d) {
+    const size_t num_dg_points = dg_extents[d];
+    const size_t num_subcell_points = subcell_extents[d];
+    const Matrix projection_1d =
+        Spectral::interpolation_matrix<Spectral::Basis::Legendre,
+                                       QuadratureType>(
+            num_dg_points,
+            Spectral::collocation_points<Spectral::Basis::FiniteDifference,
+                                         Spectral::Quadrature::CellCentered>(
+                num_subcell_points));
+
+    Matrix gram(num_dg_points, num_dg_points, 0.0);
+    for (size_t i = 0; i < num_dg_points; ++i) {
+      for (size_t j = 0; j < num_dg_points; ++j) {
+        double sum = 0.0;
+        for (size_t k = 0; k < num_subcell_points; ++k) {
+          sum += projection_1d(k, i) * projection_1d(k, j);
+        }
+        gram(i, j) = sum;
+      }
+    }
+    const Matrix inv_gram = inv(gram);
+
+    Matrix reconstruction_1d(num_dg_points, num_subcell_points, 0.0);
+    for (size_t i = 0; i < num_dg_points; ++i) {
+      for (size_t k = 0; k < num_subcell_points; ++k) {
+        double sum = 0.0;
+        for (size_t j = 0; j < num_dg_points; ++j) {
+          sum += inv_gram(i, j) * projection_1d(k, j);
+        }
+        reconstruction_1d(i, k) = sum;
+      }
+    }
+    gsl::at(one_d_reconstruction, d) = std::move(reconstruction_1d);
+
+    const DataVector& dg_weights =
+        Spectral::quadrature_weights<Spectral::Basis::Legendre, QuadratureType>(
+            num_dg_points);
+    DataVector weight_image_1d(num_dg_points, 0.0);
+    for (size_t i = 0; i < num_dg_points; ++i) {
+      double sum = 0.0;
+      for (size_t j = 0; j < num_dg_points; ++j) {
+        sum += inv_gram(i, j) * dg_weights[j];
+      }
+      weight_image_1d[i] = sum;
+    }
+    double weight_inner_product_1d = 0.0;
+    for (size_t i = 0; i < num_dg_points; ++i) {
+      weight_inner_product_1d += dg_weights[i] * weight_image_1d[i];
+    }
+    gsl::at(weight_inner_product, d) = weight_inner_product_1d;
+
+    DataVector subcell_image_1d(num_subcell_points, 0.0);
+    for (size_t k = 0; k < num_subcell_points; ++k) {
+      double sum = 0.0;
+      for (size_t i = 0; i < num_dg_points; ++i) {
+        sum += projection_1d(k, i) * weight_image_1d[i];
+      }
+      subcell_image_1d[k] = sum;
+    }
+    gsl::at(subcell_image, d) = std::move(subcell_image_1d);
+    gsl::at(weight_image, d) = std::move(weight_image_1d);
+
+    DataVector subcell_weights_1d(num_subcell_points, 0.0);
+    for (size_t k = 0; k < num_subcell_points; ++k) {
+      subcell_weights_1d[k] =
+          2.0 / static_cast<double>(num_subcell_points) *
+          get_sixth_order_integration_coefficient(num_subcell_points, k);
+    }
+    gsl::at(subcell_weights, d) = std::move(subcell_weights_1d);
+  }
+
+  double weight_inner_product_total = 1.0;
+  for (size_t d = 0; d < Dim; ++d) {
+    weight_inner_product_total *= gsl::at(weight_inner_product, d);
+  }
+
+  // The rank-one correction depends on the subcell index only through
+  // `w_sub - z`, so build that once.
+  DataVector constraint_defect(num_subcells, 0.0);
+  for (IndexIterator<Dim> subcell_it(subcell_extents); subcell_it;
+       ++subcell_it) {
+    double subcell_weight_product = 1.0;
+    double subcell_image_product = 1.0;
+    for (size_t d = 0; d < Dim; ++d) {
+      subcell_weight_product *= gsl::at(subcell_weights, d)[subcell_it()[d]];
+      subcell_image_product *= gsl::at(subcell_image, d)[subcell_it()[d]];
+    }
+    constraint_defect[subcell_it.collapsed_index()] =
+        (subcell_weight_product - subcell_image_product) /
+        weight_inner_product_total;
+  }
+
+  Matrix reduced_recons_matrix(num_pts, num_subcells);
+  for (IndexIterator<Dim> dg_it(dg_extents); dg_it; ++dg_it) {
+    double weight_image_product = 1.0;
+    for (size_t d = 0; d < Dim; ++d) {
+      weight_image_product *= gsl::at(weight_image, d)[dg_it()[d]];
+    }
+    const size_t dg_index = dg_it.collapsed_index();
+    for (IndexIterator<Dim> subcell_it(subcell_extents); subcell_it;
+         ++subcell_it) {
+      double reconstruction_product = 1.0;
+      for (size_t d = 0; d < Dim; ++d) {
+        reconstruction_product *=
+            gsl::at(one_d_reconstruction, d)(dg_it()[d], subcell_it()[d]);
+      }
+      const size_t subcell_index = subcell_it.collapsed_index();
+      reduced_recons_matrix(dg_index, subcell_index) =
+          reconstruction_product +
+          weight_image_product * constraint_defect[subcell_index];
+    }
+  }
+  return reduced_recons_matrix;
 }
 
-template <Spectral::Quadrature QuadratureType, size_t NumDgGridPoints,
-          size_t Dim>
-const Matrix& reconstruction_matrix_cache_impl(
-    const Index<Dim>& subcell_extents) {
-  static const Matrix result =
-      reconstruction_matrix_cache_impl_helper<QuadratureType, NumDgGridPoints>(
-          subcell_extents);
-  return result;
-}
-
-template <Spectral::Quadrature QuadratureType, size_t... Is, size_t Dim>
-const Matrix& reconstruction_matrix_impl(
-    const Mesh<Dim>& dg_mesh, const Index<Dim>& subcell_extents,
-    std::index_sequence<Is...> /*num_dg_grid_points*/) {
-  static const std::array<const Matrix& (*)(const Index<Dim>&), sizeof...(Is)>
-      cache{{&reconstruction_matrix_cache_impl<QuadratureType, Is, Dim>...}};
-  return gsl::at(cache, dg_mesh.extents(0))(subcell_extents);
+// A RuntimeCache rather than a static one: keying on every dimension's extents
+// at compile time would instantiate the generator thousands of times.
+template <Spectral::Quadrature QuadratureType, size_t Dim>
+const Matrix& reconstruction_matrix_impl(const Mesh<Dim>& dg_mesh) {
+  constexpr size_t max_pts =
+      Spectral::maximum_number_of_points<Spectral::Basis::Legendre,
+                                         QuadratureType> +
+      1;
+  const auto generator = [](const auto... dg_extents_1d) {
+    return reconstruction_matrix_cache_impl_helper<QuadratureType>(
+        Index<Dim>{dg_extents_1d...}, Index<Dim>{(2 * dg_extents_1d - 1)...});
+  };
+  if constexpr (Dim == 1) {
+    const static auto cache =
+        make_runtime_cache<CacheRange<1_st, max_pts>>(generator);
+    return cache(dg_mesh.extents(0));
+  } else if constexpr (Dim == 2) {
+    const static auto cache =
+        make_runtime_cache<CacheRange<1_st, max_pts>,
+                           CacheRange<1_st, max_pts>>(generator);
+    return cache(dg_mesh.extents(0), dg_mesh.extents(1));
+  } else {
+    const static auto cache =
+        make_runtime_cache<CacheRange<1_st, max_pts>,
+                           CacheRange<1_st, max_pts>,
+                           CacheRange<1_st, max_pts>>(generator);
+    return cache(dg_mesh.extents(0), dg_mesh.extents(1), dg_mesh.extents(2));
+  }
 }
 }  // namespace
 
 template <size_t Dim>
-const Matrix& reconstruction_matrix(const Mesh<Dim>& dg_mesh,
-                                    const Index<Dim>& subcell_extents) {
+const Matrix& reconstruction_matrix(
+    const Mesh<Dim>& dg_mesh,
+    [[maybe_unused]] const Index<Dim>& subcell_extents) {
   ASSERT(dg_mesh.basis(0) == Spectral::Basis::Legendre or
              dg_mesh.basis(0) == Spectral::Basis::Cartoon,
          "FD Subcell reconstruction only supports Legendre or Cartoon bases "
          "right now, got "
              << dg_mesh);
-  verify_subcell_mesh(dg_mesh);
-  verify_subcell_extents(subcell_extents);
+  // Extents may differ between dimensions. A Cartoon dimension would need its
+  // own 1x1 interpolation and quadrature weight here, which is not implemented
+  // for AllDimsAtOnce; DimByDim reconstruction handles Cartoon meshes by
+  // slicing, and supports differing extents in the non-Cartoon dimensions.
+  ASSERT(dg_mesh == Mesh<Dim>(dg_mesh.extents().indices(), dg_mesh.basis(0),
+                              dg_mesh.quadrature(0)),
+         "AllDimsAtOnce reconstruction does not support a Cartoon or otherwise "
+         "mixed-basis mesh; use DimByDim for those. Got "
+             << dg_mesh);
+  // The cache below is keyed on the DG extents alone, which is only sound
+  // because `fd::mesh` fixes the subcell extents at `2 n - 1` in every
+  // dimension.
+#ifdef SPECTRE_DEBUG
+  for (size_t d = 0; d < Dim; ++d) {
+    ASSERT(subcell_extents[d] == 2 * dg_mesh.extents(d) - 1,
+           "The subcell extents must be 2 n - 1 of the DG extents in every "
+           "dimension, but got subcell extents "
+               << subcell_extents << " for DG mesh " << dg_mesh);
+  }
+#endif
 
   switch (dg_mesh.quadrature(0)) {
     case Spectral::Quadrature::GaussLobatto:
       return reconstruction_matrix_impl<Spectral::Quadrature::GaussLobatto>(
-          dg_mesh, subcell_extents,
-          std::make_index_sequence<Spectral::maximum_number_of_points<
-                                       Spectral::Basis::Legendre,
-                                       Spectral::Quadrature::GaussLobatto> +
-                                   1>{});
+          dg_mesh);
     case Spectral::Quadrature::Gauss:
-      return reconstruction_matrix_impl<Spectral::Quadrature::Gauss>(
-          dg_mesh, subcell_extents,
-          std::make_index_sequence<
-              Spectral::maximum_number_of_points<Spectral::Basis::Legendre,
-                                                 Spectral::Quadrature::Gauss> +
-              1>{});
+      return reconstruction_matrix_impl<Spectral::Quadrature::Gauss>(dg_mesh);
     case Spectral::Quadrature::AxialSymmetry:
       ASSERT(Dim == 1,
              "Cartoon basis should only be used with DimByDim reconstruction, "
@@ -415,11 +435,7 @@ const Matrix& reconstruction_matrix(const Mesh<Dim>& dg_mesh,
              "should get here, got Dim = "
                  << Dim);
       return reconstruction_matrix_impl<Spectral::Quadrature::AxialSymmetry>(
-          dg_mesh, subcell_extents,
-          std::make_index_sequence<Spectral::maximum_number_of_points<
-                                       Spectral::Basis::Cartoon,
-                                       Spectral::Quadrature::AxialSymmetry> +
-                                   1>{});
+          dg_mesh);
     case Spectral::Quadrature::SphericalSymmetry:
       ASSERT(Dim == 1,
              "Cartoon basis should only be used with DimByDim reconstruction, "
@@ -427,13 +443,7 @@ const Matrix& reconstruction_matrix(const Mesh<Dim>& dg_mesh,
              "should get here, got Dim = "
                  << Dim);
       return reconstruction_matrix_impl<
-          Spectral::Quadrature::SphericalSymmetry>(
-          dg_mesh, subcell_extents,
-          std::make_index_sequence<
-              Spectral::maximum_number_of_points<
-                  Spectral::Basis::Cartoon,
-                  Spectral::Quadrature::SphericalSymmetry> +
-              1>{});
+          Spectral::Quadrature::SphericalSymmetry>(dg_mesh);
     default:
       ERROR(
           "Unsupported quadrature type in FD subcell reconstruction "
@@ -688,9 +698,10 @@ const Matrix& projection_matrix(const Mesh<1>& dg_mesh,
                         dg_mesh.quadrature(0), side);
 }
 
+
 #define GET_DIM(data) BOOST_PP_TUPLE_ELEM(0, data)
 
-#define INSTANTIATION(r, data)                                             \
+#define INSTANTIATION(r, data)                                               \
   template const Matrix& reconstruction_matrix(const Mesh<GET_DIM(data)>&, \
                                                const Index<GET_DIM(data)>&);
 
