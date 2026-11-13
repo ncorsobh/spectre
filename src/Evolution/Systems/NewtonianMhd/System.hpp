@@ -78,8 +78,10 @@ struct System {
       detail::MagneticFieldNotSupportedYet<EvolveMagneticField>,
       TimeDerivativeTerms<Dim>>;
 
-  using conservative_from_primitive = ConservativeFromPrimitive<Dim>;
-  using primitive_from_conservative = PrimitiveFromConservative<Dim>;
+  using conservative_from_primitive =
+      ConservativeFromPrimitive<Dim, EvolveMagneticField>;
+  using primitive_from_conservative =
+      PrimitiveFromConservative<Dim, EvolveMagneticField>;
 
   using compute_largest_characteristic_speed =
       Tags::ComputeLargestCharacteristicSpeed<Dim>;

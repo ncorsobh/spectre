@@ -104,7 +104,7 @@ void test(const TestThis test_this) {
       evolution::dg::subcell::Tags::DataForRdmpTci>>(
       subcell_cons, subcell_prim, dg_mesh, subcell_mesh, std::move(eos),
       subcell_options, evolution::dg::subcell::RdmpTciData{});
-  db::mutate_apply<NewtonianMhd::ConservativeFromPrimitive<Dim>>(
+  db::mutate_apply<NewtonianMhd::ConservativeFromPrimitive<Dim, false>>(
       make_not_null(&box));
 
   // Set the RDMP TCI past data.

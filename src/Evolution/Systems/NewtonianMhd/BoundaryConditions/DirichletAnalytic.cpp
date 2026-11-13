@@ -106,9 +106,9 @@ std::optional<std::string> DirichletAnalytic<Dim>::dg_ghost(
   *specific_internal_energy =
       get<hydro::Tags::SpecificInternalEnergy<DataVector>>(boundary_values);
 
-  ConservativeFromPrimitive<Dim>::apply(mass_density, momentum_density,
-                                        energy_density, *mass_density,
-                                        *velocity, *specific_internal_energy);
+  ConservativeFromPrimitive<Dim, false>::apply(
+      mass_density, momentum_density, energy_density, *mass_density, *velocity,
+      *specific_internal_energy);
   ComputeFluxes<Dim>::apply(
       flux_mass_density, flux_momentum_density, flux_energy_density,
       *momentum_density, *energy_density, *velocity,

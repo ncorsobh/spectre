@@ -130,13 +130,13 @@ void reconstruct_prims_work(
             get<MassDensity>(vars_lower_face), get<Pressure>(vars_lower_face));
 
     // Compute conserved variables on faces
-    NewtonianMhd::ConservativeFromPrimitive<Dim>::apply(
+    NewtonianMhd::ConservativeFromPrimitive<Dim, false>::apply(
         make_not_null(&get<MassDensityCons>(vars_upper_face)),
         make_not_null(&get<MomentumDensity>(vars_upper_face)),
         make_not_null(&get<EnergyDensity>(vars_upper_face)),
         get<MassDensity>(vars_upper_face), get<Velocity>(vars_upper_face),
         get<SpecificInternalEnergy>(vars_upper_face));
-    NewtonianMhd::ConservativeFromPrimitive<Dim>::apply(
+    NewtonianMhd::ConservativeFromPrimitive<Dim, false>::apply(
         make_not_null(&get<MassDensityCons>(vars_lower_face)),
         make_not_null(&get<MomentumDensity>(vars_lower_face)),
         make_not_null(&get<EnergyDensity>(vars_lower_face)),
@@ -224,7 +224,7 @@ void reconstruct_fd_neighbor_work(
   get<SpecificInternalEnergy>(*vars_on_face) =
       eos.specific_internal_energy_from_density_and_pressure(
           get<MassDensity>(*vars_on_face), get<Pressure>(*vars_on_face));
-  NewtonianMhd::ConservativeFromPrimitive<Dim>::apply(
+  NewtonianMhd::ConservativeFromPrimitive<Dim, false>::apply(
       make_not_null(&get<MassDensityCons>(*vars_on_face)),
       make_not_null(&get<MomentumDensity>(*vars_on_face)),
       make_not_null(&get<EnergyDensity>(*vars_on_face)),

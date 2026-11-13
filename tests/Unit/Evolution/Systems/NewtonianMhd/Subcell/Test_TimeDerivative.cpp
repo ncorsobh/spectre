@@ -309,7 +309,7 @@ std::array<double, 3> test(const size_t num_dg_pts) {
       typename evolution::dg::Tags::MortarData<dim>::type{},
       grid_to_inertial_map->get_clone(), time,
       clone_unique_ptrs(dummy_functions_of_time));
-  db::mutate_apply<ConservativeFromPrimitive<dim>>(make_not_null(&box));
+  db::mutate_apply<ConservativeFromPrimitive<dim, false>>(make_not_null(&box));
 
   NewtonianMhd::subcell::TimeDerivative<dim>::apply(make_not_null(&box));
 

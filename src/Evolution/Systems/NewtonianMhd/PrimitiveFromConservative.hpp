@@ -37,18 +37,37 @@ namespace NewtonianMhd {
  *
  * This routine also returns the mass density as a primitive, and the pressure
  * from a generic equation of state \f$p = p(\rho, \epsilon)\f$.
+ *
+ * When the magnetic field is evolved the magnetic energy is removed from
+ * \f$e\f$ before \f$\epsilon\f$ is formed, and the magnetic and
+ * divergence-cleaning fields are returned as primitives.
  */
-template <size_t Dim>
+template <size_t Dim, bool EvolveMagneticField = true>
 struct PrimitiveFromConservative {
-  using return_tags =
+  static_assert(Dim == 3 or not EvolveMagneticField,
+                "Magnetic field evolution is only supported at Dim == 3 since "
+                "the vector dimensionality is tied to that of the system.");
+
+  using return_tags = tmpl::append<
       tmpl::list<hydro::Tags::RestMassDensity<DataVector>,
                  hydro::Tags::SpatialVelocity<DataVector, Dim>,
                  hydro::Tags::SpecificInternalEnergy<DataVector>,
-                 hydro::Tags::Pressure<DataVector>>;
+                 hydro::Tags::Pressure<DataVector>>,
+      tmpl::conditional_t<
+          EvolveMagneticField,
+          tmpl::list<hydro::Tags::MagneticField<DataVector, 3>,
+                     hydro::Tags::DivergenceCleaningField<DataVector>>,
+          tmpl::list<>>>;
 
-  using argument_tags =
+  using argument_tags = tmpl::append<
       tmpl::list<Tags::MassDensityCons, Tags::MomentumDensity<Dim>,
-                 Tags::EnergyDensity, hydro::Tags::EquationOfState<false, 2>>;
+                 Tags::EnergyDensity>,
+      tmpl::append<
+          tmpl::conditional_t<EvolveMagneticField,
+                              tmpl::list<Tags::MagneticFieldCons<>,
+                                         Tags::DivergenceCleaningFieldCons>,
+                              tmpl::list<>>,
+          tmpl::list<hydro::Tags::EquationOfState<false, 2>>>>;
 
   template <size_t ThermodynamicDim>
   static void apply(
@@ -59,6 +78,22 @@ struct PrimitiveFromConservative {
       const Scalar<DataVector>& mass_density_cons,
       const tnsr::I<DataVector, Dim>& momentum_density,
       const Scalar<DataVector>& energy_density,
+      const EquationsOfState::EquationOfState<false, ThermodynamicDim>&
+          equation_of_state);
+
+  template <size_t ThermodynamicDim>
+  static void apply(
+      gsl::not_null<Scalar<DataVector>*> mass_density,
+      gsl::not_null<tnsr::I<DataVector, Dim>*> velocity,
+      gsl::not_null<Scalar<DataVector>*> specific_internal_energy,
+      gsl::not_null<Scalar<DataVector>*> pressure,
+      gsl::not_null<tnsr::I<DataVector, 3>*> magnetic_field,
+      gsl::not_null<Scalar<DataVector>*> divergence_cleaning_field,
+      const Scalar<DataVector>& mass_density_cons,
+      const tnsr::I<DataVector, Dim>& momentum_density,
+      const Scalar<DataVector>& energy_density,
+      const tnsr::I<DataVector, 3>& magnetic_field_cons,
+      const Scalar<DataVector>& divergence_cleaning_field_cons,
       const EquationsOfState::EquationOfState<false, ThermodynamicDim>&
           equation_of_state);
 };

@@ -266,7 +266,7 @@ double test(const size_t num_dg_pts) {
           evolution::dg::subcell::fd::ReconstructionMethod::DimByDim, false,
           ::fd::DerivativeOrder::Two, 1, 1, 1});
 
-  db::mutate_apply<NewtonianMhd::ConservativeFromPrimitive<Dim>>(
+  db::mutate_apply<NewtonianMhd::ConservativeFromPrimitive<Dim, false>>(
       make_not_null(&box));
 
   std::vector<DirectionalId<Dim>> mortars_to_reconstruct_to{};

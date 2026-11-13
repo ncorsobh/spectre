@@ -34,7 +34,7 @@ void ResizeAndComputePrims<Dim>::apply(
           .number_of_grid_points();
   if (prim_vars->number_of_grid_points() != num_grid_points) {
     prim_vars->initialize(num_grid_points);
-    NewtonianMhd::PrimitiveFromConservative<Dim>::apply(
+    NewtonianMhd::PrimitiveFromConservative<Dim, false>::apply(
         make_not_null(&get<MassDensity>(*prim_vars)),
         make_not_null(&get<Velocity>(*prim_vars)),
         make_not_null(&get<SpecificInternalEnergy>(*prim_vars)),

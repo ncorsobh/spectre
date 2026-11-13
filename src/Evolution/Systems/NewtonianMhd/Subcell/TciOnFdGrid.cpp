@@ -46,7 +46,7 @@ std::tuple<bool, evolution::dg::subcell::RdmpTciData> TciOnFdGrid<Dim>::apply(
       get<MomentumDensity>(dg_vars);
   const Scalar<DataVector>& dg_energy_density = get<EnergyDensity>(dg_vars);
 
-  NewtonianMhd::PrimitiveFromConservative<Dim>::apply(
+  NewtonianMhd::PrimitiveFromConservative<Dim, false>::apply(
       make_not_null(&get<MassDensity>(*subcell_grid_prim_vars)),
       make_not_null(&get<Velocity>(*subcell_grid_prim_vars)),
       make_not_null(&get<SpecificInternalEnergy>(*subcell_grid_prim_vars)),
@@ -55,7 +55,7 @@ std::tuple<bool, evolution::dg::subcell::RdmpTciData> TciOnFdGrid<Dim>::apply(
       eos);
   Variables<tmpl::list<MassDensity, Velocity, SpecificInternalEnergy, Pressure>>
       dg_grid_prim_vars{get(dg_energy_density).size()};
-  NewtonianMhd::PrimitiveFromConservative<Dim>::apply(
+  NewtonianMhd::PrimitiveFromConservative<Dim, false>::apply(
       make_not_null(&get<MassDensity>(dg_grid_prim_vars)),
       make_not_null(&get<Velocity>(dg_grid_prim_vars)),
       make_not_null(&get<SpecificInternalEnergy>(dg_grid_prim_vars)),

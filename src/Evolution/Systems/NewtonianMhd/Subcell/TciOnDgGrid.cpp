@@ -54,7 +54,7 @@ std::tuple<bool, evolution::dg::subcell::RdmpTciData> TciOnDgGrid<Dim>::apply(
       {min(min(get(mass_density)), min(get(subcell_mass_density))),
        min(min(get(energy_density)), min(get(subcell_energy_density)))}};
 
-  NewtonianMhd::PrimitiveFromConservative<Dim>::apply(
+  NewtonianMhd::PrimitiveFromConservative<Dim, false>::apply(
       make_not_null(&get<MassDensity>(*dg_prim_vars)),
       make_not_null(&get<Velocity>(*dg_prim_vars)),
       make_not_null(&get<SpecificInternalEnergy>(*dg_prim_vars)),

@@ -186,7 +186,7 @@ void test_prim_reconstructor_impl(
         eos.specific_internal_energy_from_density_and_pressure(
             get<MassDensity>(expected_face_values),
             get<Pressure>(expected_face_values));
-    ne::ConservativeFromPrimitive<Dim>::apply(
+    ne::ConservativeFromPrimitive<Dim, false>::apply(
         make_not_null(&get<MassDensityCons>(expected_face_values)),
         make_not_null(&get<MomentumDensity>(expected_face_values)),
         make_not_null(&get<EnergyDensity>(expected_face_values)),

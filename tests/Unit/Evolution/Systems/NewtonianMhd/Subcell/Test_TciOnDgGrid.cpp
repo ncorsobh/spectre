@@ -102,7 +102,7 @@ void test(const TestThis test_this) {
       ConsVars{dg_mesh.number_of_grid_points()}, dg_prims, dg_mesh,
       subcell_mesh, std::move(eos), subcell_options,
       evolution::dg::subcell::RdmpTciData{});
-  db::mutate_apply<NewtonianMhd::ConservativeFromPrimitive<Dim>>(
+  db::mutate_apply<NewtonianMhd::ConservativeFromPrimitive<Dim, false>>(
       make_not_null(&box));
 
   // Set the RDMP TCI past data.

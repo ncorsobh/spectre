@@ -85,7 +85,7 @@ std::optional<std::string> Reflection<Dim>::dg_ghost(
 
   *specific_internal_energy = interior_specific_internal_energy;
 
-  ConservativeFromPrimitive<Dim>::apply(
+  ConservativeFromPrimitive<Dim, false>::apply(
       mass_density, momentum_density, energy_density, interior_mass_desity,
       *velocity, interior_specific_internal_energy);
   ComputeFluxes<Dim>::apply(flux_mass_density, flux_momentum_density,
